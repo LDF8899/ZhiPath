@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智途 ZhiPath — Chat 主控台原型 v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=DM+Serif+Display:ital@0;1&family=Patrick+Hand&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   智途 ZhiPath — Hand-Drawn Notebook Design System
+   ═══════════════════════════════════════════ */
+:root {
+  --paper: #fbf6ec;
+  --paper-tint: #f5eedf;
+  --ink: #2b2620;
+  --pencil: #4d473d;
+  --rule: #c8bfa9;
+  --grid: #e3d8b8;
+  --accent: #d8482b;
+  --accent-light: #e86840;
+  --highlight: #f9d27c;
+  --note-yellow: #fff19a;
+  --note-pink: #ffd5c9;
+  --note-green: #c9f5c0;
+  --note-blue: #c9daf5;
+  --data-blue: #3b6e8e;
+  --green: #3a8a3a;
+  --serif: 'DM Serif Display', Georgia, serif;
+  --hand: 'Patrick Hand', 'PingFang SC', cursive;
+  --hand-bold: 'Caveat', 'PingFang SC', cursive;
+  --mono: 'IBM Plex Mono', monospace;
+  --shadow-paper: 4px 5px 0 -1px rgba(43,38,32,0.18);
+  --shadow-hover: 6px 7px 0 -1px rgba(43,38,32,0.22);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--hand);
+  color: var(--ink);
+  line-height: 1.5;
+  font-size: 15px;
+  background:
+    repeating-linear-gradient(0deg, var(--grid) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 24px),
+    radial-gradient(circle, rgba(43,38,32,0.04) 1px, transparent 1.4px) 0 0 / 22px 22px,
+    var(--paper);
+}
+
+/* ── Layout ── */
+.workspace {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ════ Rail ════ */
+.rail {
+  width: 68px; min-width: 68px;
+  background: var(--paper-tint);
+  border-right: 2.5px solid var(--ink);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 14px 0; gap: 6px; z-index: 10;
+}
+.rail-logo {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 50%, var(--highlight) 100%);
+  border: 2.5px solid var(--ink);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-style: italic; font-weight: 800;
+  font-size: 22px; color: white;
+  box-shadow: var(--shadow-paper);
+  transform: rotate(-2deg);
+  margin-bottom: 10px;
+}
+.rail-item {
+  width: 46px; height: 46px;
+  border-radius: 10px;
+  border: 2px dashed transparent;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; cursor: pointer;
+  transition: all .15s; position: relative;
+  transform: rotate(0deg);
+}
+.rail-item:hover {
+  border-color: var(--pencil);
+  background: rgba(43,38,32,.04);
+  transform: rotate(-2deg);
+}
+.rail-item.active {
+  background: var(--highlight);
+  border: 2.5px solid var(--ink);
+  box-shadow: 3px 4px 0 -1px rgba(43,38,32,.18);
+  transform: rotate(-1deg);
+}
+.rail-item .tooltip {
+  position: absolute; left: 58px; top: 50%; transform: translateY(-50%);
+  background: var(--ink); color: var(--paper); font-family: var(--hand);
+  font-size: 13px; padding: 4px 10px; border-radius: 8px; white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 100;
+}
+.rail-item:hover .tooltip { opacity: 1; }
+.rail-sep { width: 30px; height: 2px; border-top: 1.5px dashed var(--rule); margin: 6px 0; }
+.rail-spacer { flex: 1; }
+.rail-badge {
+  width: 46px; padding: 6px 0;
+  border-radius: 10px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  gap: 2px; cursor: default; color: var(--pencil);
+}
+.rail-badge .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.rail-badge .dot.busy { background: var(--accent); }
+.rail-badge .dot.idle { background: var(--green); }
+
+/* ════ TopBar ════ */
+.topbar {
+  height: 54px;
+  background: var(--paper-tint);
+  border-bottom: 2.5px solid var(--ink);
+  display: flex; align-items: center;
+  padding: 0 20px; gap: 14px; flex-shrink: 0;
+}
+.topbar-title {
+  font-family: var(--serif); font-style: italic;
+  font-size: 20px; font-weight: 800;
+  display: flex; align-items: center; gap: 8px;
+  color: var(--ink);
+}
+.topbar-spacer { flex: 1; }
+.match-pill {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--note-green);
+  font-family: var(--mono); font-size: 13px; font-weight: 500;
+  padding: 4px 14px; border-radius: 20px;
+  border: 2px solid var(--ink);
+  box-shadow: 2px 3px 0 -1px rgba(43,38,32,.15);
+  transform: rotate(0.5deg);
+}
+.match-pill .bar {
+  width: 44px; height: 6px;
+  background: rgba(43,38,32,.1);
+  border-radius: 3px; overflow: hidden;
+}
+.match-pill .bar-fill {
+  height: 100%; background: var(--green); border-radius: 3px;
+  transition: width .5s ease;
+}
+.mode-toggle {
+  display: flex;
+  border: 2.5px solid var(--ink);
+  border-radius: 10px; overflow: hidden;
+  box-shadow: 2px 3px 0 -1px rgba(43,38,32,.15);
+}
+.mode-btn {
+  padding: 4px 12px;
+  font-family: var(--hand-bold); font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+  color: var(--pencil); border: none; background: var(--paper);
+}
+.mode-btn:not(:last-child) { border-right: 1.5px solid var(--ink); }
+.mode-btn:hover { color: var(--ink); background: var(--paper-tint); }
+.mode-btn.active {
+  background: var(--highlight); color: var(--ink);
+  box-shadow: inset 0 0 0 1px rgba(43,38,32,.1);
+}
+.user-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--note-pink);
+  border: 2.5px solid var(--ink);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--hand-bold); font-size: 16px; font-weight: 700;
+  cursor: pointer;
+  box-shadow: 2px 3px 0 -1px rgba(43,38,32,.15);
+  transform: rotate(1deg);
+}
+
+/* ════ Body ════ */
+.body { flex: 1; display: flex; overflow: hidden; }
+
+/* ════ Chat Area ════ */
+.chat-area {
+  flex: 1; display: flex; flex-direction: column; min-width: 0;
+}
+.chat-messages {
+  flex: 1; overflow-y: auto;
+  padding: 20px 24px;
+  display: flex; flex-direction: column; gap: 14px;
+  background:
+    repeating-linear-gradient(0deg, var(--grid) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 24px),
+    radial-gradient(circle, rgba(43,38,32,0.03) 1px, transparent 1.4px) 0 0 / 22px 22px,
+    var(--paper);
+}
+.msg {
+  display: flex; gap: 10px; max-width: 82%;
+  animation: msgIn .3s ease;
+}
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(10px) rotate(-0.5deg); }
+  to { opacity: 1; transform: translateY(0) rotate(0deg); }
+}
+.msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.msg-avatar {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 2.5px solid var(--ink);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+  box-shadow: 2px 3px 0 -1px rgba(43,38,32,.15);
+}
+.msg.user .msg-avatar {
+  background: var(--note-pink); font-size: 14px;
+  font-family: var(--hand-bold); font-weight: 700;
+  transform: rotate(2deg);
+}
+.msg.bot .msg-avatar {
+  background: var(--highlight);
+  transform: rotate(-2deg);
+}
+.msg-bubble {
+  padding: 10px 16px;
+  border-radius: 14px;
+  font-family: var(--hand); font-size: 15px; line-height: 1.6;
+  position: relative;
+}
+.msg.user .msg-bubble {
+  background: var(--highlight);
+  border: 2.5px solid var(--ink);
+  border-bottom-right-radius: 4px;
+  box-shadow: var(--shadow-paper);
+  transform: rotate(-0.3deg);
+}
+.msg.bot .msg-bubble {
+  background: var(--paper);
+  border: 2px solid var(--pencil);
+  border-bottom-left-radius: 4px;
+  box-shadow: 3px 4px 0 -1px rgba(43,38,32,.12);
+  transform: rotate(0.3deg);
+}
+
+/* ── Agent Join Toast ── */
+.agent-join {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px;
+  background: var(--note-yellow);
+  border: 2.5px dashed var(--ink);
+  border-radius: 10px;
+  font-family: var(--hand-bold); font-size: 16px; font-weight: 600;
+  color: var(--ink);
+  max-width: 380px;
+  box-shadow: 3px 4px 0 -1px rgba(43,38,32,.15);
+  transform: rotate(-1deg);
+  animation: msgIn .3s ease;
+}
+.agent-join .hint {
+  font-family: var(--hand); font-size: 12px; color: var(--pencil);
+  font-weight: 400; margin-left: 4px;
+}
+
+/* ── Task Card (sticky note style) ── */
+.task-card {
+  background: var(--note-yellow);
+  border: 2.5px solid var(--ink);
+  border-radius: 4px 14px 14px 14px;
+  padding: 16px 16px 14px;
+  max-width: 400px;
+  box-shadow: 5px 6px 0 -2px rgba(43,38,32,.18);
+  transform: rotate(-0.5deg);
+  animation: msgIn .3s ease;
+  position: relative;
+}
+.task-card::before {
+  content: '';
+  position: absolute; top: -6px; left: 16px;
+  width: 36px; height: 12px;
+  background: rgba(43,38,32,.08);
+  border-radius: 2px;
+  transform: rotate(-3deg);
+}
+.task-card.pink { background: var(--note-pink); }
+.task-card.green { background: var(--note-green); }
+.task-card.blue { background: var(--note-blue); }
+.task-card-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px;
+  font-family: var(--hand-bold); font-size: 18px; font-weight: 700;
+}
+.task-card-header .tag {
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  padding: 2px 8px; border-radius: 8px;
+  border: 1.5px dashed var(--pencil);
+  color: var(--pencil);
+}
+.task-steps { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.task-step {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--hand); font-size: 14px;
+}
+.task-step .icon { width: 18px; text-align: center; font-size: 13px; }
+.task-step .icon.done { color: var(--green); }
+.task-step .icon.active { color: var(--accent); }
+.task-step .icon.pending { color: var(--rule); }
+.task-step .text.done { color: var(--pencil); text-decoration: line-through; }
+.task-step .text.active { color: var(--ink); font-weight: 600; }
+.task-step .text.pending { color: var(--rule); }
+.task-progress {
+  width: 100%; height: 8px;
+  background: rgba(43,38,32,.08);
+  border: 1.5px solid var(--pencil);
+  border-radius: 4px; overflow: hidden; margin-bottom: 8px;
+}
+.task-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-light), var(--highlight));
+  border-radius: 2px;
+  transition: width .3s ease;
+}
+.task-meta {
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 11px; color: var(--pencil);
+}
+.task-result {
+  margin-top: 12px; padding: 12px;
+  background: rgba(255,255,255,.6);
+  border: 2px dashed var(--green);
+  border-radius: 8px;
+}
+.task-result .title {
+  font-family: var(--hand-bold); font-size: 16px; font-weight: 700;
+  color: var(--green); margin-bottom: 6px;
+}
+.task-result .items { display: flex; flex-direction: column; gap: 3px; }
+.task-result .item {
+  font-family: var(--hand); font-size: 13px; color: var(--ink);
+  display: flex; align-items: center; gap: 6px;
+}
+.task-result .item::before {
+  content: ''; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--green); flex-shrink: 0;
+}
+.task-result-actions { display: flex; gap: 8px; margin-top: 10px; }
+.btn-sm {
+  padding: 5px 14px;
+  font-family: var(--hand-bold); font-size: 15px; font-weight: 600;
+  border-radius: 8px;
+  border: 2.5px solid var(--ink);
+  background: var(--paper);
+  cursor: pointer; transition: all .15s;
+  color: var(--ink);
+  box-shadow: 2px 3px 0 -1px rgba(43,38,32,.18);
+}
+.btn-sm:hover {
+  box-shadow: 4px 5px 0 -1px rgba(43,38,32,.22);
+  transform: translateY(-1px);
+}
+.btn-sm:active { box-shadow: 1px 1px 0; transform: translateY(1px); }
+.btn-sm.primary {
+  background: var(--accent); color: white;
+}
+.btn-sm.primary:hover { background: var(--accent-light); }
+
+/* ── Typing ── */
+.typing { display: flex; gap: 5px; padding: 4px 0; }
+.typing span {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--pencil);
+  animation: chat-bounce 1.2s infinite;
+}
+.typing span:nth-child(2) { animation-delay: .2s; }
+.typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes chat-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: .4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+
+/* ── Drag hint ── */
+.drag-hint {
+  text-align: center; padding: 10px;
+  font-family: var(--hand-bold); font-size: 15px; font-weight: 600;
+  color: var(--pencil);
+  border: 2.5px dashed var(--pencil);
+  border-radius: 10px; margin: 0 24px 8px;
+  transition: all .2s; display: none;
+  transform: rotate(-0.3deg);
+}
+.drag-hint.visible { display: block; }
+.drag-hint.over {
+  border-color: var(--accent);
+  background: rgba(216,72,43,.06);
+  color: var(--accent);
+}
+
+/* ── Chat Input ── */
+.chat-input-area {
+  padding: 14px 24px;
+  background: var(--paper-tint);
+  border-top: 2.5px solid var(--ink);
+}
+.chat-input-row { display: flex; gap: 10px; align-items: flex-end; }
+.chat-input {
+  flex: 1;
+  padding: 10px 16px;
+  border: 2.5px solid var(--ink);
+  border-radius: 12px;
+  font-family: var(--hand); font-size: 15px;
+  resize: none; outline: none;
+  transition: all .15s;
+  background: var(--paper);
+  min-height: 42px; max-height: 120px; line-height: 1.5;
+  box-shadow: inset 0 1px 3px rgba(43,38,32,.06);
+}
+.chat-input:focus {
+  border-color: var(--accent);
+  box-shadow: inset 0 1px 3px rgba(43,38,32,.06), 0 0 0 2px rgba(216,72,43,.15);
+}
+.chat-input::placeholder { color: var(--rule); font-family: var(--hand); }
+.send-btn {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: var(--accent);
+  border: 2.5px solid var(--ink);
+  color: white; font-size: 20px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all .15s; flex-shrink: 0;
+  box-shadow: 3px 4px 0 -1px rgba(43,38,32,.2);
+  font-family: var(--hand-bold); font-weight: 700;
+  transform: rotate(-2deg);
+}
+.send-btn:hover {
+  background: var(--accent-light);
+  box-shadow: 5px 6px 0 -1px rgba(43,38,32,.25);
+  transform: rotate(-3deg) translateY(-1px);
+}
+.send-btn:active { box-shadow: 1px 1px 0; transform: translateY(1px) rotate(0deg); }
+.send-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+.input-hint {
+  font-family: var(--mono); font-size: 10px; color: var(--rule);
+  margin-top: 4px; text-align: right;
+}
+
+/* ════ Agent Pool (bottom) ════ */
+.agent-pool {
+  padding: 10px 24px;
+  background: var(--paper-tint);
+  border-top: 2px solid var(--ink);
+  display: flex; gap: 8px; overflow-x: auto;
+  flex-shrink: 0; align-items: center;
+}
+.agent-pool-label {
+  font-family: var(--hand-bold); font-size: 14px; font-weight: 600;
+  color: var(--pencil); white-space: nowrap; padding-right: 6px;
+  transform: rotate(-1deg);
+}
+.agent-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  border: 2.5px solid var(--ink);
+  border-radius: 20px;
+  font-family: var(--hand-bold); font-size: 15px; font-weight: 600;
+  cursor: grab; transition: all .15s;
+  white-space: nowrap; background: var(--paper);
+  user-select: none;
+  box-shadow: 2px 3px 0 -1px rgba(43,38,32,.15);
+}
+.agent-chip:hover {
+  box-shadow: 4px 5px 0 -1px rgba(43,38,32,.2);
+  transform: translateY(-2px) rotate(-1deg);
+}
+.agent-chip:active { cursor: grabbing; transform: scale(.95); }
+.agent-chip .emoji { font-size: 18px; }
+.agent-chip.in-chat {
+  border-style: dashed;
+  background: var(--note-yellow);
+  color: var(--pencil);
+  cursor: default; opacity: .6;
+  transform: rotate(0.5deg);
+}
+.agent-chip.in-chat:hover { transform: none; box-shadow: 2px 3px 0 -1px rgba(43,38,32,.15); }
+
+/* ════ Sidebar ════ */
+.sidebar {
+  width: 300px; min-width: 300px;
+  background: var(--paper-tint);
+  border-left: 2.5px solid var(--ink);
+  display: flex; flex-direction: column; overflow-y: auto;
+}
+.sidebar-header {
+  padding: 14px 18px;
+  border-bottom: 2px solid var(--ink);
+  font-family: var(--serif); font-style: italic;
+  font-size: 18px; font-weight: 800;
+  display: flex; align-items: center; gap: 8px;
+  flex-shrink: 0; color: var(--ink);
+}
+.sidebar-header .live {
+  font-family: var(--mono); font-size: 9px; font-weight: 500;
+  padding: 2px 6px; border-radius: 6px;
+  background: var(--note-green);
+  border: 1.5px solid var(--green);
+  color: var(--green);
+  margin-left: auto;
+  transform: rotate(1deg);
+}
+.sidebar-section {
+  padding: 14px 18px;
+  border-bottom: 1.5px dashed var(--rule);
+}
+.sidebar-section:last-child { border-bottom: none; }
+.sidebar-section-title {
+  font-family: var(--hand-bold); font-size: 14px; font-weight: 700;
+  color: var(--pencil); margin-bottom: 8px;
+  transform: rotate(-0.5deg);
+}
+
+/* ── Match Card ── */
+.match-card {
+  background: var(--note-green);
+  border: 2.5px solid var(--ink);
+  border-radius: 4px 12px 12px 12px;
+  padding: 14px; text-align: center;
+  box-shadow: 3px 4px 0 -1px rgba(43,38,32,.15);
+  transform: rotate(0.5deg);
+  position: relative;
+}
+.match-card::before {
+  content: '';
+  position: absolute; top: -5px; left: 14px;
+  width: 30px; height: 10px;
+  background: rgba(43,38,32,.07);
+  border-radius: 2px;
+  transform: rotate(-2deg);
+}
+.match-score-big {
+  font-family: var(--serif); font-style: italic;
+  font-size: 40px; font-weight: 800;
+  color: var(--green); line-height: 1;
+}
+.match-label {
+  font-family: var(--hand); font-size: 13px; color: var(--pencil);
+  margin-top: 4px;
+}
+.match-bar {
+  width: 100%; height: 8px;
+  background: rgba(43,38,32,.08);
+  border: 1.5px solid var(--pencil);
+  border-radius: 4px; overflow: hidden; margin-top: 10px;
+}
+.match-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--green), #5cb85c);
+  border-radius: 2px;
+  transition: width .6s ease;
+}
+
+/* ── Stats Grid ── */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-item {
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 10px; text-align: center;
+  box-shadow: 2px 3px 0 -1px rgba(43,38,32,.12);
+  transform: rotate(var(--tilt, 0deg));
+}
+.stat-item:nth-child(1) { --tilt: -0.8deg; }
+.stat-item:nth-child(2) { --tilt: 0.5deg; }
+.stat-item:nth-child(3) { --tilt: 0.3deg; }
+.stat-item:nth-child(4) { --tilt: -0.5deg; }
+.stat-value {
+  font-family: var(--serif); font-style: italic;
+  font-size: 24px; font-weight: 800;
+  color: var(--ink); line-height: 1;
+}
+.stat-label {
+  font-family: var(--hand); font-size: 11px; color: var(--pencil);
+  margin-top: 2px;
+}
+
+/* ── Path Card ── */
+.path-card {
+  background: var(--paper);
+  border: 2.5px solid var(--ink);
+  border-radius: 4px 14px 14px 14px;
+  padding: 14px;
+  box-shadow: 3px 4px 0 -1px rgba(43,38,32,.15);
+  transform: rotate(-0.3deg);
+  position: relative;
+}
+.path-card::before {
+  content: '';
+  position: absolute; top: -5px; left: 14px;
+  width: 32px; height: 10px;
+  background: rgba(43,38,32,.06);
+  border-radius: 2px;
+  transform: rotate(-2deg);
+}
+.path-title {
+  font-family: var(--hand-bold); font-size: 17px; font-weight: 700;
+  margin-bottom: 8px;
+}
+.path-skills { display: flex; flex-direction: column; gap: 4px; }
+.path-skill {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--hand); font-size: 13px;
+  padding: 5px 8px; border-radius: 6px;
+  transition: background .15s;
+}
+.path-skill:hover { background: rgba(43,38,32,.03); }
+.path-skill .check {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--pencil);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; flex-shrink: 0;
+  transition: all .3s;
+}
+.path-skill.done .check {
+  background: var(--green); border-color: var(--green); color: white;
+}
+.path-skill.active .check {
+  border-color: var(--accent); background: var(--note-yellow);
+  animation: pulse-ring 1.5s infinite;
+}
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(216,72,43,.3); }
+  50% { box-shadow: 0 0 0 4px rgba(216,72,43,0); }
+}
+.path-skill .name { flex: 1; }
+.path-skill .status-tag {
+  font-family: var(--mono); font-size: 9px; font-weight: 500;
+  padding: 1px 6px; border-radius: 6px;
+  border: 1px solid;
+}
+.path-skill.done .status-tag { background: var(--note-green); border-color: var(--green); color: var(--green); }
+.path-skill.active .status-tag { background: var(--note-yellow); border-color: var(--accent); color: var(--accent); }
+
+/* ── Agent List ── */
+.agent-list { display: flex; flex-direction: column; gap: 6px; }
+.agent-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px; border-radius: 8px;
+  transition: background .15s;
+  border: 1.5px dashed transparent;
+}
+.agent-row:hover { background: rgba(43,38,32,.03); border-color: var(--rule); }
+.agent-row .avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 2px solid var(--ink);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  box-shadow: 1px 2px 0 rgba(43,38,32,.1);
+}
+.agent-row .info { flex: 1; }
+.agent-row .name {
+  font-family: var(--hand-bold); font-size: 14px; font-weight: 600;
+}
+.agent-row .role {
+  font-family: var(--hand); font-size: 11px; color: var(--pencil);
+}
+.agent-row .status-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  border: 1.5px solid var(--ink);
+}
+.agent-row .status-dot.working {
+  background: var(--accent);
+  animation: pulse-glow 1s infinite;
+}
+.agent-row .status-dot.idle { background: var(--green); }
+.agent-row .status-dot.joined { background: var(--highlight); }
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 4px 2px rgba(216,72,43,.3); }
+  50% { box-shadow: 0 0 10px 5px rgba(216,72,43,.15); }
+}
+
+/* ── Drop zone ── */
+.chat-messages.drop-target {
+  background:
+    repeating-linear-gradient(0deg, var(--grid) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 24px),
+    radial-gradient(circle, rgba(43,38,32,0.03) 1px, transparent 1.4px) 0 0 / 22px 22px,
+    rgba(216,72,43,.03);
+}
+.chat-messages.drop-target::after {
+  content: '🤖 松手将智能体加入对话！';
+  position: sticky; bottom: 0; display: block;
+  text-align: center; padding: 10px;
+  font-family: var(--hand-bold); font-size: 16px; font-weight: 700;
+  color: var(--accent);
+  background: var(--note-yellow);
+  border: 2.5px dashed var(--accent);
+  border-radius: 10px;
+  margin: 8px 0;
+  transform: rotate(-0.5deg);
+}
+
+/* ── Robot mascot in empty state ── */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 40px 20px; text-align: center;
+  animation: chat-float 3s ease-in-out infinite;
+}
+@keyframes chat-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.empty-state .robot-label {
+  font-family: var(--serif); font-style: italic;
+  font-size: 14px; color: var(--pencil);
+  margin-top: 12px;
+}
+.empty-state .tip {
+  margin-top: 16px;
+  background: var(--note-yellow);
+  border: 2px dashed var(--pencil);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-family: var(--hand); font-size: 13px; color: var(--pencil);
+  transform: rotate(-1deg);
+  box-shadow: 2px 3px 0 -1px rgba(43,38,32,.1);
+  max-width: 320px;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--pencil); }
+</style>
+</head>
+<body>
+
+<div class="workspace">
+  <!-- ════ Rail ════ -->
+  <nav class="rail">
+    <div class="rail-logo">智</div>
+    <div class="rail-item active" data-page="chat">
+      💬<span class="tooltip">对话主控台</span>
+    </div>
+    <div class="rail-item" data-page="learning">
+      📚<span class="tooltip">学习看板</span>
+    </div>
+    <div class="rail-item" data-page="office">
+      🏢<span class="tooltip">智能体办公室</span>
+    </div>
+    <div class="rail-sep"></div>
+    <div class="rail-item" data-page="exam">
+      📝<span class="tooltip">考试中心</span>
+    </div>
+    <div class="rail-item" data-page="jobs">
+      💼<span class="tooltip">岗位匹配</span>
+    </div>
+    <div class="rail-spacer"></div>
+    <div class="rail-badge" id="agentStatus">
+      <div><span class="dot busy"></span> <span id="busyCount">0</span> 忙</div>
+      <div><span class="dot idle"></span> <span id="idleCount">3</span> 闲</div>
+    </div>
+  </nav>
+
+  <!-- ════ Main ════ -->
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-title">💬 对话主控台</div>
+      <div class="topbar-spacer"></div>
+      <div class="mode-toggle">
+        <button class="mode-btn" data-mode="auto">Auto</button>
+        <button class="mode-btn active" data-mode="hybrid">Hybrid</button>
+        <button class="mode-btn" data-mode="manual">Manual</button>
+      </div>
+      <div class="match-pill" id="matchPill">
+        <span>匹配度</span>
+        <span class="bar"><span class="bar-fill" id="matchBarFill" style="width:68%"></span></span>
+        <span id="matchText">68%</span>
+      </div>
+      <div class="user-avatar">陈</div>
+    </header>
+
+    <div class="body">
+      <!-- Chat Area -->
+      <div class="chat-area">
+        <div class="chat-messages" id="chatMessages">
+          <!-- Robot mascot + welcome -->
+          <div class="empty-state" id="emptyState">
+            <svg width="100" height="120" viewBox="0 0 100 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Robot head -->
+              <rect x="20" y="10" width="60" height="45" rx="10" fill="var(--highlight)" stroke="var(--ink)" stroke-width="2.5"/>
+              <!-- Antenna -->
+              <line x1="50" y1="10" x2="50" y2="0" stroke="var(--ink)" stroke-width="2" stroke-dasharray="4 3"/>
+              <circle cx="50" cy="0" r="4" fill="var(--accent)" stroke="var(--ink)" stroke-width="1.5"/>
+              <!-- Eyes -->
+              <circle cx="36" cy="28" r="6" fill="white" stroke="var(--ink)" stroke-width="2"/>
+              <circle cx="36" cy="28" r="3" fill="var(--ink)"/>
+              <circle cx="64" cy="28" r="6" fill="white" stroke="var(--ink)" stroke-width="2"/>
+              <circle cx="64" cy="28" r="3" fill="var(--ink)"/>
+              <!-- Smile -->
+              <path d="M38 40 Q50 50 62 40" stroke="var(--ink)" stroke-width="2" fill="none" stroke-dasharray="4 3"/>
+              <!-- Body -->
+              <rect x="25" y="60" width="50" height="35" rx="8" fill="var(--paper)" stroke="var(--ink)" stroke-width="2.5"/>
+              <line x1="30" y1="72" x2="70" y2="72" stroke="var(--pencil)" stroke-width="1.5" stroke-dasharray="5 4"/>
+              <line x1="30" y1="80" x2="60" y2="80" stroke="var(--pencil)" stroke-width="1.5" stroke-dasharray="5 4"/>
+              <line x1="30" y1="88" x2="50" y2="88" stroke="var(--pencil)" stroke-width="1.5" stroke-dasharray="5 4"/>
+              <!-- Arms -->
+              <path d="M25 68 L12 60" stroke="var(--ink)" stroke-width="2" stroke-dasharray="4 3"/>
+              <circle cx="10" cy="58" r="4" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/>
+              <path d="M75 68 L88 60" stroke="var(--ink)" stroke-width="2" stroke-dasharray="4 3"/>
+              <circle cx="90" cy="58" r="4" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/>
+              <!-- Legs -->
+              <rect x="32" y="95" width="12" height="16" rx="4" fill="var(--paper-tint)" stroke="var(--ink)" stroke-width="2"/>
+              <rect x="56" y="95" width="12" height="16" rx="4" fill="var(--paper-tint)" stroke="var(--ink)" stroke-width="2"/>
+            </svg>
+            <div class="robot-label">智途 AI 助教 · 随时待命</div>
+            <div class="tip">💡 小贴士：拖拽下方的智能体到对话区，或直接打字告诉我你想学什么～</div>
+          </div>
+        </div>
+
+        <div class="drag-hint" id="dragHint">🤖 松手即可将智能体加入对话</div>
+
+        <div class="chat-input-area">
+          <div class="chat-input-row">
+            <textarea class="chat-input" id="chatInput" rows="1" placeholder="输入消息，或 @智能体名 来手动调度..."></textarea>
+            <button class="send-btn" id="sendBtn">↑</button>
+          </div>
+          <div class="input-hint">Enter 发送 · Shift+Enter 换行</div>
+        </div>
+
+        <div class="agent-pool">
+          <div class="agent-pool-label">拖入对话 ↓</div>
+          <div class="agent-chip" draggable="true" data-agent="path" data-emoji="🗺️">
+            <span class="emoji">🗺️</span> 路径规划师
+          </div>
+          <div class="agent-chip" draggable="true" data-agent="video" data-emoji="🎬">
+            <span class="emoji">🎬</span> 视频生成器
+          </div>
+          <div class="agent-chip" draggable="true" data-agent="exam" data-emoji="📝">
+            <span class="emoji">📝</span> 练习出题官
+          </div>
+          <div class="agent-chip" draggable="true" data-agent="resources" data-emoji="📚">
+            <span class="emoji">📚</span> 资源推荐师
+          </div>
+          <div class="agent-chip" draggable="true" data-agent="stats" data-emoji="📊">
+            <span class="emoji">📊</span> 进度分析师
+          </div>
+          <div class="agent-chip" draggable="true" data-agent="gap" data-emoji="🔍">
+            <span class="emoji">🔍</span> 技能诊断师
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ Sidebar ════ -->
+      <aside class="sidebar">
+        <div class="sidebar-header">📚 学习看板 <span class="live">● LIVE</span></div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">🎯 匹配度</div>
+          <div class="match-card">
+            <div class="match-score-big" id="sidebarScore">68</div>
+            <div class="match-label">目标：前端工程师</div>
+            <div class="match-bar"><div class="match-bar-fill" id="sidebarBar" style="width:68%"></div></div>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">📊 今日数据</div>
+          <div class="stat-grid">
+            <div class="stat-item">
+              <div class="stat-value" id="statTasks">0</div>
+              <div class="stat-label">完成任务</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value" id="statAgents">0</div>
+              <div class="stat-label">调度 Agent</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value" id="statMessages">0</div>
+              <div class="stat-label">对话轮次</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-value">🔥 7</div>
+              <div class="stat-label">连续天数</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">📖 当前路径</div>
+          <div class="path-card">
+            <div class="path-title">🎯 前端工程师进阶</div>
+            <div class="path-skills" id="pathSkills">
+              <div class="path-skill done">
+                <div class="check">✓</div>
+                <span class="name">JavaScript 基础</span>
+                <span class="status-tag">已完成</span>
+              </div>
+              <div class="path-skill done">
+                <div class="check">✓</div>
+                <span class="name">CSS 布局</span>
+                <span class="status-tag">已完成</span>
+              </div>
+              <div class="path-skill active">
+                <div class="check"></div>
+                <span class="name">React Hooks</span>
+                <span class="status-tag">学习中</span>
+              </div>
+              <div class="path-skill">
+                <div class="check"></div>
+                <span class="name">TypeScript</span>
+              </div>
+              <div class="path-skill">
+                <div class="check"></div>
+                <span class="name">状态管理</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">🤖 协作中的智能体</div>
+          <div class="agent-list" id="agentList">
+            <div style="font-family:var(--hand);font-size:13px;color:var(--pencil);padding:8px 0">
+              拖拽智能体到对话中开始协作 ✨
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════
+const state = {
+  mode: 'hybrid',
+  matchScore: 68,
+  chatAgents: new Set(),
+  messageCount: 0,
+  taskCount: 0,
+  agentCallCount: 0,
+  tasks: {},
+};
+
+const AGENTS = {
+  path:      { name: '路径规划师', emoji: '🗺️', color: '#3b6e8e', bg: 'var(--note-blue)', noteColor: 'blue' },
+  video:     { name: '视频生成器', emoji: '🎬', color: '#d8482b', bg: 'var(--note-pink)', noteColor: 'pink' },
+  exam:      { name: '练习出题官', emoji: '📝', color: '#e86840', bg: 'var(--note-yellow)', noteColor: 'yellow' },
+  resources: { name: '资源推荐师', emoji: '📚', color: '#3a8a3a', bg: 'var(--note-green)', noteColor: 'green' },
+  stats:     { name: '进度分析师', emoji: '📊', color: '#7c3aed', bg: 'var(--note-yellow)', noteColor: 'yellow' },
+  gap:       { name: '技能诊断师', emoji: '🔍', color: '#0891b2', bg: 'var(--note-blue)', noteColor: 'blue' },
+};
+
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+const sendBtn = document.getElementById('sendBtn');
+
+// ═══════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════
+function scrollToBottom() {
+  requestAnimationFrame(() => { chatMessages.scrollTop = chatMessages.scrollHeight; });
+}
+
+function hideEmptyState() {
+  const el = document.getElementById('emptyState');
+  if (el) el.style.display = 'none';
+}
+
+function addMessage(html, isUser = false) {
+  hideEmptyState();
+  const tilts = [-0.3, 0.3, -0.5, 0.2, -0.2, 0.4];
+  const tilt = tilts[state.messageCount % tilts.length];
+  const div = document.createElement('div');
+  div.className = `msg ${isUser ? 'user' : 'bot'}`;
+  div.innerHTML = `
+    <div class="msg-avatar">${isUser ? '陈' : '🤖'}</div>
+    <div class="msg-bubble" style="transform:rotate(${tilt}deg)">${html}</div>
+  `;
+  chatMessages.appendChild(div);
+  state.messageCount++;
+  updateStats();
+  scrollToBottom();
+  return div;
+}
+
+function addTyping() {
+  const div = document.createElement('div');
+  div.className = 'msg bot';
+  div.id = 'typing';
+  div.innerHTML = `
+    <div class="msg-avatar">🤖</div>
+    <div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div>
+  `;
+  chatMessages.appendChild(div);
+  scrollToBottom();
+}
+
+function removeTyping() {
+  const el = document.getElementById('typing');
+  if (el) el.remove();
+}
+
+function updateStats() {
+  document.getElementById('statTasks').textContent = state.taskCount;
+  document.getElementById('statAgents').textContent = state.agentCallCount;
+  document.getElementById('statMessages').textContent = state.messageCount;
+}
+
+function updateMatchScore(newScore) {
+  state.matchScore = newScore;
+  document.getElementById('matchText').textContent = newScore + '%';
+  document.getElementById('matchBarFill').style.width = newScore + '%';
+  document.getElementById('sidebarScore').textContent = newScore;
+  document.getElementById('sidebarBar').style.width = newScore + '%';
+}
+
+function updateAgentStatus() {
+  const busy = [...state.chatAgents].filter(k => state.tasks[k]?.status === 'running').length;
+  const idle = 3 + state.chatAgents.size - busy;
+  document.getElementById('busyCount').textContent = busy;
+  document.getElementById('idleCount').textContent = Math.max(0, idle);
+}
+
+function updateSidebarAgents() {
+  const list = document.getElementById('agentList');
+  if (state.chatAgents.size === 0) {
+    list.innerHTML = '<div style="font-family:var(--hand);font-size:13px;color:var(--pencil);padding:8px 0">拖拽智能体到对话中开始协作 ✨</div>';
+    return;
+  }
+  const tilts = [-0.5, 0.3, -0.3, 0.5];
+  list.innerHTML = [...state.chatAgents].map((key, i) => {
+    const a = AGENTS[key];
+    const task = state.tasks[key];
+    const status = task?.status === 'running' ? 'working' : 'joined';
+    return `
+      <div class="agent-row" style="transform:rotate(${tilts[i%tilts.length]}deg)">
+        <div class="avatar" style="background:${a.bg}">${a.emoji}</div>
+        <div class="info">
+          <div class="name">${a.name}</div>
+          <div class="role">${task?.status === 'running' ? '⏳ 执行中...' : '✅ 已加入对话'}</div>
+        </div>
+        <div class="status-dot ${status}"></div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// Agent Join
+// ═══════════════════════════════════════════
+function joinAgent(agentKey) {
+  if (state.chatAgents.has(agentKey)) return;
+  state.chatAgents.add(agentKey);
+  state.agentCallCount++;
+  hideEmptyState();
+  const a = AGENTS[agentKey];
+  const div = document.createElement('div');
+  div.className = 'agent-join';
+  div.style.background = a.bg;
+  div.innerHTML = `${a.emoji} <strong>${a.name}</strong> 已加入对话 <span class="hint">（可用 @${a.name} 调度）</span>`;
+  chatMessages.appendChild(div);
+  const chip = document.querySelector(`.agent-chip[data-agent="${agentKey}"]`);
+  if (chip) chip.classList.add('in-chat');
+  updateSidebarAgents();
+  updateAgentStatus();
+  updateStats();
+  scrollToBottom();
+}
+
+// ═══════════════════════════════════════════
+// Task Card
+// ═══════════════════════════════════════════
+function createTaskCard(agentKey, steps, resultFn) {
+  const a = AGENTS[agentKey];
+  state.tasks[agentKey] = { status: 'running', startTime: Date.now() };
+  updateSidebarAgents();
+  updateAgentStatus();
+
+  const card = document.createElement('div');
+  card.className = `task-card ${a.noteColor || ''}`;
+  const tilts = [-0.5, 0.3, -0.8, 0.5, -0.3, 0.2];
+  card.style.transform = `rotate(${tilts[Math.random()*tilts.length|0]}deg)`;
+
+  const stepsHtml = steps.map((s, i) => `
+    <div class="task-step" data-step="${i}">
+      <span class="icon pending">○</span>
+      <span class="text pending">${s}</span>
+    </div>
+  `).join('');
+
+  card.innerHTML = `
+    <div class="task-card-header">
+      ${a.emoji} ${a.name}
+      <span class="tag">自动调度</span>
+    </div>
+    <div class="task-steps">${stepsHtml}</div>
+    <div class="task-progress"><div class="task-progress-fill" style="width:0%"></div></div>
+    <div class="task-meta">
+      <span class="elapsed">⏱ 已用 0s</span>
+      <span class="eta">预计 ~${(steps.length * 1.5)|0}s</span>
+    </div>
+  `;
+  chatMessages.appendChild(card);
+  scrollToBottom();
+
+  let currentStep = 0;
+  const startTime = Date.now();
+  const stepDuration = 1200 + Math.random() * 800;
+
+  function advanceStep() {
+    if (currentStep >= steps.length) {
+      state.tasks[agentKey].status = 'done';
+      state.taskCount++;
+      updateStats(); updateSidebarAgents(); updateAgentStatus();
+
+      const pf = card.querySelector('.task-progress-fill');
+      pf.style.width = '100%';
+      pf.style.background = 'linear-gradient(90deg, var(--green), #5cb85c)';
+
+      card.querySelector('.elapsed').textContent = `✅ 完成 · ${((Date.now()-startTime)/1000)|0}s`;
+      card.querySelector('.eta').textContent = '';
+
+      const resultHtml = resultFn();
+      if (resultHtml) {
+        const rd = document.createElement('div');
+        rd.className = 'task-result';
+        rd.innerHTML = resultHtml;
+        card.appendChild(rd);
+      }
+
+      if (agentKey === 'path' || agentKey === 'gap') {
+        const bonus = Math.floor(Math.random() * 5) + 2;
+        updateMatchScore(Math.min(99, state.matchScore + bonus));
+      }
+      scrollToBottom();
+      return;
+    }
+
+    const stepEl = card.querySelector(`[data-step="${currentStep}"]`);
+    stepEl.querySelector('.icon').className = 'icon active';
+    stepEl.querySelector('.icon').textContent = '⏳';
+    stepEl.querySelector('.text').className = 'text active';
+    card.querySelector('.task-progress-fill').style.width = ((currentStep+1)/steps.length*100|0) + '%';
+
+    setTimeout(() => {
+      stepEl.querySelector('.icon').className = 'icon done';
+      stepEl.querySelector('.icon').textContent = '✅';
+      stepEl.querySelector('.text').className = 'text done';
+      card.querySelector('.elapsed').textContent = `⏱ 已用 ${((Date.now()-startTime)/1000)|0}s`;
+      currentStep++;
+      scrollToBottom();
+      setTimeout(advanceStep, 200);
+    }, stepDuration);
+  }
+
+  setTimeout(advanceStep, 400);
+}
+
+// ═══════════════════════════════════════════
+// Task Templates
+// ═══════════════════════════════════════════
+const TEMPLATES = {
+  path: {
+    steps: ['分析目标岗位要求', '匹配当前技能水平', '生成技能清单', '规划学习顺序', '推荐学习资源'],
+    result: () => `
+      <div class="title">✅ 学习路径已生成！</div>
+      <div class="items">
+        <div class="item">React Hooks 进阶 — 3天</div>
+        <div class="item">TypeScript 实战 — 5天</div>
+        <div class="item">状态管理（Zustand）— 2天</div>
+      </div>
+      <div class="task-result-actions">
+        <button class="btn-sm primary" onclick="this.textContent='已加入看板 ✓';this.disabled=true">查看完整路径</button>
+        <button class="btn-sm" onclick="triggerAgent('video','给 React Hooks 做个讲解视频')">📺 生成教学视频</button>
+      </div>
+    `,
+  },
+  video: {
+    steps: ['分析知识点结构', '生成讲解脚本', '录制语音旁白', '合成动画片段', '渲染最终视频'],
+    result: () => `
+      <div class="title">🎬 视频已生成！</div>
+      <div class="items">
+        <div class="item">React Hooks 详解 — 12:34</div>
+        <div class="item">包含 useState / useEffect / 自定义 Hook</div>
+      </div>
+      <div class="task-result-actions">
+        <button class="btn-sm primary" onclick="this.textContent='播放中 ▶';this.disabled=true">▶ 播放视频</button>
+        <button class="btn-sm">📥 下载</button>
+      </div>
+    `,
+  },
+  exam: {
+    steps: ['分析知识点范围', '生成题目', '编写解析', '设置难度梯度'],
+    result: () => `
+      <div class="title">📝 练习题已生成！</div>
+      <div class="items">
+        <div class="item">单选题 × 5 — React Hooks 基础</div>
+        <div class="item">多选题 × 3 — useEffect 副作用</div>
+        <div class="item">编程题 × 2 — 自定义 Hook</div>
+      </div>
+      <div class="task-result-actions">
+        <button class="btn-sm primary" onclick="this.textContent='开始答题...';this.disabled=true">开始答题</button>
+      </div>
+    `,
+  },
+  resources: {
+    steps: ['扫描知识库', '匹配学习风格', '筛选高质量资源', '排序推荐结果'],
+    result: () => `
+      <div class="title">📚 为你推荐 4 个资源</div>
+      <div class="items">
+        <div class="item">📘 React 官方文档 — Hooks 章节</div>
+        <div class="item">🎥 Jack Herrington — useHooks 系列</div>
+        <div class="item">💻 freeCodeCamp — React 项目实战</div>
+        <div class="item">📄 Dan Abramov — useEffect 完全指南</div>
+      </div>
+      <div class="task-result-actions">
+        <button class="btn-sm primary">全部加入收藏</button>
+      </div>
+    `,
+  },
+  stats: {
+    steps: ['采集学习数据', '计算进度指标', '生成趋势分析'],
+    result: () => `
+      <div class="title">📊 本周学习报告</div>
+      <div class="items">
+        <div class="item">学习时长：14.5h（↑ 23%）</div>
+        <div class="item">完成技能：3个</div>
+        <div class="item">匹配度变化：52% → 68%（↑ 16%）</div>
+        <div class="item">预计达标时间：约 18 天</div>
+      </div>
+    `,
+  },
+  gap: {
+    steps: ['获取目标岗位 JD', '提取核心技能要求', '对比当前技能树', '生成差距报告'],
+    result: () => `
+      <div class="title">🔍 技能差距分析</div>
+      <div class="items">
+        <div class="item">✅ 已掌握：JavaScript / CSS / HTML / Git</div>
+        <div class="item">⏳ 学习中：React / TypeScript</div>
+        <div class="item">❌ 待学习：Node.js / 测试 / CI/CD</div>
+      </div>
+      <div class="task-result-actions">
+        <button class="btn-sm primary" onclick="triggerAgent('path','帮我补全技能差距')">🗺️ 生成补全路径</button>
+      </div>
+    `,
+  },
+};
+
+// ═══════════════════════════════════════════
+// Trigger Agent
+// ═══════════════════════════════════════════
+function triggerAgent(agentKey, userText) {
+  joinAgent(agentKey);
+  const a = AGENTS[agentKey];
+  const tpl = TEMPLATES[agentKey];
+  removeTyping();
+  addMessage(`${a.emoji} 收到！${a.name} 正在处理...`);
+  createTaskCard(agentKey, tpl.steps, tpl.result);
+}
+
+// ═══════════════════════════════════════════
+// Intent Detection
+// ═══════════════════════════════════════════
+function detectIntent(text) {
+  if (/学习路径|学.*路线|怎么学|规划|计划/.test(text)) return 'path';
+  if (/视频|讲解|录制/.test(text)) return 'video';
+  if (/练习|题目|测试|考试/.test(text)) return 'exam';
+  if (/资源|推荐|教程|资料/.test(text)) return 'resources';
+  if (/进度|统计|报告|分析/.test(text)) return 'stats';
+  if (/差距|缺口|还差|补全/.test(text)) return 'gap';
+  return null;
+}
+
+// ═══════════════════════════════════════════
+// Send Message
+// ═══════════════════════════════════════════
+function handleSend() {
+  const text = chatInput.value.trim();
+  if (!text) return;
+  chatInput.value = '';
+  chatInput.style.height = 'auto';
+  addMessage(text, true);
+
+  const mentionMatch = text.match(/@(\S+)/);
+  if (mentionMatch) {
+    const kw = mentionMatch[1];
+    const agentKey = Object.keys(AGENTS).find(k => AGENTS[k].name.includes(kw) || k === kw);
+    if (agentKey) { setTimeout(() => triggerAgent(agentKey, text), 300); return; }
+  }
+
+  const intent = detectIntent(text);
+  if (intent && state.mode !== 'manual') {
+    const delay = state.mode === 'auto' ? 500 : 800;
+    addTyping();
+    setTimeout(() => triggerAgent(intent, text), delay);
+    return;
+  }
+
+  addTyping();
+  setTimeout(() => {
+    removeTyping();
+    if (state.mode === 'manual') {
+      addMessage('收到！在 Manual 模式下，需要用 <strong>@智能体名</strong> 来调度。试试 <strong>@路径规划师</strong> 或 <strong>@视频生成器</strong>～');
+    } else {
+      addMessage('收到！你可以试试这些：<br>• 「帮我生成学习路径」<br>• 「给我推荐学习资源」<br>• 「分析一下我的技能差距」<br><br>或者从底部<strong>拖拽智能体</strong>进来直接调度 ✨');
+    }
+  }, 600);
+}
+
+// ═══════════════════════════════════════════
+// Events
+// ═══════════════════════════════════════════
+sendBtn.addEventListener('click', handleSend);
+chatInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+});
+chatInput.addEventListener('input', () => {
+  chatInput.style.height = 'auto';
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+});
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelector('.mode-btn.active').classList.remove('active');
+    btn.classList.add('active');
+    state.mode = btn.dataset.mode;
+  });
+});
+
+document.querySelectorAll('.rail-item[data-page]').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelector('.rail-item.active')?.classList.remove('active');
+    item.classList.add('active');
+  });
+});
+
+// Drag & Drop
+let draggedAgent = null;
+document.querySelectorAll('.agent-chip').forEach(chip => {
+  chip.addEventListener('dragstart', e => {
+    if (chip.classList.contains('in-chat')) { e.preventDefault(); return; }
+    draggedAgent = chip.dataset.agent;
+    e.dataTransfer.effectAllowed = 'copy';
+    chip.style.opacity = '.5';
+    document.getElementById('dragHint').classList.add('visible');
+  });
+  chip.addEventListener('dragend', () => {
+    chip.style.opacity = '1';
+    document.getElementById('dragHint').classList.remove('visible');
+    chatMessages.classList.remove('drop-target');
+    draggedAgent = null;
+  });
+});
+chatMessages.addEventListener('dragover', e => {
+  if (!draggedAgent) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  chatMessages.classList.add('drop-target');
+});
+chatMessages.addEventListener('dragleave', e => {
+  if (e.relatedTarget && chatMessages.contains(e.relatedTarget)) return;
+  chatMessages.classList.remove('drop-target');
+});
+chatMessages.addEventListener('drop', e => {
+  e.preventDefault();
+  chatMessages.classList.remove('drop-target');
+  document.getElementById('dragHint').classList.remove('visible');
+  if (draggedAgent) { triggerAgent(draggedAgent, ''); draggedAgent = null; }
+});
+
+scrollToBottom();
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+cd /mnt/d/X/ZhiPath
+重启前后端：
+# 后端
+cd D:\X\ZhiPath\backend-ts && npm run start:dev
+# 前端
+cd D:\X\ZhiPath\frontend && npm run dev

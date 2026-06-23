@@ -1,0 +1,1434 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>智途 ZhiPath — 首页</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Patrick+Hand&family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #fbf6ec;
+      --paper-tint: #f5eedf;
+      --ink: #2b2620;
+      --pencil: #4d473d;
+      --rule: #c8bfa9;
+      --grid: #e3d8b8;
+      --accent: #d8482b;
+      --highlight: #f9d27c;
+      --note-yellow: #fff19a;
+      --note-pink: #ffd5c9;
+      --note-green: #c9f5c0;
+      --serif: 'DM Serif Display', 'Iowan Old Style', Georgia, serif;
+      --hand: 'Patrick Hand', 'Caveat', cursive;
+      --hand-bold: 'Caveat', 'Patrick Hand', cursive;
+      --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      color: var(--ink);
+      background:
+        radial-gradient(circle, rgba(43,38,32,0.04) 1px, transparent 1.4px) 0 0 / 22px 22px,
+        var(--paper);
+      font: 16px/1.5 var(--hand);
+      min-height: 100vh;
+    }
+
+    /* 导航栏 */
+    .nav-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 48px;
+      background: rgba(251,246,236,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 2px solid var(--ink);
+    }
+    .nav-brand {
+      font: 800 32px/1 var(--serif);
+      font-style: italic;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .nav-brand .logo-mark {
+      width: 36px;
+      height: 36px;
+      border: 2.5px solid var(--ink);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 700 18px/1 var(--hand-bold);
+      transform: rotate(-3deg);
+    }
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      font: 17px/1 var(--hand);
+      color: var(--pencil);
+      text-decoration: none;
+      position: relative;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover {
+      color: var(--ink);
+    }
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent);
+      transform: scaleX(0);
+      transition: transform 0.2s;
+    }
+    .nav-links a:hover::after {
+      transform: scaleX(1);
+    }
+    .nav-cta {
+      font: 15px/1 var(--hand);
+      padding: 10px 20px;
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      background: var(--highlight);
+      color: var(--ink);
+      cursor: pointer;
+      text-decoration: none;
+      transform: rotate(-1deg);
+      transition: all 0.2s;
+    }
+    .nav-cta:hover {
+      transform: rotate(0deg) scale(1.05);
+      box-shadow: 3px 4px 0 var(--ink);
+    }
+
+    /* 主容器 */
+    .landing {
+      padding-top: 80px;
+    }
+    .section {
+      padding: 80px 48px;
+      max-width: 1400px;
+      margin: 0 auto;
+      position: relative;
+    }
+    .section-divider {
+      width: 100%;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 48px;
+    }
+    .section-divider .line {
+      height: 2px;
+      background: repeating-linear-gradient(90deg, var(--ink) 0 8px, transparent 8px 16px);
+    }
+
+    /* Hero 区域 */
+    .hero {
+      padding: 120px 48px 100px;
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 60px;
+      align-items: center;
+      min-height: 90vh;
+    }
+    .hero-content {
+      position: relative;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font: 13px/1 var(--mono);
+      padding: 8px 14px;
+      border: 1.5px dashed var(--accent);
+      color: var(--accent);
+      transform: rotate(-1.5deg);
+      letter-spacing: 0.16em;
+      margin-bottom: 24px;
+    }
+    .hero-badge .pulse {
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .hero h1 {
+      font: 800 clamp(48px, 6vw, 72px)/1.1 var(--serif);
+      margin-bottom: 24px;
+      letter-spacing: -0.02em;
+    }
+    .hero h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+    .hero-desc {
+      font: 20px/1.6 var(--hand);
+      color: var(--pencil);
+      max-width: 50ch;
+      margin-bottom: 40px;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      font: 18px/1 var(--hand-bold);
+      padding: 16px 32px;
+      border: 2.5px solid var(--ink);
+      border-radius: 10px;
+      background: var(--accent);
+      color: var(--paper);
+      cursor: pointer;
+      transform: rotate(-0.8deg);
+      transition: all 0.2s;
+    }
+    .btn-primary:hover {
+      transform: rotate(0deg) scale(1.05);
+      box-shadow: 4px 5px 0 var(--ink);
+    }
+    .btn-secondary {
+      font: 18px/1 var(--hand-bold);
+      padding: 16px 32px;
+      border: 2.5px solid var(--ink);
+      border-radius: 10px;
+      background: var(--paper);
+      color: var(--ink);
+      cursor: pointer;
+      transform: rotate(0.5deg);
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover {
+      transform: rotate(0deg) scale(1.05);
+      box-shadow: 4px 5px 0 var(--ink);
+    }
+
+    /* Hero 图形区域 */
+    .hero-visual {
+      position: relative;
+    }
+    .hero-sketch {
+      position: relative;
+      background:
+        repeating-linear-gradient(0deg, var(--grid) 0 1px, transparent 1px 24px),
+        repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 24px),
+        var(--paper-tint);
+      border: 3px solid var(--ink);
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 8px 10px 0 -4px rgba(43,38,32,0.2);
+    }
+    .sketch-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .sketch-dots {
+      display: flex;
+      gap: 8px;
+    }
+    .sketch-dots span {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1.5px solid var(--pencil);
+    }
+    .sketch-url {
+      flex: 1;
+      font: 14px/1 var(--hand);
+      color: var(--pencil);
+      padding: 8px 14px;
+      border: 1.5px solid var(--pencil);
+      border-radius: 6px;
+    }
+    .sketch-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .sketch-card {
+      border: 2px solid var(--pencil);
+      border-radius: 10px;
+      padding: 16px;
+      background: var(--paper);
+    }
+    .sketch-card h3 {
+      font: 700 14px/1 var(--mono);
+      letter-spacing: 0.12em;
+      color: var(--pencil);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+    .sketch-lines span {
+      display: block;
+      height: 10px;
+      background: var(--pencil);
+      opacity: 0.15;
+      border-radius: 5px;
+      margin-bottom: 8px;
+    }
+    .sketch-lines span:nth-child(1) { width: 100%; }
+    .sketch-lines span:nth-child(2) { width: 75%; }
+    .sketch-lines span:nth-child(3) { width: 90%; }
+    .sketch-chart {
+      height: 120px;
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      padding-top: 16px;
+    }
+    .sketch-bar {
+      flex: 1;
+      background: var(--pencil);
+      opacity: 0.18;
+      border-radius: 4px 4px 0 0;
+    }
+    .sketch-bar.accent {
+      background: var(--accent);
+      opacity: 0.6;
+    }
+    .hero-note {
+      position: absolute;
+      padding: 12px 14px;
+      font: 15px/1.3 var(--hand);
+      box-shadow: 4px 6px 0 -2px rgba(43,38,32,0.18);
+      max-width: 200px;
+    }
+    .hero-note.n1 {
+      top: -20px;
+      right: -30px;
+      background: var(--note-yellow);
+      transform: rotate(3deg);
+    }
+    .hero-note.n2 {
+      bottom: 40px;
+      left: -40px;
+      background: var(--note-green);
+      transform: rotate(-2.5deg);
+    }
+    .hero-note .tape {
+      position: absolute;
+      top: -10px;
+      left: 25%;
+      width: 60px;
+      height: 16px;
+      background: rgba(43,38,32,0.15);
+      transform: rotate(-5deg);
+    }
+
+    /* 统计数据区域 */
+    .stats {
+      padding: 60px 48px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+    .stat-card {
+      border: 2.5px solid var(--ink);
+      border-radius: 12px;
+      padding: 24px;
+      background: var(--paper);
+      text-align: center;
+      transform: rotate(-0.5deg);
+      transition: transform 0.2s;
+    }
+    .stat-card:nth-child(2) { transform: rotate(0.3deg); }
+    .stat-card:nth-child(3) { transform: rotate(-0.2deg); }
+    .stat-card:nth-child(4) { transform: rotate(0.6deg); }
+    .stat-card:hover {
+      transform: rotate(0deg) scale(1.05);
+    }
+    .stat-value {
+      font: 800 56px/1 var(--serif);
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .stat-label {
+      font: 16px/1.2 var(--hand);
+      color: var(--pencil);
+    }
+    .stat-sub {
+      font: 12px/1 var(--mono);
+      color: var(--pencil);
+      margin-top: 8px;
+      letter-spacing: 0.1em;
+    }
+
+    /* 功能特点 */
+    .features {
+      padding: 100px 48px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .section-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+    .section-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font: 13px/1 var(--mono);
+      padding: 8px 14px;
+      border: 1.5px dashed var(--pencil);
+      color: var(--pencil);
+      letter-spacing: 0.16em;
+      margin-bottom: 16px;
+      transform: rotate(-1deg);
+    }
+    .section-title {
+      font: 800 clamp(36px, 4vw, 48px)/1.2 var(--serif);
+      margin-bottom: 16px;
+    }
+    .section-desc {
+      font: 18px/1.6 var(--hand);
+      color: var(--pencil);
+      max-width: 60ch;
+      margin: 0 auto;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+    }
+    .feature-card {
+      position: relative;
+      border: 2.5px solid var(--ink);
+      border-radius: 14px;
+      padding: 32px 28px;
+      background: var(--paper);
+      transition: all 0.2s;
+    }
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 6px 8px 0 -2px rgba(43,38,32,0.15);
+    }
+    .feature-icon {
+      width: 56px;
+      height: 56px;
+      border: 2.5px solid var(--ink);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 28px/1 var(--hand-bold);
+      margin-bottom: 20px;
+      transform: rotate(-3deg);
+    }
+    .feature-icon.orange { background: var(--highlight); }
+    .feature-icon.green { background: var(--note-green); }
+    .feature-icon.pink { background: var(--note-pink); }
+    .feature-icon.yellow { background: var(--note-yellow); }
+    .feature-icon.blue { background: #c9daf5; }
+    .feature-icon.purple { background: #e5d5f5; }
+    .feature-title {
+      font: 800 22px/1.2 var(--serif);
+      margin-bottom: 12px;
+    }
+    .feature-desc {
+      font: 15px/1.5 var(--hand);
+      color: var(--pencil);
+    }
+    .feature-note {
+      position: absolute;
+      top: -12px;
+      right: 16px;
+      font: 11px/1 var(--mono);
+      padding: 4px 8px;
+      background: var(--accent);
+      color: var(--paper);
+      transform: rotate(2deg);
+      letter-spacing: 0.08em;
+    }
+
+    /* 学习路径展示 */
+    .pathways {
+      padding: 100px 48px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .pathway-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+    .pathway-card {
+      border: 2.5px solid var(--ink);
+      border-radius: 14px;
+      overflow: hidden;
+      background: var(--paper);
+      transition: all 0.2s;
+    }
+    .pathway-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 6px 8px 0 -2px rgba(43,38,32,0.15);
+    }
+    .pathway-header {
+      padding: 24px 28px;
+      border-bottom: 2px solid var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .pathway-icon {
+      width: 48px;
+      height: 48px;
+      border: 2px solid var(--ink);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 24px/1 var(--hand-bold);
+    }
+    .pathway-title {
+      font: 800 20px/1.2 var(--serif);
+    }
+    .pathway-sub {
+      font: 13px/1 var(--mono);
+      color: var(--pencil);
+      letter-spacing: 0.1em;
+    }
+    .pathway-body {
+      padding: 28px;
+    }
+    .pathway-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .pathway-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .step-num {
+      width: 32px;
+      height: 32px;
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 700 14px/1 var(--mono);
+      flex-shrink: 0;
+      background: var(--highlight);
+    }
+    .step-content {
+      flex: 1;
+    }
+    .step-title {
+      font: 700 16px/1.3 var(--hand-bold);
+      margin-bottom: 4px;
+    }
+    .step-desc {
+      font: 14px/1.4 var(--hand);
+      color: var(--pencil);
+    }
+    .pathway-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1.5px dashed var(--pencil);
+    }
+    .pathway-tag {
+      font: 12px/1 var(--mono);
+      padding: 6px 10px;
+      border: 1.5px solid var(--pencil);
+      border-radius: 6px;
+      color: var(--pencil);
+    }
+    .pathway-tag.hot {
+      background: var(--highlight);
+      border-color: var(--ink);
+      color: var(--ink);
+    }
+
+    /* 用户评价 */
+    .testimonials {
+      padding: 100px 48px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .testimonials-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .testimonial-card {
+      border: 2px solid var(--pencil);
+      border-radius: 12px;
+      padding: 28px;
+      background: var(--paper);
+      position: relative;
+    }
+    .testimonial-quote {
+      font: 16px/1.6 var(--hand);
+      color: var(--ink);
+      margin-bottom: 20px;
+      position: relative;
+      padding-left: 20px;
+    }
+    .testimonial-quote::before {
+      content: '"';
+      position: absolute;
+      left: -8px;
+      top: -8px;
+      font: 800 48px/1 var(--serif);
+      color: var(--accent);
+      opacity: 0.3;
+    }
+    .testimonial-author {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .testimonial-avatar {
+      width: 40px;
+      height: 40px;
+      border: 2px solid var(--ink);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 700 16px/1 var(--hand-bold);
+      background: var(--highlight);
+    }
+    .testimonial-name {
+      font: 700 15px/1.2 var(--hand-bold);
+    }
+    .testimonial-role {
+      font: 12px/1 var(--mono);
+      color: var(--pencil);
+      letter-spacing: 0.08em;
+    }
+    .testimonial-note {
+      position: absolute;
+      top: -14px;
+      right: 20px;
+      font: 11px/1 var(--mono);
+      padding: 4px 10px;
+      border: 1.5px dashed var(--accent);
+      color: var(--accent);
+      background: var(--paper);
+      transform: rotate(2deg);
+    }
+
+    /* 登录注册区域 */
+    .auth-section {
+      padding: 100px 48px 120px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .auth-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: start;
+    }
+    .auth-left {
+      position: relative;
+    }
+    .auth-title {
+      font: 800 clamp(36px, 4vw, 48px)/1.2 var(--serif);
+      margin-bottom: 20px;
+    }
+    .auth-desc {
+      font: 18px/1.6 var(--hand);
+      color: var(--pencil);
+      max-width: 45ch;
+      margin-bottom: 32px;
+    }
+    .auth-benefits {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .benefit-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font: 16px/1.4 var(--hand);
+    }
+    .benefit-check {
+      width: 28px;
+      height: 28px;
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: 16px/1 var(--hand-bold);
+      background: var(--note-green);
+      flex-shrink: 0;
+    }
+    .auth-note {
+      position: absolute;
+      bottom: -20px;
+      left: 40px;
+      padding: 12px 14px;
+      font: 14px/1.3 var(--hand);
+      background: var(--note-yellow);
+      box-shadow: 4px 6px 0 -2px rgba(43,38,32,0.18);
+      transform: rotate(-2deg);
+      max-width: 240px;
+    }
+    .auth-note .tape {
+      position: absolute;
+      top: -10px;
+      left: 30%;
+      width: 60px;
+      height: 16px;
+      background: rgba(43,38,32,0.15);
+      transform: rotate(-4deg);
+    }
+
+    /* 表单卡片 */
+    .auth-card {
+      border: 3px solid var(--ink);
+      border-radius: 16px;
+      padding: 40px;
+      background: var(--paper);
+      box-shadow: 8px 10px 0 -4px rgba(43,38,32,0.2);
+      position: relative;
+    }
+    .auth-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 32px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--ink);
+    }
+    .auth-tab {
+      font: 18px/1 var(--hand-bold);
+      padding: 12px 20px;
+      border: 2px solid var(--pencil);
+      border-radius: 8px;
+      background: var(--paper);
+      color: var(--pencil);
+      cursor: pointer;
+      position: relative;
+      transition: all 0.2s;
+    }
+    .auth-tab.active {
+      background: var(--highlight);
+      border-color: var(--ink);
+      color: var(--ink);
+      transform: rotate(-1deg);
+    }
+    .auth-tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: -18px;
+      left: 20%;
+      right: 20%;
+      height: 3px;
+      background: var(--ink);
+    }
+    .form-group {
+      margin-bottom: 24px;
+    }
+    .form-label {
+      display: block;
+      font: 15px/1 var(--hand-bold);
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+    .form-input {
+      width: 100%;
+      padding: 14px 16px;
+      font: 16px/1 var(--hand);
+      border: 2px solid var(--pencil);
+      border-radius: 8px;
+      background: var(--paper-tint);
+      color: var(--ink);
+      transition: all 0.2s;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(216,72,43,0.15);
+    }
+    .form-input::placeholder {
+      color: var(--pencil);
+      opacity: 0.6;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .form-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font: 14px/1.4 var(--hand);
+      color: var(--pencil);
+    }
+    .form-checkbox input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--pencil);
+      border-radius: 4px;
+      accent-color: var(--accent);
+    }
+    .form-link {
+      color: var(--accent);
+      text-decoration: underline;
+      text-decoration-style: wavy;
+      text-underline-offset: 3px;
+    }
+    .btn-submit {
+      width: 100%;
+      font: 18px/1 var(--hand-bold);
+      padding: 16px 32px;
+      border: 2.5px solid var(--ink);
+      border-radius: 10px;
+      background: var(--accent);
+      color: var(--paper);
+      cursor: pointer;
+      transform: rotate(-0.5deg);
+      transition: all 0.2s;
+      margin-top: 8px;
+    }
+    .btn-submit:hover {
+      transform: rotate(0deg) scale(1.02);
+      box-shadow: 4px 5px 0 var(--ink);
+    }
+    .form-divider {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 24px 0;
+      font: 13px/1 var(--mono);
+      color: var(--pencil);
+      letter-spacing: 0.1em;
+    }
+    .form-divider::before,
+    .form-divider::after {
+      content: '';
+      flex: 1;
+      height: 1.5px;
+      background: repeating-linear-gradient(90deg, var(--pencil) 0 4px, transparent 4px 8px);
+    }
+    .social-login {
+      display: flex;
+      gap: 12px;
+    }
+    .social-btn {
+      flex: 1;
+      font: 14px/1 var(--hand);
+      padding: 12px;
+      border: 2px solid var(--pencil);
+      border-radius: 8px;
+      background: var(--paper);
+      color: var(--ink);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .social-btn:hover {
+      border-color: var(--ink);
+      background: var(--paper-tint);
+    }
+    .social-icon {
+      font-size: 18px;
+    }
+    .form-footer {
+      text-align: center;
+      margin-top: 24px;
+      font: 14px/1.4 var(--hand);
+      color: var(--pencil);
+    }
+
+    /* 页脚 */
+    .footer {
+      padding: 48px;
+      border-top: 2px solid var(--ink);
+      background: var(--paper-tint);
+    }
+    .footer-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .footer-brand {
+      font: 800 24px/1 var(--serif);
+      font-style: italic;
+    }
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+    .footer-links a {
+      font: 14px/1 var(--hand);
+      color: var(--pencil);
+      text-decoration: none;
+    }
+    .footer-links a:hover {
+      color: var(--ink);
+    }
+    .footer-copy {
+      font: 12px/1 var(--mono);
+      color: var(--pencil);
+      letter-spacing: 0.1em;
+    }
+
+    /* 响应式 */
+    @media (max-width: 1100px) {
+      .hero { grid-template-columns: 1fr; gap: 40px; }
+      .hero-visual { max-width: 500px; }
+      .features-grid { grid-template-columns: 1fr 1fr; }
+      .pathway-cards { grid-template-columns: 1fr; }
+      .auth-container { grid-template-columns: 1fr; }
+      .auth-left { max-width: 500px; }
+    }
+    @media (max-width: 768px) {
+      .section { padding: 60px 24px; }
+      .hero { padding: 100px 24px 80px; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .features-grid { grid-template-columns: 1fr; }
+      .testimonials-grid { grid-template-columns: 1fr; }
+      .nav-bar { padding: 12px 24px; }
+      .nav-links { display: none; }
+      .auth-card { padding: 28px; }
+      .form-row { grid-template-columns: 1fr; }
+      .social-login { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 导航栏 -->
+  <nav class="nav-bar" data-od-id="nav">
+    <div class="nav-brand">
+      <span class="logo-mark">智</span>
+      <span>智途</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#features">核心功能</a></li>
+      <li><a href="#pathways">学习路径</a></li>
+      <li><a href="#testimonials">用户评价</a></li>
+      <li><a href="#auth">登录 / 注册</a></li>
+    </ul>
+    <a href="#auth" class="nav-cta">开始学习</a>
+  </nav>
+
+  <div class="landing">
+    <!-- Hero 区域 -->
+    <section class="hero" data-od-id="hero">
+      <div class="hero-content">
+        <div class="hero-badge">
+          <span class="pulse"></span>
+          STUDENT CAREER PLATFORM
+        </div>
+        <h1>找到你的<em>职业方向</em>，<br>智途陪你走每一步</h1>
+        <p class="hero-desc">基于 AI 的学生职业匹配与学习路径规划平台。从技能评估到岗位推荐，从学习计划到智能辅导——一站式解决你的职业焦虑。</p>
+        <div class="hero-actions">
+          <button class="btn-primary" onclick="document.getElementById('auth').scrollIntoView({behavior:'smooth'})">免费注册</button>
+          <button class="btn-secondary" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">了解更多</button>
+        </div>
+        <div class="hero-note n1">
+          <div class="tape"></div>
+          已帮助 12,000+ 学生找到理想工作
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="hero-sketch">
+          <div class="sketch-header">
+            <div class="sketch-dots">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <div class="sketch-url">zhipath.com / dashboard</div>
+          </div>
+          <div class="sketch-content">
+            <div class="sketch-card">
+              <h3>学习进度</h3>
+              <div class="sketch-lines">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+            <div class="sketch-card">
+              <h3>技能匹配</h3>
+              <div class="sketch-chart">
+                <div class="sketch-bar" style="height:60%"></div>
+                <div class="sketch-bar accent" style="height:85%"></div>
+                <div class="sketch-bar" style="height:45%"></div>
+                <div class="sketch-bar accent" style="height:70%"></div>
+                <div class="sketch-bar" style="height:55%"></div>
+              </div>
+            </div>
+            <div class="sketch-card">
+              <h3>岗位推荐</h3>
+              <div class="sketch-lines">
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+            <div class="sketch-card">
+              <h3>今日任务</h3>
+              <div class="sketch-lines">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="hero-note n2">
+          <div class="tape"></div>
+          智能推荐准确率 92%
+        </div>
+      </div>
+    </section>
+
+    <!-- 数据统计 -->
+    <section class="stats" data-od-id="stats">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">12K+</div>
+          <div class="stat-label">注册学生</div>
+          <div class="stat-sub">ACROSS 200+ UNIVERSITIES</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">89%</div>
+          <div class="stat-label">匹配成功率</div>
+          <div class="stat-sub">WITHIN 30 DAYS</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">500+</div>
+          <div class="stat-label">合作企业</div>
+          <div class="stat-sub">FORTUNE 500 INCLUDED</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">2.5x</div>
+          <div class="stat-label">面试通过率提升</div>
+          <div class="stat-sub">VS TRADITIONAL APPROACH</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"><div class="line"></div></div>
+
+    <!-- 核心功能 -->
+    <section class="features" id="features" data-od-id="features">
+      <div class="section-header">
+        <div class="section-tag">CORE FEATURES</div>
+        <h2 class="section-title">为什么选择智途？</h2>
+        <p class="section-desc">我们不只是一个学习平台，而是你的职业规划伙伴</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon orange">🎯</div>
+          <div class="feature-note">AI 驱动</div>
+          <div class="feature-title">智能岗位匹配</div>
+          <div class="feature-desc">基于你的技能、兴趣和学习轨迹，AI 实时推荐最适合的岗位方向，匹配度持续优化。</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon green">🗺️</div>
+          <div class="feature-title">个性化学习路径</div>
+          <div class="feature-desc">Git 分支式学习规划，主线目标岗位技能，支线兴趣拓展，比例可调，进度可追溯。</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon pink">🤖</div>
+          <div class="feature-note">7×24</div>
+          <div class="feature-title">AI 智能辅导员</div>
+          <div class="feature-desc">随时解答学习疑问，提供代码审查，模拟面试场景，像真人导师一样陪伴你的成长。</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon yellow">📊</div>
+          <div class="feature-title">技能雷达图</div>
+          <div class="feature-desc">可视化你的技能掌握度，清晰看到优势与短板，针对性提升核心竞争力。</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon blue">📝</div>
+          <div class="feature-title">智能简历生成</div>
+          <div class="feature-desc">基于学习成果和项目经验，自动生成专业简历，一键投递心仪岗位。</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon purple">🏢</div>
+          <div class="feature-note">500+</div>
+          <div class="feature-title">企业直连</div>
+          <div class="feature-desc">与 500+ 知名企业建立人才通道，实习、校招、内推机会实时同步。</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"><div class="line"></div></div>
+
+    <!-- 学习路径展示 -->
+    <section class="pathways" id="pathways" data-od-id="pathways">
+      <div class="section-header">
+        <div class="section-tag">LEARNING PATHWAYS</div>
+        <h2 class="section-title">热门学习路径</h2>
+        <p class="section-desc">从零基础到 offer 收割，每一步都有规划</p>
+      </div>
+      <div class="pathway-cards">
+        <div class="pathway-card">
+          <div class="pathway-header">
+            <div class="pathway-icon" style="background:var(--highlight)">💻</div>
+            <div>
+              <div class="pathway-title">前端开发工程师</div>
+              <div class="pathway-sub">FRONTEND DEVELOPER</div>
+            </div>
+          </div>
+          <div class="pathway-body">
+            <div class="pathway-steps">
+              <div class="pathway-step">
+                <div class="step-num">01</div>
+                <div class="step-content">
+                  <div class="step-title">HTML + CSS 基础</div>
+                  <div class="step-desc">掌握网页结构与样式，响应式布局</div>
+                </div>
+              </div>
+              <div class="pathway-step">
+                <div class="step-num">02</div>
+                <div class="step-content">
+                  <div class="step-title">JavaScript 核心</div>
+                  <div class="step-desc">ES6+、DOM 操作、异步编程</div>
+                </div>
+              </div>
+              <div class="pathway-step">
+                <div class="step-num">03</div>
+                <div class="step-content">
+                  <div class="step-title">React / Vue 框架</div>
+                  <div class="step-desc">组件化开发、状态管理、路由</div>
+                </div>
+              </div>
+              <div class="pathway-step">
+                <div class="step-num">04</div>
+                <div class="step-content">
+                  <div class="step-title">项目实战 + 面试</div>
+                  <div class="step-desc">真实项目经验、简历优化、模拟面试</div>
+                </div>
+              </div>
+            </div>
+            <div class="pathway-tags">
+              <span class="pathway-tag hot">热门</span>
+              <span class="pathway-tag">React</span>
+              <span class="pathway-tag">TypeScript</span>
+              <span class="pathway-tag">4-6 个月</span>
+            </div>
+          </div>
+        </div>
+        <div class="pathway-card">
+          <div class="pathway-header">
+            <div class="pathway-icon" style="background:var(--note-green)">📈</div>
+            <div>
+              <div class="pathway-title">数据分析师</div>
+              <div class="pathway-sub">DATA ANALYST</div>
+            </div>
+          </div>
+          <div class="pathway-body">
+            <div class="pathway-steps">
+              <div class="pathway-step">
+                <div class="step-num">01</div>
+                <div class="step-content">
+                  <div class="step-title">Python 基础</div>
+                  <div class="step-desc">语法、数据结构、Pandas 入门</div>
+                </div>
+              </div>
+              <div class="pathway-step">
+                <div class="step-num">02</div>
+                <div class="step-content">
+                  <div class="step-title">SQL 数据库</div>
+                  <div class="step-desc">查询优化、数据建模、实战练习</div>
+                </div>
+              </div>
+              <div class="pathway-step">
+                <div class="step-num">03</div>
+                <div class="step-content">
+                  <div class="step-title">数据可视化</div>
+                  <div class="step-desc">Matplotlib、Tableau、BI 工具</div>
+                </div>
+              </div>
+              <div class="pathway-step">
+                <div class="step-num">04</div>
+                <div class="step-content">
+                  <div class="step-title">业务分析实战</div>
+                  <div class="step-desc">真实数据集、案例研究、报告撰写</div>
+                </div>
+              </div>
+            </div>
+            <div class="pathway-tags">
+              <span class="pathway-tag hot">高薪</span>
+              <span class="pathway-tag">Python</span>
+              <span class="pathway-tag">SQL</span>
+              <span class="pathway-tag">3-5 个月</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"><div class="line"></div></div>
+
+    <!-- 用户评价 -->
+    <section class="testimonials" id="testimonials" data-od-id="testimonials">
+      <div class="section-header">
+        <div class="section-tag">SUCCESS STORIES</div>
+        <h2 class="section-title">听听他们怎么说</h2>
+        <p class="section-desc">真实用户的真实反馈</p>
+      </div>
+      <div class="testimonials-grid">
+        <div class="testimonial-card">
+          <div class="testimonial-note">已入职字节</div>
+          <div class="testimonial-quote">智途的学习路径规划太棒了！从零基础到拿到字节跳动前端 offer，只用了 5 个月。AI 辅导员帮我解决了无数技术问题。</div>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar">李</div>
+            <div>
+              <div class="testimonial-name">李明</div>
+              <div class="testimonial-role">前端开发 · 2025 届</div>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial-card">
+          <div class="testimonial-note">转行成功</div>
+          <div class="testimonial-quote">作为文科生转行数据分析，智途的路径规划让我少走了很多弯路。技能雷达图帮我清晰看到需要提升的地方。</div>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar">王</div>
+            <div>
+              <div class="testimonial-name">王雪</div>
+              <div class="testimonial-role">数据分析师 · 2025 届</div>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial-card">
+          <div class="testimonial-note">3 个 offer</div>
+          <div class="testimonial-quote">智能简历生成功能太实用了！一键生成针对不同岗位的简历，投递效率提升 3 倍。最终拿到 3 个心仪公司的 offer。</div>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar">张</div>
+            <div>
+              <div class="testimonial-name">张伟</div>
+              <div class="testimonial-role">Java 后端 · 2024 届</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-divider"><div class="line"></div></div>
+
+    <!-- 登录注册 -->
+    <section class="auth-section" id="auth" data-od-id="auth">
+      <div class="auth-container">
+        <div class="auth-left">
+          <div class="section-tag">GET STARTED</div>
+          <h2 class="auth-title">开启你的<br><em style="font-style:italic;color:var(--accent)">职业成长之旅</em></h2>
+          <p class="auth-desc">注册即可获得完整的学习路径规划、AI 辅导员、技能评估等核心功能。完全免费，无隐藏费用。</p>
+          <div class="auth-benefits">
+            <div class="benefit-item">
+              <span class="benefit-check">✓</span>
+              <span>完整学习路径规划与进度追踪</span>
+            </div>
+            <div class="benefit-item">
+              <span class="benefit-check">✓</span>
+              <span>AI 智能辅导员 7×24 在线答疑</span>
+            </div>
+            <div class="benefit-item">
+              <span class="benefit-check">✓</span>
+              <span>技能雷达图与岗位匹配分析</span>
+            </div>
+            <div class="benefit-item">
+              <span class="benefit-check">✓</span>
+              <span>500+ 企业实习与校招机会</span>
+            </div>
+            <div class="benefit-item">
+              <span class="benefit-check">✓</span>
+              <span>智能简历生成与优化建议</span>
+            </div>
+          </div>
+          <div class="auth-note">
+            <div class="tape"></div>
+            注册即送 7 天 VIP 体验，解锁全部高级功能
+          </div>
+        </div>
+        <div class="auth-card" data-od-id="auth-form">
+          <div class="auth-tabs">
+            <button class="auth-tab active" onclick="switchTab('register')">注册</button>
+            <button class="auth-tab" onclick="switchTab('login')">登录</button>
+          </div>
+          <!-- 注册表单 -->
+          <form id="register-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">姓名</label>
+                <input type="text" class="form-input" placeholder="请输入真实姓名">
+              </div>
+              <div class="form-group">
+                <label class="form-label">手机号</label>
+                <input type="tel" class="form-input" placeholder="请输入手机号">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">邮箱</label>
+              <input type="email" class="form-input" placeholder="请输入邮箱地址">
+            </div>
+            <div class="form-group">
+              <label class="form-label">密码</label>
+              <input type="password" class="form-input" placeholder="至少 8 位，包含字母和数字">
+            </div>
+            <div class="form-group">
+              <label class="form-label">学校 / 专业</label>
+              <input type="text" class="form-input" placeholder="例如：北京大学 / 计算机科学">
+            </div>
+            <div class="form-group">
+              <label class="form-checkbox">
+                <input type="checkbox">
+                <span>我已阅读并同意 <a href="#" class="form-link">用户协议</a> 和 <a href="#" class="form-link">隐私政策</a></span>
+              </label>
+            </div>
+            <button type="submit" class="btn-submit">免费注册</button>
+            <div class="form-divider">或使用以下方式注册</div>
+            <div class="social-login">
+              <button type="button" class="social-btn">
+                <span class="social-icon">📱</span>
+                <span>微信</span>
+              </button>
+              <button type="button" class="social-btn">
+                <span class="social-icon">💬</span>
+                <span>QQ</span>
+              </button>
+              <button type="button" class="social-btn">
+                <span class="social-icon">📧</span>
+                <span>邮箱</span>
+              </button>
+            </div>
+            <div class="form-footer">
+              已有账号？<a href="#" class="form-link" onclick="switchTab('login');return false;">立即登录</a>
+            </div>
+          </form>
+          <!-- 登录表单 -->
+          <form id="login-form" style="display:none">
+            <div class="form-group">
+              <label class="form-label">手机号 / 邮箱</label>
+              <input type="text" class="form-input" placeholder="请输入手机号或邮箱">
+            </div>
+            <div class="form-group">
+              <label class="form-label">密码</label>
+              <input type="password" class="form-input" placeholder="请输入密码">
+            </div>
+            <div class="form-group" style="display:flex;justify-content:space-between;align-items:center">
+              <label class="form-checkbox">
+                <input type="checkbox" checked>
+                <span>记住我</span>
+              </label>
+              <a href="#" class="form-link" style="font-size:14px">忘记密码？</a>
+            </div>
+            <button type="submit" class="btn-submit">登录</button>
+            <div class="form-divider">或使用以下方式登录</div>
+            <div class="social-login">
+              <button type="button" class="social-btn">
+                <span class="social-icon">📱</span>
+                <span>微信</span>
+              </button>
+              <button type="button" class="social-btn">
+                <span class="social-icon">💬</span>
+                <span>QQ</span>
+              </button>
+              <button type="button" class="social-btn">
+                <span class="social-icon">📧</span>
+                <span>邮箱</span>
+              </button>
+            </div>
+            <div class="form-footer">
+              还没有账号？<a href="#" class="form-link" onclick="switchTab('register');return false;">免费注册</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 页脚 -->
+  <footer class="footer" data-od-id="footer">
+    <div class="footer-content">
+      <div class="footer-brand">智途 ZhiPath</div>
+      <div class="footer-links">
+        <a href="#">关于我们</a>
+        <a href="#">帮助中心</a>
+        <a href="#">隐私政策</a>
+        <a href="#">用户协议</a>
+        <a href="#">联系我们</a>
+      </div>
+      <div class="footer-copy">© 2026 ZHIPATH · ALL RIGHTS RESERVED</div>
+    </div>
+  </footer>
+
+  <script>
+    // 切换登录/注册标签
+    function switchTab(tab) {
+      const tabs = document.querySelectorAll('.auth-tab');
+      const registerForm = document.getElementById('register-form');
+      const loginForm = document.getElementById('login-form');
+      
+      tabs.forEach(t => t.classList.remove('active'));
+      
+      if (tab === 'register') {
+        tabs[0].classList.add('active');
+        registerForm.style.display = 'block';
+        loginForm.style.display = 'none';
+      } else {
+        tabs[1].classList.add('active');
+        registerForm.style.display = 'none';
+        loginForm.style.display = 'block';
+      }
+    }
+
+    // 表单提交处理
+    document.querySelectorAll('form').forEach(form => {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const isRegister = this.id === 'register-form';
+        alert(isRegister ? '注册成功！欢迎加入智途' : '登录成功！欢迎回来');
+      });
+    });
+
+    // 平滑滚动
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

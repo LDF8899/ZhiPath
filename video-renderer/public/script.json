@@ -1,0 +1,102 @@
+{
+  "skill_name": "CSS Flexbox布局",
+  "difficulty": "beginner",
+  "total_segments": 4,
+  "segments": [
+    {
+      "id": "seg_01",
+      "type": "title_card",
+      "narration": "嘿，大家好！欢迎来到我们的CSS布局课。今天，我们要一起学习一个非常强大且现代的工具——Flexbox，也就是弹性盒子布局。它能让我们摆脱很多传统布局的烦恼，轻松构建出灵活、响应式的页面结构。准备好了吗？我们开始吧！",
+      "visual": {
+        "type": "title",
+        "title": "Flexbox：CSS中的弹性盒子布局",
+        "subtitle": "轻松构建灵活、响应式的页面结构"
+      },
+      "emphasis": [
+        "Flexbox",
+        "弹性盒子",
+        "布局"
+      ],
+      "estimated_duration_sec": 5,
+      "audio": {
+        "file_path": "D:\\X\\ZhiPath\\video-renderer\\public\\seg_01.wav",
+        "duration_sec": 24
+      }
+    },
+    {
+      "id": "seg_02",
+      "type": "bullet_points",
+      "narration": "要用好Flexbox，我们首先要理解两个最核心的概念：Flex容器和Flex项目。你可以把Flex容器想象成一个舞台，我们把舞台的‘display’属性设置成‘flex’，这个舞台就激活了。而舞台上放置的所有直接子元素，都会自动成为Flex项目，就像舞台上可以被灵活安排位置的演员。",
+      "visual": {
+        "type": "bullets",
+        "items": [
+          "1. Flex容器（Flex Container）：通过设置 display: flex; 来激活。",
+          "2. Flex项目（Flex Item）：容器内的直接子元素自动成为项目。",
+          "3. 核心轴线：主轴（Main Axis）和交叉轴（Cross Axis）。Flex布局是围绕这两条轴线进行的。"
+        ],
+        "highlight_index": 0
+      },
+      "emphasis": [
+        "容器",
+        "项目",
+        "主轴",
+        "交叉轴"
+      ],
+      "estimated_duration_sec": 8,
+      "audio": {
+        "file_path": "D:\\X\\ZhiPath\\video-renderer\\public\\seg_02.wav",
+        "duration_sec": 28.32
+      }
+    },
+    {
+      "id": "seg_03",
+      "type": "code_walkthrough",
+      "narration": "让我们通过几个最常见的属性来看看Flexbox是如何工作的。假设我们有一个装了三个色块的容器。首先，我们给容器加上 display: flex;。瞧，三个色块立刻在一行里排好了，对吧？这正是主轴的方向（默认是水平）。现在，如果我们想控制它们在水平方向上的分布，就用 justify-content 属性。试试 justify-content: space-around;，项目周围就有了均匀的间距。那在垂直方向上呢？我们试试 align-items: center;，看，项目们都在交叉轴（垂直方向）上居中了。是不是很简单？",
+      "visual": {
+        "type": "code",
+        "code": ".container {\n  display: flex;           /* 激活Flex布局 */\n  justify-content: space-around; /* 主轴对齐 */\n  align-items: center;     /* 交叉轴对齐 */\n}",
+        "highlight_lines": [
+          1,
+          2,
+          3
+        ]
+      },
+      "emphasis": [
+        "display: flex",
+        "justify-content",
+        "align-items",
+        "主轴",
+        "交叉轴"
+      ],
+      "estimated_duration_sec": 10,
+      "audio": {
+        "file_path": "D:\\X\\ZhiPath\\video-renderer\\public\\seg_03.wav",
+        "duration_sec": 44.96
+      }
+    },
+    {
+      "id": "seg_04",
+      "type": "summary",
+      "narration": "好了，我们来快速总结一下。今天，我们认识了Flexbox布局的两个核心角色：Flex容器和Flex项目。并且，我们通过实操，掌握了三个最常用的属性：用 display: flex; 来定义容器，用 justify-content 来控制项目在主轴上的排列，用 align-items 来控制项目在交叉轴上的对齐。记住这些，你就能解决大部分简单的布局问题了。接下来，快去你的代码里动手试试吧！",
+      "visual": {
+        "type": "key_points",
+        "points": [
+          "核心概念：Flex容器 & Flex项目",
+          "核心轴线：主轴 & 交叉轴",
+          "核心属性：display, justify-content, align-items"
+        ]
+      },
+      "emphasis": [
+        "Flex容器",
+        "Flex项目",
+        "主轴",
+        "交叉轴"
+      ],
+      "estimated_duration_sec": 6,
+      "audio": {
+        "file_path": "D:\\X\\ZhiPath\\video-renderer\\public\\seg_04.wav",
+        "duration_sec": 32.96
+      }
+    }
+  ]
+}

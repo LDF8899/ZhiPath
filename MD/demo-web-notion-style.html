@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智途 ZhiPath — Web 端设计（Notion 风格）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Notion Warm Neutral Scale */
+    --white: #ffffff;
+    --warm-white: #f6f5f4;
+    --warm-100: #f0efed;
+    --warm-200: #e8e6e3;
+    --warm-300: #a39e98;
+    --warm-500: #615d59;
+    --warm-dark: #31302e;
+    --near-black: rgba(0,0,0,0.95);
+
+    /* Accent */
+    --blue: #0075de;
+    --blue-active: #005bab;
+    --blue-bg: #f2f9ff;
+    --blue-text: #097fe8;
+
+    /* Semantic */
+    --green: #1aae39;
+    --green-bg: #edf9ef;
+    --orange: #dd5b00;
+    --orange-bg: #fff4ec;
+    --teal: #2a9d99;
+    --teal-bg: #eef9f8;
+    --purple: #6c5ce7;
+    --purple-bg: #f3f1ff;
+    --red: #eb5757;
+    --red-bg: #fde8e8;
+
+    /* Typography */
+    --font-sans: 'Inter', -apple-system, system-ui, 'Segoe UI', sans-serif;
+    --font-serif: 'Noto Serif SC', 'Georgia', serif;
+
+    /* Shadows */
+    --shadow-card: rgba(0,0,0,0.04) 0px 4px 18px, rgba(0,0,0,0.027) 0px 2px 8px, rgba(0,0,0,0.02) 0px 1px 3px;
+    --shadow-deep: rgba(0,0,0,0.01) 0px 1px 3px, rgba(0,0,0,0.02) 0px 3px 7px, rgba(0,0,0,0.04) 0px 14px 28px;
+
+    /* Border */
+    --border: 1px solid rgba(0,0,0,0.1);
+    --border-light: 1px solid rgba(0,0,0,0.06);
+
+    /* Spacing */
+    --radius: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--warm-white);
+    color: var(--near-black);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== Layout ===== */
+  .app { display: flex; min-height: 100vh; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 260px;
+    background: var(--white);
+    border-right: var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 100;
+  }
+  .sidebar-header {
+    padding: 20px 20px 16px;
+    border-bottom: var(--border-light);
+  }
+  .sidebar-logo {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 18px; font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  .sidebar-logo .logo-icon {
+    width: 32px; height: 32px;
+    background: var(--near-black);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 16px; font-weight: 700;
+  }
+
+  .sidebar-nav { flex: 1; padding: 12px 8px; overflow-y: auto; }
+  .nav-section { margin-bottom: 8px; }
+  .nav-section-title {
+    font-size: 11px; font-weight: 600;
+    color: var(--warm-300);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 8px 12px 4px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 14px; font-weight: 500;
+    color: var(--warm-500);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .nav-item:hover { background: var(--warm-100); color: var(--near-black); }
+  .nav-item.active { background: var(--blue-bg); color: var(--blue); font-weight: 600; }
+  .nav-item .nav-icon { width: 20px; text-align: center; font-size: 16px; }
+  .nav-item .nav-badge {
+    margin-left: auto;
+    background: var(--blue-bg);
+    color: var(--blue);
+    font-size: 11px; font-weight: 600;
+    padding: 1px 8px;
+    border-radius: 9999px;
+  }
+
+  .sidebar-footer {
+    padding: 12px 16px;
+    border-top: var(--border-light);
+  }
+  .user-card {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .user-card:hover { background: var(--warm-100); }
+  .user-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 13px; font-weight: 600;
+  }
+  .user-info .user-name { font-size: 13px; font-weight: 600; }
+  .user-info .user-plan { font-size: 12px; color: var(--warm-300); }
+
+  /* Main Content */
+  .main {
+    flex: 1;
+    margin-left: 260px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Top Bar */
+  .topbar {
+    height: 56px;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 16px; }
+  .breadcrumb { font-size: 13px; color: var(--warm-300); }
+  .breadcrumb span { color: var(--near-black); font-weight: 500; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .topbar-btn {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    border: var(--border);
+    background: var(--white);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.15s;
+  }
+  .topbar-btn:hover { background: var(--warm-100); }
+
+  /* Content Area */
+  .content {
+    flex: 1;
+    padding: 32px;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  /* Page Header */
+  .page-header {
+    margin-bottom: 32px;
+  }
+  .page-header h1 {
+    font-family: var(--font-serif);
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1.1;
+    margin-bottom: 8px;
+  }
+  .page-header .subtitle {
+    font-size: 16px;
+    color: var(--warm-500);
+    font-weight: 400;
+  }
+
+  /* Plan Switcher */
+  .plan-switcher {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .plan-tab {
+    padding: 6px 16px;
+    border-radius: 9999px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: var(--border);
+    background: var(--white);
+    color: var(--warm-500);
+  }
+  .plan-tab:hover { background: var(--warm-100); }
+  .plan-tab.active { background: var(--near-black); color: var(--white); border-color: var(--near-black); }
+  .plan-tab.add { border-style: dashed; color: var(--warm-300); }
+
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .stat-card {
+    background: var(--white);
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    transition: box-shadow 0.2s;
+  }
+  .stat-card:hover { box-shadow: var(--shadow-card); }
+  .stat-label { font-size: 13px; color: var(--warm-300); font-weight: 500; margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 700; letter-spacing: -1px; line-height: 1; }
+  .stat-value.blue { color: var(--blue); }
+  .stat-value.green { color: var(--green); }
+  .stat-value.orange { color: var(--orange); }
+  .stat-value.purple { color: var(--purple); }
+  .stat-change {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; font-weight: 600;
+    margin-top: 6px;
+    padding: 2px 8px;
+    border-radius: 9999px;
+  }
+  .stat-change.up { color: var(--green); background: var(--green-bg); }
+  .stat-change.down { color: var(--red); background: var(--red-bg); }
+
+  /* Two Column Layout */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+
+  /* Card */
+  .card {
+    background: var(--white);
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 16px 20px;
+    border-bottom: var(--border-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .card-header h3 {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .card-header .card-action {
+    font-size: 13px;
+    color: var(--blue);
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .card-header .card-action:hover { text-decoration: underline; }
+  .card-body { padding: 16px 20px; }
+
+  /* Calendar */
+  .calendar-strip {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+  .cal-day {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .cal-day:hover { background: var(--warm-100); }
+  .cal-day .day-label { font-size: 11px; color: var(--warm-300); font-weight: 500; }
+  .cal-day .day-num {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 600;
+    color: var(--warm-500);
+    transition: all 0.15s;
+  }
+  .cal-day.done .day-num { background: var(--green); color: #fff; }
+  .cal-day.today .day-num { background: var(--blue); color: #fff; }
+  .cal-day .day-status { font-size: 10px; }
+
+  /* Task List */
+  .task-list { list-style: none; }
+  .task-group-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--warm-300);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px 0 8px;
+  }
+  .task-group-label:first-child { padding-top: 0; }
+  .task-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 2px;
+  }
+  .task-item:hover { background: var(--warm-100); }
+  .task-check {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--warm-200);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .task-check.done {
+    background: var(--green);
+    border-color: var(--green);
+  }
+  .task-check.done::after { content: '✓'; color: #fff; font-size: 11px; font-weight: 700; }
+  .task-check:hover { border-color: var(--blue); }
+  .task-content { flex: 1; min-width: 0; }
+  .task-title { font-size: 14px; font-weight: 500; }
+  .task-meta { font-size: 12px; color: var(--warm-300); margin-top: 2px; }
+  .task-tag {
+    font-size: 11px; font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    flex-shrink: 0;
+  }
+  .task-tag.main { background: var(--blue-bg); color: var(--blue); }
+  .task-tag.side { background: var(--purple-bg); color: var(--purple); }
+  .task-time { font-size: 12px; color: var(--warm-300); flex-shrink: 0; }
+
+  /* Progress Ring */
+  .progress-ring-wrap {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 8px 0;
+  }
+  .progress-ring { position: relative; width: 100px; height: 100px; flex-shrink: 0; }
+  .progress-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .progress-ring .ring-bg { fill: none; stroke: var(--warm-100); stroke-width: 8; }
+  .progress-ring .ring-fg { fill: none; stroke: var(--blue); stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 0.5s; }
+  .progress-ring .ring-value {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px; font-weight: 700;
+    letter-spacing: -1px;
+  }
+  .progress-ring .ring-label {
+    position: absolute;
+    top: 62%; left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px; color: var(--warm-300);
+  }
+  .progress-details { flex: 1; }
+  .progress-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .progress-row .pr-label { font-size: 13px; color: var(--warm-500); width: 70px; flex-shrink: 0; }
+  .progress-row .pr-bar {
+    flex: 1; height: 6px;
+    background: var(--warm-100);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-row .pr-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
+  .progress-row .pr-fill.skills { background: var(--blue); }
+  .progress-row .pr-fill.projects { background: var(--purple); }
+  .progress-row .pr-fill.exams { background: var(--green); }
+  .progress-row .pr-value { font-size: 13px; font-weight: 600; width: 40px; text-align: right; }
+
+  /* Encourage Banner */
+  .encourage-banner {
+    background: var(--warm-100);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--warm-500);
+    margin-top: 12px;
+  }
+  .encourage-banner .enc-icon { font-size: 18px; }
+
+  /* Job Card */
+  .job-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: var(--border-light);
+    margin-bottom: 8px;
+  }
+  .job-item:hover { background: var(--warm-100); border-color: rgba(0,0,0,0.15); }
+  .job-logo {
+    width: 40px; height: 40px;
+    border-radius: 8px;
+    background: var(--warm-100);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .job-info { flex: 1; min-width: 0; }
+  .job-title { font-size: 14px; font-weight: 600; }
+  .job-company { font-size: 12px; color: var(--warm-300); }
+  .job-match {
+    font-size: 13px; font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    flex-shrink: 0;
+  }
+  .job-match.high { background: var(--green-bg); color: var(--green); }
+  .job-match.mid { background: var(--blue-bg); color: var(--blue); }
+  .job-match.low { background: var(--orange-bg); color: var(--orange); }
+
+  /* News Item */
+  .news-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: var(--border-light);
+    cursor: pointer;
+  }
+  .news-item:last-child { border-bottom: none; }
+  .news-item:hover .news-title { color: var(--blue); }
+  .news-icon {
+    width: 40px; height: 40px;
+    border-radius: 8px;
+    background: var(--warm-100);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .news-body { flex: 1; min-width: 0; }
+  .news-title { font-size: 14px; font-weight: 500; transition: color 0.15s; line-height: 1.4; }
+  .news-meta { font-size: 12px; color: var(--warm-300); margin-top: 4px; }
+
+  /* Quick Actions */
+  .quick-actions {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+  .quick-action {
+    background: var(--white);
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .quick-action:hover { box-shadow: var(--shadow-card); transform: translateY(-2px); }
+  .quick-action .qa-icon { font-size: 24px; margin-bottom: 8px; }
+  .quick-action .qa-label { font-size: 13px; font-weight: 600; color: var(--warm-500); }
+  .quick-action .qa-desc { font-size: 12px; color: var(--warm-300); margin-top: 4px; }
+
+  /* Agent Office Widget */
+  .agent-widget {
+    margin-bottom: 32px;
+  }
+  .agent-list { padding: 12px 0; }
+  .agent-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    transition: background 0.15s;
+  }
+  .agent-row:hover { background: var(--warm-100); }
+  .agent-status {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .agent-status.idle { background: var(--warm-200); }
+  .agent-status.working { background: var(--green); animation: pulse 1.5s infinite; }
+  .agent-status.error { background: var(--red); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .agent-name { font-size: 13px; font-weight: 600; flex: 1; }
+  .agent-task { font-size: 12px; color: var(--warm-300); flex: 2; }
+  .agent-action-btn {
+    font-size: 12px;
+    color: var(--blue);
+    font-weight: 500;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: background 0.15s;
+  }
+  .agent-action-btn:hover { background: var(--blue-bg); }
+
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .two-col { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; }
+    .content { padding: 20px; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .quick-actions { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="logo-icon">智</div>
+        <span>智途 ZhiPath</span>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <a class="nav-item active"><span class="nav-icon">🏠</span>首页</a>
+        <a class="nav-item"><span class="nav-icon">📚</span>学习路径<span class="nav-badge">2</span></a>
+        <a class="nav-item"><span class="nav-icon">💼</span>岗位匹配</a>
+        <a class="nav-item"><span class="nav-icon">📝</span>考试中心</a>
+        <a class="nav-item"><span class="nav-icon">📰</span>行业资讯</a>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">个人</div>
+        <a class="nav-item"><span class="nav-icon">👤</span>个人中心</a>
+        <a class="nav-item"><span class="nav-icon">📄</span>简历管理</a>
+        <a class="nav-item"><span class="nav-icon">📊</span>学习记录</a>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">工具</div>
+        <a class="nav-item"><span class="nav-icon">🏢</span>智能体办公室</a>
+        <a class="nav-item"><span class="nav-icon">🗺️</span>知识图谱</a>
+        <a class="nav-item"><span class="nav-icon">🔗</span>GitHub 导入</a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-card">
+        <div class="user-avatar">明</div>
+        <div class="user-info">
+          <div class="user-name">小明</div>
+          <div class="user-plan">前端开发计划 · 第3阶段</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main">
+
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="breadcrumb">首页 / <span>今日概览</span></div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-btn" title="调整计划">📋</div>
+        <div class="topbar-btn" title="智能体办公室">🏢</div>
+        <div class="topbar-btn" title="通知">🔔</div>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- Page Header -->
+      <div class="page-header">
+        <h1>早上好，小明 ☀️</h1>
+        <p class="subtitle">今天也要加油哦，你已经连续学习 12 天了</p>
+      </div>
+
+      <!-- Plan Switcher -->
+      <div class="plan-switcher">
+        <div class="plan-tab active">📘 前端开发</div>
+        <div class="plan-tab">🐍 Python</div>
+        <div class="plan-tab add">+ 新计划</div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">匹配度</div>
+          <div class="stat-value blue">68%</div>
+          <div class="stat-change up">↑ +3% 本周</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">连续学习</div>
+          <div class="stat-value green">12天</div>
+          <div class="stat-change up">🔥 保持！</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">本周学习</div>
+          <div class="stat-value orange">6.5h</div>
+          <div class="stat-change up">↑ 比上周多 1.2h</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">掌握技能</div>
+          <div class="stat-value purple">8/17</div>
+          <div class="stat-change up">↑ +1 本周</div>
+        </div>
+      </div>
+
+      <!-- Two Column -->
+      <div class="two-col">
+
+        <!-- Left: Today's Tasks -->
+        <div class="card">
+          <div class="card-header">
+            <h3>📋 今日任务</h3>
+            <span class="card-action">预计 1h 35min</span>
+          </div>
+          <div class="card-body">
+            <!-- Calendar -->
+            <div class="calendar-strip">
+              <div class="cal-day done"><span class="day-label">一</span><span class="day-num">9</span><span class="day-status">✓</span></div>
+              <div class="cal-day done"><span class="day-label">二</span><span class="day-num">10</span><span class="day-status">✓</span></div>
+              <div class="cal-day today"><span class="day-label">三</span><span class="day-num">11</span><span class="day-status"></span></div>
+              <div class="cal-day"><span class="day-label">四</span><span class="day-num">12</span></div>
+              <div class="cal-day"><span class="day-label">五</span><span class="day-num">13</span></div>
+              <div class="cal-day"><span class="day-label">六</span><span class="day-num">14</span></div>
+              <div class="cal-day"><span class="day-label">日</span><span class="day-num">15</span></div>
+            </div>
+
+            <!-- Task List -->
+            <ul class="task-list">
+              <div class="task-group-label">主线任务 · 前端开发</div>
+              <li class="task-item">
+                <div class="task-check"></div>
+                <div class="task-content">
+                  <div class="task-title">React Hooks — useEffect</div>
+                  <div class="task-meta">讲义 + 练习题</div>
+                </div>
+                <span class="task-tag main">主线</span>
+                <span class="task-time">45min</span>
+              </li>
+              <li class="task-item">
+                <div class="task-check"></div>
+                <div class="task-content">
+                  <div class="task-title">JavaScript 闭包</div>
+                  <div class="task-meta">编程题</div>
+                </div>
+                <span class="task-tag main">主线</span>
+                <span class="task-time">30min</span>
+              </li>
+
+              <div class="task-group-label">支线探索 · Python</div>
+              <li class="task-item">
+                <div class="task-check"></div>
+                <div class="task-content">
+                  <div class="task-title">Python 基础 — 变量类型</div>
+                  <div class="task-meta">讲义</div>
+                </div>
+                <span class="task-tag side">支线</span>
+                <span class="task-time">20min</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Right: Progress + Jobs + News -->
+        <div style="display:flex;flex-direction:column;gap:20px;">
+
+          <!-- Match Progress -->
+          <div class="card">
+            <div class="card-header">
+              <h3>📊 匹配度分析</h3>
+              <span class="card-action">详情</span>
+            </div>
+            <div class="card-body">
+              <div class="progress-ring-wrap">
+                <div class="progress-ring">
+                  <svg viewBox="0 0 100 100">
+                    <circle class="ring-bg" cx="50" cy="50" r="42"/>
+                    <circle class="ring-fg" cx="50" cy="50" r="42" stroke-dasharray="263.9" stroke-dashoffset="84.4"/>
+                  </svg>
+                  <span class="ring-value">68%</span>
+                  <span class="ring-label">匹配</span>
+                </div>
+                <div class="progress-details">
+                  <div class="progress-row">
+                    <span class="pr-label">技能覆盖</span>
+                    <div class="pr-bar"><div class="pr-fill skills" style="width:57%"></div></div>
+                    <span class="pr-value">57%</span>
+                  </div>
+                  <div class="progress-row">
+                    <span class="pr-label">项目经历</span>
+                    <div class="pr-bar"><div class="pr-fill projects" style="width:40%"></div></div>
+                    <span class="pr-value">40%</span>
+                  </div>
+                  <div class="progress-row">
+                    <span class="pr-label">考试成绩</span>
+                    <div class="pr-bar"><div class="pr-fill exams" style="width:85%"></div></div>
+                    <span class="pr-value">85%</span>
+                  </div>
+                </div>
+              </div>
+              <div class="encourage-banner">
+                <span class="enc-icon">💪</span>
+                再学 3 个技能点就能解锁阶段考试，加油！
+              </div>
+            </div>
+          </div>
+
+          <!-- Job Recommendations -->
+          <div class="card">
+            <div class="card-header">
+              <h3>💼 推荐岗位</h3>
+              <span class="card-action">更多</span>
+            </div>
+            <div class="card-body">
+              <div class="job-item">
+                <div class="job-logo" style="background:#e8f5e9;color:#1aae39">B</div>
+                <div class="job-info">
+                  <div class="job-title">前端开发工程师</div>
+                  <div class="job-company">字节跳动 · 北京</div>
+                </div>
+                <div class="job-match high">72%</div>
+              </div>
+              <div class="job-item">
+                <div class="job-logo" style="background:#f2f9ff;color:#0075de">T</div>
+                <div class="job-info">
+                  <div class="job-title">Web 前端实习生</div>
+                  <div class="job-company">腾讯 · 深圳</div>
+                </div>
+                <div class="job-match mid">65%</div>
+              </div>
+              <div class="job-item">
+                <div class="job-logo" style="background:#fff4ec;color:#dd5b00">A</div>
+                <div class="job-info">
+                  <div class="job-title">前端开发工程师</div>
+                  <div class="job-company">阿里巴巴 · 杭州</div>
+                </div>
+                <div class="job-match low">58%</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- News -->
+          <div class="card">
+            <div class="card-header">
+              <h3>📰 最新资讯</h3>
+              <span class="card-action">更多</span>
+            </div>
+            <div class="card-body">
+              <div class="news-item">
+                <div class="news-icon">⚛️</div>
+                <div class="news-body">
+                  <div class="news-title">React 19 正式发布：新特性一览</div>
+                  <div class="news-meta">技术趋势 · 2小时前</div>
+                </div>
+              </div>
+              <div class="news-item">
+                <div class="news-icon">🔥</div>
+                <div class="news-body">
+                  <div class="news-title">2026年前端开发就业趋势分析</div>
+                  <div class="news-meta">行业动态 · 5小时前</div>
+                </div>
+              </div>
+              <div class="news-item">
+                <div class="news-icon">💼</div>
+                <div class="news-body">
+                  <div class="news-title">字节跳动 2026 校招前端岗位开放</div>
+                  <div class="news-meta">招聘信息 · 1天前</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="quick-actions">
+        <div class="quick-action">
+          <div class="qa-icon">📝</div>
+          <div class="qa-label">模拟考试</div>
+          <div class="qa-desc">测试技能掌握度</div>
+        </div>
+        <div class="quick-action">
+          <div class="qa-icon">📄</div>
+          <div class="qa-label">生成简历</div>
+          <div class="qa-desc">针对目标岗位</div>
+        </div>
+        <div class="quick-action">
+          <div class="qa-icon">🔗</div>
+          <div class="qa-label">GitHub 导入</div>
+          <div class="qa-desc">导入项目经历</div>
+        </div>
+        <div class="quick-action">
+          <div class="qa-icon">🏢</div>
+          <div class="qa-label">智能体办公室</div>
+          <div class="qa-desc">查看 Agent 工作</div>
+        </div>
+      </div>
+
+      <!-- Agent Office Widget -->
+      <div class="agent-widget">
+        <div class="card">
+          <div class="card-header">
+            <h3>🏢 智能体办公室</h3>
+            <span class="card-action">进入办公室</span>
+          </div>
+          <div class="agent-list">
+            <div class="agent-row">
+              <div class="agent-status idle"></div>
+              <span class="agent-name">PlannerAgent</span>
+              <span class="agent-task">空闲</span>
+            </div>
+            <div class="agent-row">
+              <div class="agent-status working"></div>
+              <span class="agent-name">ResourceAgent</span>
+              <span class="agent-task">生成 useEffect 讲义... 60%</span>
+              <span class="agent-action-btn">优先</span>
+            </div>
+            <div class="agent-row">
+              <div class="agent-status working"></div>
+              <span class="agent-name">MatchAgent</span>
+              <span class="agent-task">重新计算匹配度...</span>
+            </div>
+            <div class="agent-row">
+              <div class="agent-status idle"></div>
+              <span class="agent-name">ProfileAgent</span>
+              <span class="agent-task">空闲</span>
+            </div>
+            <div class="agent-row">
+              <div class="agent-status idle"></div>
+              <span class="agent-name">ReviewerAgent</span>
+              <span class="agent-task">空闲</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+</div>
+
+</body>
+</html>

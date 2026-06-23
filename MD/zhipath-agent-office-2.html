@@ -1,0 +1,1549 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>智途 ZhiPath — 智能体办公室 v0.5</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Patrick+Hand&family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #faf7f0;
+      --paper-tint: #f2ece0;
+      --ink: #2b2620;
+      --pencil: #5a5349;
+      --rule: #c8bfa9;
+      --grid: #e3d8b8;
+      --accent: #d8482b;
+      --accent-glow: rgba(216,72,43,0.25);
+      --highlight: #f9d27c;
+      --green: #4a9e5a;
+      --green-light: #c9f5c0;
+      --note-yellow: #fff19a;
+      --note-pink: #ffd5c9;
+      --note-green: #c9f5c0;
+      --note-blue: #c9daf5;
+      --serif: 'DM Serif Display', 'Iowan Old Style', Georgia, serif;
+      --hand: 'Patrick Hand', 'Caveat', cursive;
+      --hand-bold: 'Caveat', 'Patrick Hand', cursive;
+      --mono: 'IBM Plex Mono', ui-monospace, monospace;
+      --wall: #f0e8d8;
+      --floor-wood: #e0d0b8;
+      --carpet: #d0deb8;
+      --brand-gradient: linear-gradient(135deg, #d8482b 0%, #e86840 50%, #f9d27c 100%);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      color: var(--ink);
+      background:
+        repeating-linear-gradient(0deg, var(--grid) 0 1px, transparent 1px 24px),
+        repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 24px),
+        var(--paper-tint);
+      font: 16px/1.5 var(--hand);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    .page-header {
+      padding: 16px 36px 12px;
+      border-bottom: 3px solid var(--ink);
+      background: linear-gradient(180deg, var(--paper) 0%, var(--paper-tint) 100%);
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 6px 24px rgba(43,38,32,0.08);
+    }
+    .page-header h1 { font: 800 30px/1 var(--serif); display: flex; align-items: center; gap: 12px; }
+    .page-header h1 em { font-style: italic; background: var(--brand-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .pin { display: inline-flex; align-items: center; gap: 6px; font: 10px/1 var(--mono); padding: 5px 10px; border: 1.5px dashed var(--accent); color: var(--accent); transform: rotate(-2deg); letter-spacing: 0.16em; background: var(--paper); }
+    .header-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .header-meta { font: 12px/1.4 var(--mono); color: var(--pencil); letter-spacing: 0.08em; }
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-action { font: 14px/1 var(--hand-bold); padding: 9px 16px; border: 2.5px solid var(--ink); border-radius: 10px; cursor: pointer; transform: rotate(-0.3deg); transition: all 0.2s; display: flex; align-items: center; gap: 7px; }
+    .btn-action:hover { transform: rotate(0deg) scale(1.04); box-shadow: 3px 4px 0 var(--ink); }
+    .btn-action svg { width: 15px; height: 15px; }
+    .btn-primary { background: var(--accent); color: var(--paper); }
+    .btn-secondary { background: var(--highlight); color: var(--ink); }
+    .btn-ghost { background: var(--paper); color: var(--pencil); border-color: var(--pencil); }
+
+    /* ── Layout ── */
+    .office-layout { display: grid; grid-template-columns: 1fr 340px; gap: 0; min-height: calc(100vh - 60px); }
+
+    /* ── Office Scene ── */
+    .office-scene { padding: 16px 24px; position: relative; overflow: hidden; }
+    .room {
+      position: relative;
+      border: 3px solid var(--ink);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 8px 10px 0 -4px rgba(43,38,32,0.15), inset 0 0 80px rgba(43,38,32,0.05);
+      display: grid;
+      grid-template-rows: 140px 1fr;
+    }
+
+    /* Wall — enhanced with paneling */
+    .wall {
+      position: relative;
+      background:
+        linear-gradient(180deg, #f8f2e5 0%, #ede5d5 60%, #e5dcc8 100%);
+      border-bottom: 3px solid var(--pencil);
+      z-index: 5;
+    }
+    .wall::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: repeating-linear-gradient(90deg, rgba(43,38,32,0.015) 0 1px, transparent 1px 120px);
+    }
+    .wall::after {
+      content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 20px;
+      background: repeating-linear-gradient(90deg, #c8a878 0 3px, #d4b888 3px 48px);
+      opacity: 0.2;
+    }
+
+    /* Floor — wood grain */
+    .floor {
+      position: relative;
+      background:
+        repeating-linear-gradient(90deg, rgba(43,38,32,0.03) 0 1px, transparent 1px 60px),
+        repeating-linear-gradient(0deg, rgba(43,38,32,0.015) 0 1px, transparent 1px 200px),
+        linear-gradient(180deg, #e2d4be 0%, #d8c8a8 50%, #cebe98 100%);
+    }
+    .carpet {
+      position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+      width: 90%; height: calc(100% - 12px);
+      background:
+        repeating-linear-gradient(45deg, rgba(43,38,32,0.02) 0 1px, transparent 1px 12px),
+        repeating-linear-gradient(-45deg, rgba(43,38,32,0.015) 0 1px, transparent 1px 12px),
+        linear-gradient(180deg, #d4deb8 0%, #c4d0a8 40%, #bcc8a0 100%);
+      border: 2.5px solid rgba(43,38,32,0.12);
+      border-radius: 8px;
+      z-index: 0;
+      box-shadow: inset 0 0 40px rgba(43,38,32,0.06), inset 0 2px 0 rgba(255,255,255,0.15);
+    }
+
+    /* Window — enhanced */
+    .window-frame {
+      position: absolute; top: 14px; right: 32px; z-index: 15;
+      width: 110px; height: 80px;
+      border: 5px solid #8b7355; border-radius: 6px;
+      background: linear-gradient(180deg, #90c0e0 0%, #b8d8f0 40%, #d8ecff 70%, #f0f6ff 100%);
+      box-shadow: inset 0 0 16px rgba(135,180,220,0.3), 4px 5px 0 rgba(43,38,32,0.12), 0 0 30px rgba(200,220,255,0.15);
+      overflow: hidden;
+    }
+    .window-frame::before { content: ''; position: absolute; top: 0; left: 50%; width: 3px; height: 100%; background: #8b7355; transform: translateX(-50%); }
+    .window-frame::after { content: ''; position: absolute; top: 50%; left: 0; width: 100%; height: 3px; background: #8b7355; transform: translateY(-50%); }
+    .curtain-left, .curtain-right { position: absolute; top: 0; width: 20px; height: 100%; z-index: 2; }
+    .curtain-left { left: -3px; background: linear-gradient(90deg, #c8a080 0%, #d8b898 50%, transparent 100%); }
+    .curtain-right { right: -3px; background: linear-gradient(-90deg, #c8a080 0%, #d8b898 50%, transparent 100%); }
+    .curtain-rod { position: absolute; top: -7px; left: -10px; right: -10px; height: 5px; background: linear-gradient(180deg, #c8a068, #a07840); border-radius: 3px; z-index: 3; }
+    .curtain-rod::before, .curtain-rod::after { content: ''; position: absolute; top: -3px; width: 10px; height: 10px; background: #a07840; border-radius: 50%; }
+    .curtain-rod::before { left: -2px; }
+    .curtain-rod::after { right: -2px; }
+    .cloud { position: absolute; top: 10px; left: 16px; z-index: 1; }
+    .cloud-shape { width: 30px; height: 14px; background: rgba(255,255,255,0.75); border-radius: 10px; position: relative; animation: cloud-drift 18s linear infinite; }
+    .cloud-shape::before { content: ''; position: absolute; bottom: 5px; left: 7px; width: 14px; height: 14px; background: rgba(255,255,255,0.75); border-radius: 50%; }
+    .cloud-shape::after { content: ''; position: absolute; bottom: 3px; left: 18px; width: 10px; height: 10px; background: rgba(255,255,255,0.6); border-radius: 50%; }
+    @keyframes cloud-drift { 0% { transform: translateX(0); } 100% { transform: translateX(70px); } }
+
+    /* Sunlight ray */
+    .light-ray {
+      position: absolute; top: 0; right: 28px;
+      width: 180px; height: 100%;
+      background: linear-gradient(160deg, rgba(255,240,200,0.14) 0%, rgba(255,240,200,0.06) 40%, transparent 70%);
+      transform: skewX(-14deg);
+      z-index: 1; pointer-events: none;
+    }
+
+    /* Clock — enhanced */
+    .wall-clock {
+      position: absolute; top: 16px; right: 158px; z-index: 15;
+      width: 58px; height: 58px;
+      border: 4px solid #8b7355; border-radius: 50%;
+      background: radial-gradient(circle, #fefcf6 0%, #f5f0e4 70%, #ece4d4 100%);
+      box-shadow: 3px 4px 0 rgba(43,38,32,0.1), inset 0 0 10px rgba(43,38,32,0.04), 0 0 0 2px rgba(139,115,85,0.2);
+    }
+    .clock-face { position: relative; width: 100%; height: 100%; }
+    .clock-tick { position: absolute; width: 2px; height: 5px; background: var(--ink); top: 5px; left: calc(50% - 1px); transform-origin: center 24px; }
+    .clock-hand-h { position: absolute; bottom: 50%; left: calc(50% - 2px); width: 4px; height: 14px; background: var(--ink); transform-origin: bottom center; border-radius: 2px; animation: clock-h 43200s linear infinite; }
+    .clock-hand-m { position: absolute; bottom: 50%; left: calc(50% - 1.5px); width: 3px; height: 19px; background: var(--pencil); transform-origin: bottom center; border-radius: 1.5px; animation: clock-m 3600s linear infinite; }
+    .clock-hand-s { position: absolute; bottom: 50%; left: calc(50% - 0.5px); width: 1px; height: 22px; background: var(--accent); transform-origin: bottom center; animation: clock-s 60s linear infinite; }
+    .clock-dot { position: absolute; top: calc(50% - 3px); left: calc(50% - 3px); width: 6px; height: 6px; background: var(--ink); border-radius: 50%; z-index: 2; }
+    @keyframes clock-h { to { transform: rotate(360deg); } }
+    @keyframes clock-m { to { transform: rotate(360deg); } }
+    @keyframes clock-s { to { transform: rotate(360deg); } }
+
+    /* Wall decorations — enhanced */
+    .wall-poster {
+      position: absolute; top: 12px; left: 20px; z-index: 15;
+      border: 2.5px solid var(--ink); border-radius: 5px;
+      padding: 10px 14px; background: var(--paper);
+      font: 14px/1.3 var(--hand-bold); transform: rotate(-2.5deg);
+      box-shadow: 3px 4px 0 rgba(43,38,32,0.12); max-width: 155px;
+    }
+    .wall-poster::before { content: ''; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); width: 44px; height: 14px; background: rgba(43,38,32,0.08); border-radius: 3px; }
+    .wall-poster2 {
+      position: absolute; top: 18px; left: 186px; z-index: 15;
+      border: 2px solid var(--pencil); border-radius: 4px;
+      padding: 6px 10px; background: var(--note-yellow);
+      font: 12px/1.2 var(--hand); transform: rotate(1.8deg);
+      box-shadow: 2px 3px 0 rgba(43,38,32,0.1);
+    }
+    .whiteboard {
+      position: absolute; top: 12px; left: 310px; z-index: 15;
+      width: 130px; height: 76px;
+      border: 4px solid #b8b8b8; border-radius: 5px;
+      background: linear-gradient(180deg, #fff 0%, #fafafa 100%);
+      box-shadow: 4px 5px 0 rgba(43,38,32,0.1), inset 0 0 8px rgba(0,0,0,0.02);
+      padding: 10px; overflow: hidden;
+    }
+    .whiteboard-line { height: 2px; background: var(--pencil); opacity: 0.15; margin: 7px 0; border-radius: 1px; }
+    .whiteboard-line:nth-child(1) { width: 80%; }
+    .whiteboard-line:nth-child(2) { width: 60%; background: var(--accent); opacity: 0.2; }
+    .whiteboard-line:nth-child(3) { width: 90%; }
+    .whiteboard-line:nth-child(4) { width: 45%; }
+    .whiteboard-marker { position: absolute; bottom: -5px; right: 10px; width: 26px; height: 6px; background: var(--accent); border-radius: 2px; transform: rotate(14deg); }
+
+    /* Plants — enhanced SVG */
+    .plant { position: absolute; z-index: 12; }
+    .plant-left { bottom: 12px; left: 14px; }
+    .plant-right { bottom: 12px; right: 14px; }
+
+    /* Brand wall accent */
+    .brand-accent {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 80px; height: 80px; z-index: 2; pointer-events: none;
+      opacity: 0.04;
+    }
+
+    /* ── Workstations — 4 per row ── */
+    .workstations-area {
+      position: relative; z-index: 8;
+      padding: 52px 20px 16px;
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+    }
+    .workstation {
+      display: flex; flex-direction: column; align-items: center;
+      transition: all 0.3s; position: relative;
+    }
+    .station-label {
+      position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+      font: 800 11px/1 var(--mono); padding: 3px 10px;
+      background: var(--paper); border: 2px solid var(--ink);
+      border-radius: 6px; white-space: nowrap; letter-spacing: 0.06em; z-index: 20;
+    }
+    .desk {
+      width: 150px; height: 42px;
+      background: linear-gradient(180deg, #e0cca8 0%, #d0bc98 40%, #c0a888 100%);
+      border: 2.5px solid var(--ink); border-radius: 5px 5px 3px 3px;
+      position: relative;
+      box-shadow: 4px 5px 0 rgba(43,38,32,0.12), inset 0 1px 0 rgba(255,255,255,0.35);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .desk-leg-l, .desk-leg-r {
+      position: absolute; bottom: -16px; width: 6px; height: 16px;
+      background: linear-gradient(180deg, #b8a080, #a89070);
+      border: 2px solid var(--ink);
+    }
+    .desk-leg-l { left: 16px; }
+    .desk-leg-r { right: 16px; }
+    .desk-items {
+      position: absolute; top: -8px; left: 6px; right: 6px;
+      display: flex; align-items: flex-end; gap: 5px; justify-content: center;
+    }
+    .monitor {
+      width: 62px; height: 36px;
+      background: #1c1b1a; border: 2px solid #444; border-radius: 3px;
+      position: relative; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+    }
+    .monitor-screen {
+      width: 100%; height: 100%; background: #1a1a2a;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.3s;
+    }
+    .monitor-screen.working { background: linear-gradient(180deg, #0a1a0a 0%, #0d200d 100%); }
+    .monitor-text { font: 7px/1 var(--mono); color: #4ade80; opacity: 0.6; transition: opacity 0.3s; }
+    .monitor-screen.working .monitor-text { opacity: 1; animation: code-scroll 1.8s ease-in-out infinite; }
+    .monitor-led { position: absolute; bottom: 2px; right: 4px; width: 3px; height: 3px; border-radius: 50%; background: #333; }
+    .monitor-screen.working ~ .monitor-led { background: #4ade80; animation: led-blink 1.5s infinite; }
+    @keyframes code-scroll { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+    @keyframes led-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .monitor-stand { width: 14px; height: 5px; background: linear-gradient(180deg, #888, #666); border: 1.5px solid #444; margin: 0 auto; border-radius: 0 0 2px 2px; }
+    .monitor-base { width: 24px; height: 3px; background: #666; border-radius: 2px; margin: 0 auto; }
+    .keyboard {
+      width: 46px; height: 12px;
+      background: linear-gradient(180deg, #e8e0d0, #d8d0c0);
+      border: 1.5px solid var(--pencil); border-radius: 2px; position: relative;
+    }
+    .keyboard::before { content: ''; position: absolute; top: 3px; left: 3px; right: 3px; bottom: 3px; background: repeating-linear-gradient(90deg, var(--pencil) 0 1px, transparent 1px 4px); opacity: 0.12; }
+    .coffee-cup { width: 12px; height: 14px; background: #fff; border: 1.5px solid var(--pencil); border-radius: 0 0 4px 4px; position: relative; }
+    .coffee-cup::before { content: ''; position: absolute; top: 2px; left: 2px; right: 2px; height: 5px; background: #7a5a3a; border-radius: 0 0 2px 2px; }
+    .coffee-cup::after { content: ''; position: absolute; top: 2px; right: -5px; width: 5px; height: 7px; border: 1.5px solid var(--pencil); border-left: none; border-radius: 0 3px 3px 0; }
+    .steam { position: absolute; top: -7px; left: 2px; }
+    .steam-line { width: 2px; height: 7px; background: var(--pencil); opacity: 0.18; border-radius: 1px; animation: steam-rise 2s ease-in-out infinite; display: inline-block; margin: 0 1px; }
+    .steam-line:nth-child(2) { animation-delay: 0.4s; height: 5px; }
+    .steam-line:nth-child(3) { animation-delay: 0.8s; height: 9px; }
+    @keyframes steam-rise { 0% { transform: translateY(0) scaleX(1); opacity: 0.18; } 50% { transform: translateY(-4px) scaleX(1.3); opacity: 0.3; } 100% { transform: translateY(-8px) scaleX(0.8); opacity: 0; } }
+
+    /* Chair — enhanced */
+    .chair {
+      width: 46px; height: 34px;
+      background: linear-gradient(180deg, #7b7b8b, #6b6b7b);
+      border: 2.5px solid var(--ink); border-radius: 12px 12px 5px 5px;
+      margin-top: 20px; position: relative;
+      box-shadow: 2px 3px 0 rgba(43,38,32,0.1);
+    }
+    .chair::before { content: ''; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); width: 4px; height: 8px; background: #888; border: 1.5px solid var(--ink); }
+    .chair::after { content: ''; position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%); width: 30px; height: 3px; background: #888; border-radius: 0 0 3px 3px; }
+    .chair-arm-l, .chair-arm-r { position: absolute; top: 6px; width: 4px; height: 18px; background: #888; border: 1px solid #666; border-radius: 2px; }
+    .chair-arm-l { left: -4px; }
+    .chair-arm-r { right: -4px; }
+
+    .station-task-label {
+      margin-top: 5px; padding: 4px 8px;
+      border: 1.5px dashed var(--rule); border-radius: 6px;
+      background: rgba(255,255,255,0.4);
+      font: 10px/1.2 var(--hand); color: var(--pencil);
+      text-align: center; min-width: 100px; max-width: 140px; transition: all 0.3s;
+    }
+    .station-task-label.active {
+      border-color: var(--accent); background: var(--note-yellow); color: var(--ink);
+      box-shadow: 0 2px 8px var(--accent-glow);
+    }
+    .station-status-dot {
+      position: absolute; top: -6px; right: -6px;
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2.5px solid var(--paper); z-index: 20;
+    }
+    .station-status-dot.idle { background: var(--green); }
+    .station-status-dot.working { background: var(--accent); animation: pulse-glow 1.2s infinite; box-shadow: 0 0 0 0 var(--accent-glow); }
+    @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); } 50% { box-shadow: 0 0 10px 5px rgba(216,72,43,0.12); } }
+    .workstation.drop-target .desk { border-color: var(--accent); border-style: dashed; background: rgba(216,72,43,0.06); box-shadow: 0 0 0 4px var(--accent-glow); }
+
+    /* Add station */
+    .add-station-btn {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; cursor: pointer; transition: all 0.2s;
+    }
+    .add-station-inner {
+      width: 140px; height: 85px;
+      border: 2.5px dashed var(--pencil); border-radius: 10px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+      color: var(--pencil); transition: all 0.25s; background: rgba(255,255,255,0.15);
+    }
+    .add-station-inner:hover { border-color: var(--accent); color: var(--accent); background: rgba(216,72,43,0.04); transform: scale(1.05) rotate(-1deg); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .add-station-inner svg { width: 22px; height: 22px; }
+    .add-station-inner span { font: 11px/1 var(--hand-bold); }
+
+    /* ── Standby Area ── */
+    .standby-area {
+      position: relative; z-index: 8;
+      margin: 8px 16px 12px; padding: 16px 18px 12px;
+      border: 2.5px dashed var(--pencil); border-radius: 14px;
+      background:
+        repeating-linear-gradient(0deg, rgba(43,38,32,0.02) 0 1px, transparent 1px 24px),
+        repeating-linear-gradient(90deg, rgba(43,38,32,0.02) 0 1px, transparent 1px 24px),
+        rgba(249,210,124,0.06);
+      min-height: 80px; transition: all 0.2s;
+    }
+    .standby-label {
+      position: absolute; top: -13px; left: 18px;
+      font: 700 12px/1 var(--hand-bold); padding: 4px 12px;
+      background: var(--paper); border: 1.5px solid var(--pencil); border-radius: 8px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .standby-agents { display: flex; gap: 12px; flex-wrap: wrap; padding-top: 4px; align-items: flex-end; }
+    .standby-slot { display: flex; flex-direction: column; align-items: center; cursor: grab; user-select: none; transition: transform 0.2s; }
+    .standby-slot:hover { transform: translateY(-4px); }
+    .standby-slot .zzz { font: 12px/1 var(--hand); color: var(--pencil); opacity: 0.3; margin-top: 2px; animation: zzz-float 2.5s ease-in-out infinite; }
+    @keyframes zzz-float { 0%, 100% { transform: translateY(0); opacity: 0.3; } 50% { transform: translateY(-5px); opacity: 0.55; } }
+
+    /* ── Agent Wrapper ── */
+    .agent-wrapper {
+      position: relative; display: flex; flex-direction: column; align-items: center;
+      cursor: grab; user-select: none; transition: transform 0.2s, filter 0.2s;
+    }
+    .agent-wrapper:active { cursor: grabbing; }
+    .agent-wrapper.dragging { opacity: 0.85; transform: scale(1.1) rotate(-3deg); z-index: 999; filter: drop-shadow(6px 8px 4px rgba(43,38,32,0.3)); }
+    .agent-avatar { width: 70px; height: 70px; position: relative; }
+    .agent-avatar svg { width: 100%; height: 100%; }
+    .agent-name-tag { font: 700 11px/1 var(--hand-bold); padding: 2px 7px; background: var(--paper); border: 1.5px solid var(--pencil); border-radius: 6px; white-space: nowrap; margin-top: -2px; }
+    .agent-role-tag { font: 9px/1 var(--mono); color: var(--pencil); letter-spacing: 0.06em; margin-top: 1px; }
+
+    /* Eye logic — FIXED: busy = eyes OPEN, idle/sleeping = eyes CLOSED */
+    .eyes-closed { display: none; }
+    .agent-wrapper.busy .eyes-open { display: block; }
+    .agent-wrapper.busy .eyes-closed { display: none; }
+    .agent-wrapper.idle .eyes-open { display: none; }
+    .agent-wrapper.idle .eyes-closed { display: block; }
+    .agent-wrapper.sleeping .eyes-open { display: none; }
+    .agent-wrapper.sleeping .eyes-closed { display: block; }
+
+    /* Busy: typing bob animation */
+    .agent-wrapper.busy .agent-avatar { animation: typing-bob 0.5s ease-in-out infinite; }
+    @keyframes typing-bob { 0%, 100% { transform: translateY(0) rotate(0deg); } 25% { transform: translateY(-2px) rotate(-0.5deg); } 75% { transform: translateY(-1px) rotate(0.5deg); } }
+
+    /* Idle/Sleeping: breathing animation */
+    .agent-wrapper.idle .agent-avatar, .agent-wrapper.sleeping .agent-avatar { animation: sleep-breathe 3s ease-in-out infinite; }
+    @keyframes sleep-breathe { 0%, 100% { transform: scaleY(1) translateY(0); } 50% { transform: scaleY(0.97) translateY(2px); } }
+
+    /* ── Right Panel ── */
+    .task-panel {
+      border-left: 3px solid var(--ink);
+      background: linear-gradient(180deg, var(--paper) 0%, var(--paper-tint) 100%);
+      padding: 14px 14px; display: flex; flex-direction: column; overflow: hidden;
+    }
+    .panel-title {
+      font: 800 16px/1 var(--serif); display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--ink);
+    }
+    .panel-title .count { font: 10px/1 var(--mono); padding: 3px 7px; border: 1.5px solid var(--accent); border-radius: 6px; color: var(--accent); }
+    .stats-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 10px; }
+    .stat-mini { border: 1.5px solid var(--pencil); border-radius: 8px; padding: 6px; text-align: center; background: var(--paper-tint); transition: all 0.2s; }
+    .stat-mini:hover { transform: translateY(-2px); box-shadow: 2px 3px 0 rgba(43,38,32,0.08); }
+    .stat-mini .num { font: 800 18px/1 var(--serif); }
+    .stat-mini .num.busy-num { color: var(--accent); }
+    .stat-mini .num.free-num { color: var(--green); }
+    .stat-mini .lbl { font: 9px/1 var(--mono); color: var(--pencil); letter-spacing: 0.1em; }
+
+    /* Roster */
+    .roster-section { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1.5px dashed var(--rule); }
+    .roster-title { font: 700 11px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--pencil); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+    .roster-list { display: flex; gap: 5px; flex-wrap: wrap; }
+    .roster-chip { display: flex; align-items: center; gap: 4px; padding: 3px 7px 3px 3px; border: 1.5px solid var(--pencil); border-radius: 999px; font: 10px/1 var(--hand); cursor: pointer; transition: all 0.2s; background: var(--paper-tint); }
+    .roster-chip:hover { border-color: var(--accent); transform: scale(1.05); }
+    .roster-chip.on-station { background: var(--highlight); border-color: var(--ink); }
+    .roster-chip .mini-dot { width: 20px; height: 20px; border-radius: 50%; overflow: hidden; flex-shrink: 0; }
+    .roster-chip .mini-dot svg { width: 100%; height: 100%; }
+    .roster-chip .chip-status { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .chip-status.busy { background: var(--accent); }
+    .chip-status.idle { background: var(--green); }
+    .chip-status.sleeping { background: var(--pencil); opacity: 0.4; }
+
+    /* Task queue */
+    .task-queue { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+    .task-card { border: 2px solid var(--pencil); border-radius: 10px; padding: 10px; background: var(--paper-tint); cursor: grab; user-select: none; transition: all 0.2s; position: relative; }
+    .task-card:hover { transform: translateY(-1px); box-shadow: 2px 3px 0 rgba(43,38,32,0.08); }
+    .task-card:active { cursor: grabbing; }
+    .task-card.dragging { opacity: 0.7; transform: rotate(-2deg); box-shadow: 4px 6px 0 rgba(43,38,32,0.2); }
+    .task-card.drag-over { border-color: var(--accent); border-style: dashed; }
+    .task-card.processing { border-color: var(--accent); background: var(--note-yellow); box-shadow: 0 0 0 2px var(--accent-glow); }
+    .task-card.done { border-color: var(--green); background: var(--note-green); opacity: 0.55; }
+    .task-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .task-id { font: 9px/1 var(--mono); color: var(--pencil); letter-spacing: 0.1em; }
+    .task-priority { font: 8px/1 var(--mono); padding: 2px 6px; border-radius: 4px; letter-spacing: 0.08em; }
+    .priority-high { background: var(--accent); color: var(--paper); }
+    .priority-mid { background: var(--highlight); color: var(--ink); }
+    .priority-low { background: var(--note-blue); color: var(--ink); }
+    .task-name { font: 700 12px/1.2 var(--hand-bold); margin-bottom: 2px; }
+    .task-desc { font: 10px/1.3 var(--hand); color: var(--pencil); }
+    .task-agent { display: flex; align-items: center; gap: 4px; margin-top: 5px; padding-top: 4px; border-top: 1px dashed var(--rule); font: 9px/1 var(--mono); color: var(--pencil); }
+    .task-order { position: absolute; top: -6px; left: -6px; width: 18px; height: 18px; border: 2px solid var(--ink); border-radius: 50%; background: var(--paper); font: 700 9px/14px var(--mono); text-align: center; }
+
+    /* ── Output Panel ── */
+    .output-section { margin-top: 10px; padding-top: 10px; border-top: 2px solid var(--ink); }
+    .output-title { font: 800 14px/1 var(--serif); display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .output-title .done-count { font: 10px/1 var(--mono); padding: 2px 6px; border: 1.5px solid var(--green); border-radius: 6px; color: var(--green); }
+    .output-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+    .output-card {
+      border: 1.5px solid var(--green); border-radius: 8px;
+      padding: 8px 10px; background: var(--note-green);
+      position: relative; transition: all 0.2s;
+    }
+    .output-card:hover { transform: translateX(3px); box-shadow: 2px 2px 0 rgba(43,38,32,0.08); }
+    .output-card .out-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+    .output-card .out-task { font: 700 11px/1.2 var(--hand-bold); }
+    .output-card .out-time { font: 8px/1 var(--mono); color: var(--pencil); }
+    .output-card .out-agent { display: flex; align-items: center; gap: 4px; font: 9px/1 var(--mono); color: var(--pencil); margin-bottom: 4px; }
+    .output-card .out-agent .mini-color { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--pencil); }
+    .output-card .out-result {
+      font: 10px/1.4 var(--hand); color: var(--ink);
+      padding: 5px 7px; background: rgba(255,255,255,0.5);
+      border-radius: 4px; border: 1px dashed var(--rule);
+    }
+    .output-card .out-result code {
+      font: 9px/1 var(--mono); background: rgba(43,38,32,0.06);
+      padding: 1px 4px; border-radius: 3px;
+    }
+    .output-empty {
+      text-align: center; padding: 16px 0; color: var(--pencil);
+      font: 12px/1.4 var(--hand); opacity: 0.4;
+    }
+
+    /* ── Sticky ── */
+    .sticky { position: absolute; padding: 8px 10px; font: 11px/1.2 var(--hand); box-shadow: 3px 4px 0 rgba(43,38,32,0.1); max-width: 140px; z-index: 15; }
+    .sticky .tape { position: absolute; top: -7px; left: 28%; width: 42px; height: 11px; background: rgba(43,38,32,0.1); transform: rotate(-3deg); border-radius: 2px; }
+
+    /* ── Toast ── */
+    .toast { position: fixed; top: 18px; right: 18px; padding: 12px 18px; font: 14px/1.4 var(--hand); background: var(--note-green); border: 2px solid var(--ink); border-radius: 10px; box-shadow: 4px 5px 0 rgba(43,38,32,0.15); transform: rotate(-1deg); z-index: 10000; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+
+    /* ── Delete zone ── */
+    .delete-zone { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border: 3px dashed var(--accent); border-radius: 14px; background: rgba(216,72,43,0.06); font: 15px/1 var(--hand-bold); color: var(--accent); display: none; align-items: center; gap: 8px; z-index: 1000; transition: all 0.2s; backdrop-filter: blur(8px); }
+    .delete-zone.show { display: flex; }
+    .delete-zone.hover { background: rgba(216,72,43,0.18); transform: translateX(-50%) scale(1.06); box-shadow: 0 0 20px var(--accent-glow); }
+
+    /* ── Modal ── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(43,38,32,0.5); backdrop-filter: blur(4px); z-index: 5000; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; }
+    .modal-overlay.show { display: flex; opacity: 1; }
+    .modal { width: 520px; max-height: 80vh; overflow-y: auto; background: var(--paper); border: 3px solid var(--ink); border-radius: 16px; box-shadow: 8px 10px 0 rgba(43,38,32,0.2); padding: 28px; transform: scale(0.95); transition: transform 0.3s; }
+    .modal-overlay.show .modal { transform: scale(1); }
+    .modal-title { font: 800 24px/1 var(--serif); margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+    .modal-sub { font: 14px/1.4 var(--hand); color: var(--pencil); margin-bottom: 20px; }
+    .modal-section { margin-bottom: 18px; }
+    .modal-label { font: 700 13px/1 var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--pencil); margin-bottom: 10px; display: block; }
+    .animal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .animal-pick { border: 2.5px solid var(--pencil); border-radius: 12px; padding: 12px 8px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--paper-tint); }
+    .animal-pick:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 3px 4px 0 rgba(43,38,32,0.1); }
+    .animal-pick.selected { border-color: var(--accent); border-width: 3px; background: var(--note-yellow); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .animal-pick .pick-avatar { width: 52px; height: 52px; margin: 0 auto 6px; }
+    .animal-pick .pick-avatar svg { width: 100%; height: 100%; }
+    .animal-pick .pick-name { font: 700 13px/1 var(--hand-bold); }
+    .color-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+    .color-pick { width: 40px; height: 40px; border-radius: 50%; border: 2.5px solid var(--pencil); cursor: pointer; transition: all 0.15s; position: relative; }
+    .color-pick:hover { transform: scale(1.15); }
+    .color-pick.selected { border-color: var(--ink); border-width: 3px; box-shadow: 0 0 0 3px var(--accent-glow); }
+    .color-pick.selected::after { content: '✓'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 16px/1 var(--hand-bold); color: var(--ink); }
+    .name-input { width: 100%; padding: 12px 14px; font: 16px/1 var(--hand); color: var(--ink); border: 2.5px solid var(--pencil); border-radius: 10px; background: var(--paper-tint); outline: none; transition: all 0.2s; }
+    .name-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .name-input::placeholder { color: var(--pencil); opacity: 0.5; }
+    .role-grid { display: flex; gap: 6px; flex-wrap: wrap; }
+    .role-pick { font: 13px/1 var(--hand); padding: 8px 14px; border: 2px solid var(--pencil); border-radius: 8px; cursor: pointer; transition: all 0.2s; background: var(--paper-tint); }
+    .role-pick:hover { border-color: var(--accent); }
+    .role-pick.selected { border-color: var(--ink); background: var(--highlight); font-weight: 700; }
+    .preview-area { display: flex; align-items: center; gap: 20px; padding: 16px; border: 2px dashed var(--rule); border-radius: 12px; background: var(--paper-tint); }
+    .preview-avatar { width: 80px; height: 80px; }
+    .preview-avatar svg { width: 100%; height: 100%; }
+    .preview-info .preview-name { font: 800 20px/1 var(--serif); font-style: italic; }
+    .preview-info .preview-role { font: 12px/1 var(--mono); color: var(--pencil); letter-spacing: 0.06em; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 2px solid var(--ink); }
+
+    /* ── Responsive ── */
+    @media (max-width: 1200px) {
+      .workstations-area { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 1000px) {
+      .office-layout { grid-template-columns: 1fr; }
+      .task-panel { border-left: none; border-top: 3px solid var(--ink); max-height: 480px; }
+    }
+    @media (max-width: 700px) {
+      .workstations-area { grid-template-columns: repeat(2, 1fr); }
+      .animal-grid { grid-template-columns: repeat(3, 1fr); }
+      .modal { width: 95vw; padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <div class="header-row">
+      <h1>
+        <span>智途</span><em>智能体办公室</em>
+        <span class="pin">AGENT OFFICE v0.5</span>
+      </h1>
+      <div class="header-actions">
+        <button class="btn-action btn-primary" onclick="openAddModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="17" y1="11" x2="23" y2="11"/></svg>
+          招聘员工
+        </button>
+        <button class="btn-action btn-secondary" onclick="dispatchRandomTask()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          派发任务
+        </button>
+        <button class="btn-action btn-ghost" onclick="resetAll()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 12a9 9 0 109-9"/><path d="M3 3v6h6"/></svg>
+          重置
+        </button>
+      </div>
+    </div>
+    <div class="header-meta">拖拽员工到工位 · 招聘新员工 · 右侧拖拽调整任务顺序 · 底部查看产出结果</div>
+  </div>
+
+  <div class="office-layout">
+    <div class="office-scene">
+      <div class="room">
+        <!-- Wall zone: decorations always visible on top -->
+        <div class="wall">
+          <div class="light-ray"></div>
+
+          <div class="wall-poster">🎯 今日目标<br>完成 3 个匹配任务</div>
+          <div class="wall-poster2">☕ 休息一下~</div>
+          <div class="whiteboard">
+            <div class="whiteboard-line"></div>
+            <div class="whiteboard-line"></div>
+            <div class="whiteboard-line"></div>
+            <div class="whiteboard-line"></div>
+            <div class="whiteboard-marker"></div>
+          </div>
+
+          <div class="window-frame">
+            <div class="curtain-left"></div>
+            <div class="curtain-right"></div>
+            <div class="curtain-rod"></div>
+            <div class="cloud"><div class="cloud-shape"></div></div>
+          </div>
+
+          <div class="wall-clock">
+            <div class="clock-face">
+              <div class="clock-hand-h" style="transform:rotate(210deg)"></div>
+              <div class="clock-hand-m" style="transform:rotate(45deg)"></div>
+              <div class="clock-hand-s"></div>
+              <div class="clock-dot"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Floor zone: workstations + standby area -->
+        <div class="floor">
+          <div class="carpet"></div>
+
+          <svg class="brand-accent" viewBox="0 0 100 100">
+            <text x="50" y="68" text-anchor="middle" font-size="72" font-family="'DM Serif Display', serif" font-weight="800" fill="#2b2620">智</text>
+          </svg>
+
+          <div class="plant plant-left">
+            <svg width="40" height="56" viewBox="0 0 40 56">
+              <rect x="12" y="38" width="16" height="16" rx="3" fill="#c9842a" stroke="#2b2620" stroke-width="2"/>
+              <rect x="10" y="35" width="20" height="5" rx="2" fill="#b87420" stroke="#2b2620" stroke-width="1.5"/>
+              <ellipse cx="20" cy="28" rx="8" ry="10" fill="#5a9e5a" stroke="#2b2620" stroke-width="1.5"/>
+              <ellipse cx="14" cy="22" rx="6" ry="8" fill="#6ab06a" stroke="#2b2620" stroke-width="1.5" transform="rotate(-20 14 22)"/>
+              <ellipse cx="26" cy="24" rx="5" ry="7" fill="#4a8e4a" stroke="#2b2620" stroke-width="1.5" transform="rotate(15 26 24)"/>
+              <path d="M20 36 Q20 28 14 18" fill="none" stroke="#2b2620" stroke-width="1.5"/>
+              <path d="M20 36 Q22 30 28 22" fill="none" stroke="#2b2620" stroke-width="1.2"/>
+            </svg>
+          </div>
+          <div class="plant plant-right">
+            <svg width="36" height="50" viewBox="0 0 36 50">
+              <rect x="10" y="34" width="16" height="14" rx="3" fill="#c9842a" stroke="#2b2620" stroke-width="2"/>
+              <rect x="8" y="31" width="20" height="5" rx="2" fill="#b87420" stroke="#2b2620" stroke-width="1.5"/>
+              <ellipse cx="18" cy="22" rx="10" ry="12" fill="#6ab06a" stroke="#2b2620" stroke-width="1.5"/>
+              <ellipse cx="12" cy="18" rx="5" ry="8" fill="#7ac07a" stroke="#2b2620" stroke-width="1.2" transform="rotate(-15 12 18)"/>
+              <ellipse cx="24" cy="20" rx="4" ry="6" fill="#5a9e5a" stroke="#2b2620" stroke-width="1.2" transform="rotate(20 24 20)"/>
+              <path d="M18 32 Q18 24 10 16" fill="none" stroke="#2b2620" stroke-width="1.2"/>
+            </svg>
+          </div>
+
+          <div class="workstations-area" id="workstations-area"></div>
+
+          <div class="standby-area" id="standby-area">
+            <div class="standby-label">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 8A6 6 0 106 8c0 7-3 9-3 9h18s-3-2-3-9"/></svg>
+              待命休息区
+            </div>
+            <div class="standby-agents" id="standby-agents"></div>
+          </div>
+        </div>
+
+        <div class="sticky" style="position:absolute; top:6px; right:10px; background:var(--note-yellow); transform:rotate(2deg); z-index:20;">
+          <div class="tape"></div>
+          招聘更多员工 →
+        </div>
+      </div>
+    </div>
+
+    <!-- Task Panel -->
+    <div class="task-panel">
+      <div class="panel-title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9h6M9 13h4M9 17h5"/></svg>
+        任务队列
+        <span class="count" id="queue-count">0</span>
+      </div>
+      <div class="stats-bar">
+        <div class="stat-mini"><div class="num busy-num" id="busy-num">0</div><div class="lbl">忙碌</div></div>
+        <div class="stat-mini"><div class="num free-num" id="free-num">0</div><div class="lbl">空闲</div></div>
+        <div class="stat-mini"><div class="num" id="station-num">0</div><div class="lbl">工位</div></div>
+      </div>
+
+      <div class="roster-section">
+        <div class="roster-title">员工花名册 <span id="roster-count" style="color:var(--accent)"></span></div>
+        <div class="roster-list" id="roster-list"></div>
+      </div>
+
+      <div class="task-queue" id="task-queue">
+        <div style="text-align:center;padding:24px 0;color:var(--pencil);font:13px/1.5 var(--hand);">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="opacity:0.3;margin-bottom:4px;"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg>
+          <br>暂无任务<br>
+          <span style="font:10px/1 var(--mono);opacity:0.5;">点击「派发任务」开始</span>
+        </div>
+      </div>
+
+      <!-- Output / Results Section -->
+      <div class="output-section">
+        <div class="output-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+          工作产出
+          <span class="done-count" id="done-count">0</span>
+        </div>
+        <div class="output-list" id="output-list">
+          <div class="output-empty">完成任务后产出将显示在这里</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Zone -->
+  <div class="delete-zone" id="delete-zone">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+    拖到此处移出工位
+  </div>
+
+  <!-- Add Employee Modal -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <div class="modal-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="17" y1="11" x2="23" y2="11"/></svg>
+        招聘新员工
+      </div>
+      <div class="modal-sub">选择动物形象、配色方案和岗位，为你的办公室添加新伙伴</div>
+
+      <div class="modal-section">
+        <div class="preview-area">
+          <div class="preview-avatar" id="preview-avatar"></div>
+          <div class="preview-info">
+            <div class="preview-name" id="preview-name">小喵</div>
+            <div class="preview-role" id="preview-role">前端开发</div>
+          </div>
+          <button class="btn-action btn-ghost" onclick="randomizeEmployee()" style="margin-left:auto;font-size:12px;padding:7px 12px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 12a9 9 0 109-9"/><path d="M3 3v6h6"/></svg>
+            随机生成
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <label class="modal-label">选择形象</label>
+        <div class="animal-grid" id="animal-grid"></div>
+      </div>
+
+      <div class="modal-section">
+        <label class="modal-label">配色方案</label>
+        <div class="color-grid" id="color-grid"></div>
+      </div>
+
+      <div class="modal-section">
+        <label class="modal-label">员工昵称</label>
+        <input class="name-input" id="name-input" type="text" placeholder="给你的小伙伴起个名字" maxlength="8" />
+      </div>
+
+      <div class="modal-section">
+        <label class="modal-label">岗位角色</label>
+        <div class="role-grid" id="role-grid"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-action btn-ghost" onclick="closeModal()">取消</button>
+        <button class="btn-action btn-primary" onclick="confirmHire()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+          确认招聘
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ── Animal Templates ──
+    const ANIMAL_TYPES = [
+      { type: 'cat', label: '猫咪', defaultName: '小喵', defaultRole: '前端开发' },
+      { type: 'dog', label: '柴犬', defaultName: '旺财', defaultRole: '后端开发' },
+      { type: 'rabbit', label: '兔叽', defaultName: '兔叽', defaultRole: 'UI 设计' },
+      { type: 'panda', label: '熊猫', defaultName: '团子', defaultRole: '数据分析' },
+      { type: 'fox', label: '狐狸', defaultName: '小狐', defaultRole: 'AI 训练' },
+      { type: 'bear', label: '棕熊', defaultName: '大壮', defaultRole: '后端开发' },
+      { type: 'owl', label: '猫头鹰', defaultName: '咕咕', defaultRole: '数据分析' },
+      { type: 'penguin', label: '企鹅', defaultName: '圆圆', defaultRole: '前端开发' },
+      { type: 'hamster', label: '仓鼠', defaultName: '团团', defaultRole: 'UI 设计' },
+      { type: 'hedgehog', label: '刺猬', defaultName: '刺刺', defaultRole: 'AI 训练' },
+      { type: 'raccoon', label: '浣熊', defaultName: '灰灰', defaultRole: '后端开发' },
+      { type: 'deer', label: '小鹿', defaultName: '呦呦', defaultRole: '前端开发' },
+    ];
+
+    const COLOR_SCHEMES = [
+      { id: 'orange', color: '#f9d27c', label: '暖橙' },
+      { id: 'blue',   color: '#c9daf5', label: '天蓝' },
+      { id: 'pink',   color: '#ffd5c9', label: '樱粉' },
+      { id: 'green',  color: '#c9f5c0', label: '嫩绿' },
+      { id: 'purple', color: '#e5d5f5', label: '薰紫' },
+      { id: 'coral',  color: '#f5b8a8', label: '珊瑚' },
+      { id: 'mint',   color: '#b8f0e0', label: '薄荷' },
+      { id: 'lemon',  color: '#f5f0a8', label: '柠檬' },
+      { id: 'lavender', color: '#d0c0f0', label: '淡紫' },
+      { id: 'peach',  color: '#fdd8b8', label: '蜜桃' },
+      { id: 'sky',    color: '#a8d8f0', label: '晴空' },
+      { id: 'rose',   color: '#f0c0d0', label: '玫瑰' },
+    ];
+
+    const ROLES = [
+      '前端开发', '后端开发', 'UI 设计', '数据分析', 'AI 训练',
+      '产品经理', '测试工程师', '运维工程师', '全栈开发', '内容运营',
+    ];
+
+    const CUTE_NAMES = [
+      '豆豆','糖糖','奶茶','小柚','芒果','芋圆','麻薯','布丁',
+      '年糕','汤圆','糯米','雪糕','椰果','草莓','蜜桃','蓝莓',
+      '小橘','椰子','香蕉','西瓜','菠萝','柠檬','柚子','樱桃',
+      '蛋挞','泡芙','曲奇','奶昔','果冻','松饼','华夫','吐司',
+    ];
+
+    // Task result templates for output panel
+    const RESULT_TEMPLATES = {
+      '前端开发': [
+        '已提交 PR，新增组件 <code>LoginForm.tsx</code>，通过 Lighthouse 98 分',
+        '完成响应式适配，360px–1920px 全覆盖，0 水平溢出',
+        '路由守卫重构完成，权限校验延迟 < 50ms',
+        'SVG 图标库替换完成，Bundle 减少 12KB',
+      ],
+      '后端开发': [
+        'API 接口上线，平均响应 45ms，P99 < 200ms',
+        '数据库索引优化，查询耗时从 800ms 降至 60ms',
+        'WebSocket 推送模块完成，支持 10k 并发连接',
+        'JWT 刷新机制重构，token 续期无感化',
+      ],
+      'UI 设计': [
+        '设计稿已交付 Figma，含 12 种组件状态 + 暗色模式',
+        '用户调研完成，3 个关键痛点已转化为设计方案',
+        '交互动效规范输出，涵盖 28 个微交互场景',
+        '品牌色板扩展完成，WCAG AA 对比度全部达标',
+      ],
+      '数据分析': [
+        '用户行为漏斗报告完成，关键转化率 23.7%',
+        'A/B 测试分析：方案 B 点击率提升 18.3%',
+        '月度活跃用户趋势报告已生成，DAU 环比 +12%',
+        '学习完成率模型训练完成，R² = 0.87',
+      ],
+      'AI 训练': [
+        '匹配模型 v2.3 上线，准确率从 72% 提升至 89%',
+        'NLP 简历解析模型优化，F1-score 达 0.91',
+        '推荐算法 A/B 测试完成，CTR 提升 22%',
+        '对话模型微调完成，回答满意度 4.6/5.0',
+      ],
+      '产品经理': [
+        'PRD v2.0 已评审通过，覆盖 Q3 全部需求',
+        '竞品分析报告完成，5 个差异化机会已标记',
+        '用户故事地图更新，Sprint 3-5 排期确认',
+        'OKR 拆解完成，3 个 KR 已分配到团队',
+      ],
+      '测试工程师': [
+        'E2E 测试覆盖率从 45% 提升至 82%',
+        '回归测试自动化，执行时间从 2h 降至 12min',
+        '性能压测报告：系统稳定支持 5000 QPS',
+        'Bug 分类统计完成，P0 清零，P1 剩余 3 个',
+      ],
+      '运维工程师': [
+        'CI/CD 流水线优化，部署时间从 8min 降至 2min',
+        '监控告警规则更新，误报率降低 60%',
+        '容器镜像瘦身完成，体积减少 40%',
+        '灾备演练通过，RTO < 5min，RPO < 1min',
+      ],
+      '全栈开发': [
+        '全链路功能完成，前端 + 后端 + 数据库一步到位',
+        '微服务拆分方案实施，服务间延迟 < 10ms',
+        'GraphQL 网关搭建完成，查询合并效率 +35%',
+        '全栈 Code Review 通过，0 安全漏洞',
+      ],
+      '内容运营': [
+        '本周内容日历排期完成，覆盖 5 个渠道',
+        '用户增长文案 A/B 测试，版本 B 转化率 +15%',
+        '社群运营 SOP 输出，新人引导流程 3 步完成',
+        'SEO 优化报告：核心关键词排名平均提升 8 位',
+      ],
+    };
+
+    // ── SVG Generator ──
+    function makeAnimalSVG(type, color) {
+      const c = color;
+      const eo = 'class="eyes-open"';
+      const ec = 'class="eyes-closed"';
+
+      const generators = {
+        cat: () => `<svg viewBox="0 0 100 100">
+          <defs><radialGradient id="g-${c.replace('#','')}" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="${c}"/><stop offset="100%" stop-color="${c}dd"/></radialGradient></defs>
+          <path d="M74 68 Q88 56 86 42 Q84 48 80 46 Q86 54 78 66" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="50" cy="66" rx="26" ry="22" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="50" cy="70" rx="14" ry="12" fill="${c}" opacity="0.6"/>
+          <polygon points="28,42 18,8 42,34" fill="${c}" stroke="#2b2620" stroke-width="2.5" stroke-linejoin="round"/>
+          <polygon points="72,42 82,8 58,34" fill="${c}" stroke="#2b2620" stroke-width="2.5" stroke-linejoin="round"/>
+          <polygon points="28,42 22,16 38,34" fill="#ffd5c9" opacity="0.8"/>
+          <polygon points="72,42 78,16 62,34" fill="#ffd5c9" opacity="0.8"/>
+          <ellipse cx="50" cy="48" rx="22" ry="18" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <g ${eo}><ellipse cx="40" cy="46" rx="5" ry="5.5" fill="#2b2620"/><ellipse cx="60" cy="46" rx="5" ry="5.5" fill="#2b2620"/><ellipse cx="41.5" cy="44.5" rx="2.2" ry="2.5" fill="#fff"/><ellipse cx="61.5" cy="44.5" rx="2.2" ry="2.5" fill="#fff"/></g>
+          <g ${ec}><path d="M35 46 Q40 50 45 46" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/><path d="M55 46 Q60 50 65 46" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/></g>
+          <path d="M47 52 L50 55 L53 52 Z" fill="#ffd5c9" stroke="#2b2620" stroke-width="1.2"/>
+          <path d="M47 55 Q50 58 53 55" fill="none" stroke="#2b2620" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="32" y1="50" x2="14" y2="47" stroke="#2b2620" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+          <line x1="32" y1="54" x2="14" y2="55" stroke="#2b2620" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+          <line x1="68" y1="50" x2="86" y2="47" stroke="#2b2620" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+          <line x1="68" y1="54" x2="86" y2="55" stroke="#2b2620" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+          <ellipse cx="33" cy="54" rx="5" ry="3" fill="#ffd5c9" opacity="0.4"/>
+          <ellipse cx="67" cy="54" rx="5" ry="3" fill="#ffd5c9" opacity="0.4"/>
+          <ellipse cx="38" cy="84" rx="7" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="62" cy="84" rx="7" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+        </svg>`,
+
+        dog: () => `<svg viewBox="0 0 100 100">
+          <defs><radialGradient id="g-${c.replace('#','')}" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="${c}"/><stop offset="100%" stop-color="${c}dd"/></radialGradient></defs>
+          <path d="M76 62 Q86 48 82 36" fill="none" stroke="${c}" stroke-width="7" stroke-linecap="round"/>
+          <path d="M76 62 Q86 48 82 36" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/>
+          <ellipse cx="50" cy="66" rx="24" ry="20" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="50" cy="70" rx="12" ry="10" fill="${c}" opacity="0.5"/>
+          <ellipse cx="30" cy="40" rx="11" ry="16" fill="${c}" stroke="#2b2620" stroke-width="2.5" transform="rotate(-15 30 40)"/>
+          <ellipse cx="70" cy="40" rx="11" ry="16" fill="${c}" stroke="#2b2620" stroke-width="2.5" transform="rotate(15 70 40)"/>
+          <ellipse cx="30" cy="40" rx="6" ry="11" fill="#e8d5b8" transform="rotate(-15 30 40)"/>
+          <ellipse cx="70" cy="40" rx="6" ry="11" fill="#e8d5b8" transform="rotate(15 70 40)"/>
+          <ellipse cx="50" cy="46" rx="20" ry="16" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="50" cy="54" rx="12" ry="9" fill="#e8d5b8" stroke="#2b2620" stroke-width="1.5"/>
+          <g ${eo}><circle cx="40" cy="44" r="5" fill="#2b2620"/><circle cx="60" cy="44" r="5" fill="#2b2620"/><circle cx="41.5" cy="42.5" r="2.2" fill="#fff"/><circle cx="61.5" cy="42.5" r="2.2" fill="#fff"/></g>
+          <g ${ec}><path d="M35 44 Q40 48 45 44" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/><path d="M55 44 Q60 48 65 44" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/></g>
+          <ellipse cx="50" cy="50" rx="5" ry="4" fill="#2b2620"/>
+          <ellipse cx="49" cy="49" rx="2" ry="1.5" fill="#555" opacity="0.4"/>
+          <path d="M47 54 Q50 57 53 54" fill="none" stroke="#2b2620" stroke-width="1.5" stroke-linecap="round"/>
+          <ellipse cx="34" cy="50" rx="4" ry="2.5" fill="#ffd5c9" opacity="0.35"/>
+          <ellipse cx="66" cy="50" rx="4" ry="2.5" fill="#ffd5c9" opacity="0.35"/>
+          <ellipse cx="36" cy="84" rx="8" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="64" cy="84" rx="8" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+        </svg>`,
+
+        rabbit: () => `<svg viewBox="0 0 100 100">
+          <defs><radialGradient id="g-${c.replace('#','')}" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="${c}"/><stop offset="100%" stop-color="${c}dd"/></radialGradient></defs>
+          <circle cx="74" cy="70" r="7" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <circle cx="74" cy="70" r="4" fill="#fff" opacity="0.3"/>
+          <ellipse cx="50" cy="68" rx="22" ry="20" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="38" cy="20" rx="8" ry="22" fill="${c}" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="62" cy="20" rx="8" ry="22" fill="${c}" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="38" cy="20" rx="4.5" ry="16" fill="#ffd5c9" opacity="0.8"/>
+          <ellipse cx="62" cy="20" rx="4.5" ry="16" fill="#ffd5c9" opacity="0.8"/>
+          <ellipse cx="50" cy="50" rx="20" ry="16" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <g ${eo}><circle cx="42" cy="48" r="4.5" fill="#2b2620"/><circle cx="58" cy="48" r="4.5" fill="#2b2620"/><circle cx="43" cy="46.5" r="2" fill="#fff"/><circle cx="59" cy="46.5" r="2" fill="#fff"/></g>
+          <g ${ec}><path d="M37 48 Q42 52 47 48" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/><path d="M53 48 Q58 52 63 48" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/></g>
+          <ellipse cx="50" cy="54" rx="3" ry="2.5" fill="#ffd5c9"/>
+          <path d="M48 56 Q50 59 52 56" fill="none" stroke="#2b2620" stroke-width="1.5" stroke-linecap="round"/>
+          <ellipse cx="35" cy="52" rx="5" ry="3" fill="#ffd5c9" opacity="0.5"/>
+          <ellipse cx="65" cy="52" rx="5" ry="3" fill="#ffd5c9" opacity="0.5"/>
+          <ellipse cx="38" cy="86" rx="8" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="62" cy="86" rx="8" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+        </svg>`,
+
+        panda: () => `<svg viewBox="0 0 100 100">
+          <defs><radialGradient id="g-${c.replace('#','')}" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="#f8f5f0"/><stop offset="100%" stop-color="#ece8e0"/></radialGradient></defs>
+          <ellipse cx="50" cy="66" rx="26" ry="22" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="26" cy="68" rx="8" ry="12" fill="#2b2620" transform="rotate(-10 26 68)"/>
+          <ellipse cx="74" cy="68" rx="8" ry="12" fill="#2b2620" transform="rotate(10 74 68)"/>
+          <circle cx="30" cy="32" r="10" fill="#2b2620"/>
+          <circle cx="70" cy="32" r="10" fill="#2b2620"/>
+          <ellipse cx="50" cy="46" rx="22" ry="18" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="38" cy="46" rx="10" ry="8" fill="#2b2620" transform="rotate(-8 38 46)"/>
+          <ellipse cx="62" cy="46" rx="10" ry="8" fill="#2b2620" transform="rotate(8 62 46)"/>
+          <g ${eo}><circle cx="38" cy="46" r="4" fill="#fff"/><circle cx="62" cy="46" r="4" fill="#fff"/><circle cx="39" cy="45" r="2.5" fill="#2b2620"/><circle cx="63" cy="45" r="2.5" fill="#2b2620"/></g>
+          <g ${ec}><path d="M33 46 Q38 50 43 46" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><path d="M57 46 Q62 50 67 46" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></g>
+          <ellipse cx="50" cy="53" rx="4" ry="3" fill="#2b2620"/>
+          <path d="M47 56 Q50 59 53 56" fill="none" stroke="#2b2620" stroke-width="1.5" stroke-linecap="round"/>
+          <ellipse cx="32" cy="52" rx="5" ry="3" fill="${c}" opacity="0.5"/>
+          <ellipse cx="68" cy="52" rx="5" ry="3" fill="${c}" opacity="0.5"/>
+          <ellipse cx="36" cy="84" rx="8" ry="6" fill="#2b2620"/>
+          <ellipse cx="64" cy="84" rx="8" ry="6" fill="#2b2620"/>
+        </svg>`,
+
+        fox: () => `<svg viewBox="0 0 100 100">
+          <defs><radialGradient id="g-${c.replace('#','')}" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="${c}"/><stop offset="100%" stop-color="${c}dd"/></radialGradient></defs>
+          <path d="M74 64 Q90 48 86 34 Q82 42 78 40 Q84 48 78 62" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <path d="M84 36 Q82 42 86 34" fill="#f5f2ed" stroke="#2b2620" stroke-width="1.5"/>
+          <ellipse cx="50" cy="66" rx="24" ry="20" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="50" cy="70" rx="12" ry="10" fill="#f5f2ed" opacity="0.6"/>
+          <polygon points="30,38 16,6 44,30" fill="${c}" stroke="#2b2620" stroke-width="2.5" stroke-linejoin="round"/>
+          <polygon points="70,38 84,6 56,30" fill="${c}" stroke="#2b2620" stroke-width="2.5" stroke-linejoin="round"/>
+          <polygon points="30,38 20,14 40,30" fill="#f5eedf"/>
+          <polygon points="70,38 80,14 60,30" fill="#f5eedf"/>
+          <ellipse cx="50" cy="48" rx="20" ry="16" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <path d="M34 48 Q50 72 66 48" fill="#f5f2ed" stroke="#2b2620" stroke-width="1.5"/>
+          <g ${eo}><ellipse cx="40" cy="44" rx="4.5" ry="5" fill="#2b2620"/><ellipse cx="60" cy="44" rx="4.5" ry="5" fill="#2b2620"/><ellipse cx="41.5" cy="42.5" rx="2" ry="2.2" fill="#fff"/><ellipse cx="61.5" cy="42.5" rx="2" ry="2.2" fill="#fff"/></g>
+          <g ${ec}><path d="M35 44 Q40 48 45 44" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/><path d="M55 44 Q60 48 65 44" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/></g>
+          <ellipse cx="50" cy="50" rx="3.5" ry="2.5" fill="#2b2620"/>
+          <path d="M47 53 Q50 56 53 53" fill="none" stroke="#2b2620" stroke-width="1.5" stroke-linecap="round"/>
+          <ellipse cx="34" cy="50" rx="4" ry="2.5" fill="#ffd5c9" opacity="0.35"/>
+          <ellipse cx="66" cy="50" rx="4" ry="2.5" fill="#ffd5c9" opacity="0.35"/>
+          <ellipse cx="38" cy="84" rx="7" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="62" cy="84" rx="7" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+        </svg>`,
+
+        bear: () => `<svg viewBox="0 0 100 100">
+          <defs><radialGradient id="g-${c.replace('#','')}" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="${c}"/><stop offset="100%" stop-color="${c}dd"/></radialGradient></defs>
+          <ellipse cx="50" cy="66" rx="28" ry="24" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="50" cy="72" rx="16" ry="12" fill="${c}" opacity="0.5"/>
+          <circle cx="30" cy="28" r="10" fill="${c}" stroke="#2b2620" stroke-width="2.5"/>
+          <circle cx="70" cy="28" r="10" fill="${c}" stroke="#2b2620" stroke-width="2.5"/>
+          <circle cx="30" cy="28" r="6" fill="${c}" opacity="0.6"/>
+          <circle cx="70" cy="28" r="6" fill="${c}" opacity="0.6"/>
+          <ellipse cx="50" cy="46" rx="24" ry="20" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <g ${eo}><circle cx="40" cy="44" r="4" fill="#2b2620"/><circle cx="60" cy="44" r="4" fill="#2b2620"/><circle cx="41" cy="43" r="1.8" fill="#fff"/><circle cx="61" cy="43" r="1.8" fill="#fff"/></g>
+          <g ${ec}><path d="M36 44 Q40 48 44 44" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/><path d="M56 44 Q60 48 64 44" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/></g>
+          <ellipse cx="50" cy="52" rx="6" ry="4" fill="#2b2620"/>
+          <ellipse cx="49" cy="51" rx="2.5" ry="1.5" fill="#555" opacity="0.3"/>
+          <path d="M46 56 Q50 59 54 56" fill="none" stroke="#2b2620" stroke-width="1.5" stroke-linecap="round"/>
+          <ellipse cx="33" cy="52" rx="5" ry="3" fill="#ffd5c9" opacity="0.4"/>
+          <ellipse cx="67" cy="52" rx="5" ry="3" fill="#ffd5c9" opacity="0.4"/>
+          <ellipse cx="36" cy="86" rx="9" ry="6" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="64" cy="86" rx="9" ry="6" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+        </svg>`,
+
+        owl: () => `<svg viewBox="0 0 100 100">
+          <defs><radialGradient id="g-${c.replace('#','')}" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="${c}"/><stop offset="100%" stop-color="${c}dd"/></radialGradient></defs>
+          <ellipse cx="50" cy="68" rx="22" ry="20" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="50" cy="48" rx="24" ry="20" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <polygon points="32,36 22,8 42,30" fill="${c}" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/>
+          <polygon points="68,36 78,8 58,30" fill="${c}" stroke="#2b2620" stroke-width="2" stroke-linejoin="round"/>
+          <polygon points="32,36 26,14 40,30" fill="${c}" opacity="0.6"/>
+          <polygon points="68,36 74,14 60,30" fill="${c}" opacity="0.6"/>
+          <circle cx="38" cy="46" r="12" fill="#fff" stroke="#2b2620" stroke-width="2"/>
+          <circle cx="62" cy="46" r="12" fill="#fff" stroke="#2b2620" stroke-width="2"/>
+          <g ${eo}><circle cx="38" cy="46" r="6" fill="#2b2620"/><circle cx="62" cy="46" r="6" fill="#2b2620"/><circle cx="40" cy="44" r="2.5" fill="#fff"/><circle cx="64" cy="44" r="2.5" fill="#fff"/></g>
+          <g ${ec}><path d="M32 46 Q38 50 44 46" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/><path d="M56 46 Q62 50 68 46" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/></g>
+          <polygon points="47,54 50,60 53,54" fill="#f5c060" stroke="#2b2620" stroke-width="1.5"/>
+          <ellipse cx="50" cy="70" rx="10" ry="8" fill="${c}" opacity="0.4"/>
+          <path d="M36 68 Q38 74 36 80" fill="none" stroke="#2b2620" stroke-width="1.5"/>
+          <path d="M64 68 Q62 74 64 80" fill="none" stroke="#2b2620" stroke-width="1.5"/>
+          <ellipse cx="40" cy="86" rx="7" ry="4" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="60" cy="86" rx="7" ry="4" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+        </svg>`,
+
+        penguin: () => `<svg viewBox="0 0 100 100">
+          <ellipse cx="50" cy="66" rx="24" ry="24" fill="#2b2620" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="50" cy="68" rx="16" ry="18" fill="#f8f5f0"/>
+          <ellipse cx="50" cy="46" rx="22" ry="18" fill="#2b2620" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="50" cy="50" rx="14" ry="10" fill="#f8f5f0"/>
+          <g ${eo}><circle cx="40" cy="44" r="4.5" fill="#fff"/><circle cx="60" cy="44" r="4.5" fill="#fff"/><circle cx="41" cy="43" r="2.5" fill="#2b2620"/><circle cx="61" cy="43" r="2.5" fill="#2b2620"/></g>
+          <g ${ec}><path d="M36 44 Q40 48 44 44" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><path d="M56 44 Q60 48 64 44" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></g>
+          <polygon points="47,50 50,56 53,50" fill="${c}" stroke="#2b2620" stroke-width="1.5"/>
+          <ellipse cx="26" cy="66" rx="8" ry="14" fill="#2b2620" stroke="#2b2620" stroke-width="1.5" transform="rotate(-10 26 66)"/>
+          <ellipse cx="74" cy="66" rx="8" ry="14" fill="#2b2620" stroke="#2b2620" stroke-width="1.5" transform="rotate(10 74 66)"/>
+          <ellipse cx="40" cy="88" rx="8" ry="4" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="60" cy="88" rx="8" ry="4" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="40" cy="44" rx="3" ry="3" fill="${c}" opacity="0.6"/>
+          <ellipse cx="60" cy="44" rx="3" ry="3" fill="${c}" opacity="0.6"/>
+        </svg>`,
+
+        hamster: () => `<svg viewBox="0 0 100 100">
+          <defs><radialGradient id="g-${c.replace('#','')}" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="${c}"/><stop offset="100%" stop-color="${c}dd"/></radialGradient></defs>
+          <ellipse cx="50" cy="66" rx="24" ry="22" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="50" cy="70" rx="14" ry="12" fill="#fff" opacity="0.4"/>
+          <circle cx="28" cy="42" r="12" fill="${c}" stroke="#2b2620" stroke-width="2.5"/>
+          <circle cx="72" cy="42" r="12" fill="${c}" stroke="#2b2620" stroke-width="2.5"/>
+          <circle cx="28" cy="42" r="7" fill="#ffd5c9" opacity="0.7"/>
+          <circle cx="72" cy="42" r="7" fill="#ffd5c9" opacity="0.7"/>
+          <ellipse cx="50" cy="48" rx="22" ry="18" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <g ${eo}><circle cx="40" cy="46" r="4" fill="#2b2620"/><circle cx="60" cy="46" r="4" fill="#2b2620"/><circle cx="41" cy="45" r="1.8" fill="#fff"/><circle cx="61" cy="45" r="1.8" fill="#fff"/></g>
+          <g ${ec}><path d="M36 46 Q40 50 44 46" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/><path d="M56 46 Q60 50 64 46" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/></g>
+          <ellipse cx="50" cy="52" rx="3" ry="2" fill="#2b2620"/>
+          <path d="M47 54 Q50 57 53 54" fill="none" stroke="#2b2620" stroke-width="1.5" stroke-linecap="round"/>
+          <ellipse cx="35" cy="52" rx="5" ry="3" fill="#ffd5c9" opacity="0.5"/>
+          <ellipse cx="65" cy="52" rx="5" ry="3" fill="#ffd5c9" opacity="0.5"/>
+          <ellipse cx="38" cy="84" rx="7" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="62" cy="84" rx="7" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+        </svg>`,
+
+        hedgehog: () => `<svg viewBox="0 0 100 100">
+          <defs><radialGradient id="g-${c.replace('#','')}" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="${c}"/><stop offset="100%" stop-color="${c}dd"/></radialGradient></defs>
+          <ellipse cx="50" cy="66" rx="26" ry="22" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="50" cy="70" rx="14" ry="12" fill="${c}" opacity="0.5"/>
+          ${[-30,-20,-10,0,10,20,30].map(a => `<line x1="50" y1="30" x2="${50+Math.sin(a*Math.PI/180)*30}" y2="${30-Math.cos(a*Math.PI/180)*8}" stroke="#2b2620" stroke-width="2" stroke-linecap="round"/>`).join('')}
+          ${[-25,-15,-5,5,15,25].map(a => `<line x1="50" y1="28" x2="${50+Math.sin(a*Math.PI/180)*26}" y2="${28-Math.cos(a*Math.PI/180)*10}" stroke="#5a5349" stroke-width="1.5" stroke-linecap="round"/>`).join('')}
+          <ellipse cx="50" cy="48" rx="22" ry="18" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <g ${eo}><circle cx="40" cy="46" r="4" fill="#2b2620"/><circle cx="60" cy="46" r="4" fill="#2b2620"/><circle cx="41" cy="45" r="1.8" fill="#fff"/><circle cx="61" cy="45" r="1.8" fill="#fff"/></g>
+          <g ${ec}><path d="M36 46 Q40 50 44 46" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/><path d="M56 46 Q60 50 64 46" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/></g>
+          <ellipse cx="50" cy="52" rx="4" ry="3" fill="#2b2620"/>
+          <path d="M47 55 Q50 58 53 55" fill="none" stroke="#2b2620" stroke-width="1.5" stroke-linecap="round"/>
+          <ellipse cx="34" cy="52" rx="4" ry="2.5" fill="#ffd5c9" opacity="0.4"/>
+          <ellipse cx="66" cy="52" rx="4" ry="2.5" fill="#ffd5c9" opacity="0.4"/>
+          <ellipse cx="38" cy="84" rx="7" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="62" cy="84" rx="7" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+        </svg>`,
+
+        raccoon: () => `<svg viewBox="0 0 100 100">
+          <defs><radialGradient id="g-${c.replace('#','')}" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="${c}"/><stop offset="100%" stop-color="${c}dd"/></radialGradient></defs>
+          <path d="M74 64 Q88 54 86 42 Q82 48 78 46 Q84 52 78 62" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <path d="M82 44 Q80 48 84 42" fill="#f5f2ed" stroke="#2b2620" stroke-width="1.5"/>
+          <ellipse cx="50" cy="66" rx="24" ry="20" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="50" cy="70" rx="12" ry="10" fill="#f5f2ed" opacity="0.5"/>
+          <ellipse cx="30" cy="36" rx="8" ry="10" fill="${c}" stroke="#2b2620" stroke-width="2" transform="rotate(-10 30 36)"/>
+          <ellipse cx="70" cy="36" rx="8" ry="10" fill="${c}" stroke="#2b2620" stroke-width="2" transform="rotate(10 70 36)"/>
+          <ellipse cx="50" cy="48" rx="20" ry="16" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="38" cy="46" rx="9" ry="7" fill="#2b2620" opacity="0.8" transform="rotate(-8 38 46)"/>
+          <ellipse cx="62" cy="46" rx="9" ry="7" fill="#2b2620" opacity="0.8" transform="rotate(8 62 46)"/>
+          <g ${eo}><circle cx="38" cy="46" r="4" fill="#fff"/><circle cx="62" cy="46" r="4" fill="#fff"/><circle cx="39" cy="45" r="2.5" fill="#2b2620"/><circle cx="63" cy="45" r="2.5" fill="#2b2620"/></g>
+          <g ${ec}><path d="M34 46 Q38 50 42 46" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><path d="M58 46 Q62 50 66 46" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></g>
+          <path d="M38 52 L50 56 L62 52" fill="none" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="50" cy="53" rx="3" ry="2" fill="#2b2620"/>
+          <path d="M47 55 Q50 58 53 55" fill="none" stroke="#2b2620" stroke-width="1.5" stroke-linecap="round"/>
+          <ellipse cx="38" cy="84" rx="7" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="62" cy="84" rx="7" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+        </svg>`,
+
+        deer: () => `<svg viewBox="0 0 100 100">
+          <defs><radialGradient id="g-${c.replace('#','')}" cx="50%" cy="40%" r="55%"><stop offset="0%" stop-color="${c}"/><stop offset="100%" stop-color="${c}dd"/></radialGradient></defs>
+          <ellipse cx="50" cy="66" rx="22" ry="20" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="50" cy="70" rx="12" ry="10" fill="#f5f2ed" opacity="0.5"/>
+          <path d="M30 34 L24 10 M24 10 L20 4 M24 10 L28 6" fill="none" stroke="#8b6b4a" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M70 34 L76 10 M76 10 L80 4 M76 10 L72 6" fill="none" stroke="#8b6b4a" stroke-width="2.5" stroke-linecap="round"/>
+          <ellipse cx="50" cy="48" rx="20" ry="16" fill="url(#g-${c.replace('#','')})" stroke="#2b2620" stroke-width="2.5"/>
+          <ellipse cx="34" cy="40" rx="6" ry="8" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="66" cy="40" rx="6" ry="8" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <g ${eo}><circle cx="40" cy="46" r="5" fill="#2b2620"/><circle cx="60" cy="46" r="5" fill="#2b2620"/><circle cx="41.5" cy="44.5" r="2.2" fill="#fff"/><circle cx="61.5" cy="44.5" r="2.2" fill="#fff"/></g>
+          <g ${ec}><path d="M35 46 Q40 50 45 46" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/><path d="M55 46 Q60 50 65 46" fill="none" stroke="#2b2620" stroke-width="2.5" stroke-linecap="round"/></g>
+          <ellipse cx="50" cy="52" rx="4" ry="3" fill="#2b2620"/>
+          <path d="M47 55 Q50 58 53 55" fill="none" stroke="#2b2620" stroke-width="1.5" stroke-linecap="round"/>
+          <ellipse cx="34" cy="52" rx="4" ry="2.5" fill="#ffd5c9" opacity="0.5"/>
+          <ellipse cx="66" cy="52" rx="4" ry="2.5" fill="#ffd5c9" opacity="0.5"/>
+          <ellipse cx="38" cy="84" rx="6" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+          <ellipse cx="62" cy="84" rx="6" ry="5" fill="${c}" stroke="#2b2620" stroke-width="2"/>
+        </svg>`,
+      };
+
+      return (generators[type] || generators.cat)();
+    }
+
+    // ── State ──
+    let agents = [];
+    let stations = [];
+    let tasks = [];
+    let completedOutputs = [];
+    let nextAgentId = 1;
+    let nextStationId = 1;
+    let nextTaskId = 1;
+
+    const TASK_TEMPLATES = [
+      { name: '用户登录页优化', desc: '优化登录流程，增加第三方登录', priority: 'high', role: '前端开发' },
+      { name: 'API 接口文档', desc: '编写 RESTful API 文档', priority: 'mid', role: '后端开发' },
+      { name: '学习路径卡片', desc: '设计新的学习路径展示卡片', priority: 'mid', role: 'UI 设计' },
+      { name: '用户行为分析', desc: '分析近 7 天用户活跃数据', priority: 'high', role: '数据分析' },
+      { name: '简历匹配模型', desc: '训练岗位匹配推荐模型', priority: 'low', role: 'AI 训练' },
+      { name: '仪表盘重构', desc: 'Dashboard 响应式布局重构', priority: 'mid', role: '前端开发' },
+      { name: '数据库迁移', desc: 'PostgreSQL 版本升级迁移脚本', priority: 'high', role: '后端开发' },
+      { name: '暗色模式设计', desc: '全站暗色主题适配', priority: 'low', role: 'UI 设计' },
+      { name: '考试成绩统计', desc: '生成月度成绩趋势报告', priority: 'mid', role: '数据分析' },
+      { name: '智能问答优化', desc: '提升 AI 助教回答准确率', priority: 'high', role: 'AI 训练' },
+      { name: '消息推送系统', desc: 'WebSocket 实时推送', priority: 'high', role: '后端开发' },
+      { name: '移动端适配', desc: 'iOS/Android 响应式优化', priority: 'mid', role: '前端开发' },
+      { name: '权限系统重构', desc: 'RBAC 角色权限升级', priority: 'high', role: '后端开发' },
+      { name: '数据可视化', desc: 'ECharts 图表组件封装', priority: 'mid', role: '前端开发' },
+      { name: '自动化测试', desc: 'Cypress E2E 测试覆盖', priority: 'low', role: '测试工程师' },
+      { name: 'CI/CD 流水线', desc: 'GitHub Actions 自动部署', priority: 'mid', role: '运维工程师' },
+      { name: '用户画像系统', desc: '构建学生能力画像模型', priority: 'high', role: '数据分析' },
+      { name: 'NLP 简历解析', desc: '简历关键信息自动提取', priority: 'high', role: 'AI 训练' },
+      { name: '课程推荐算法', desc: '协同过滤推荐优化', priority: 'mid', role: 'AI 训练' },
+      { name: '响应式表格', desc: '大数据表格虚拟滚动', priority: 'mid', role: '前端开发' },
+    ];
+
+    let modalState = { animalType: 'cat', color: '#f9d27c', name: '小喵', role: '前端开发' };
+
+    // ── Init ──
+    function init() {
+      for (let i = 1; i <= 8; i++) { stations.push({ id: i }); nextStationId = i + 1; }
+      hireAgent('cat', '#f9d27c', '小喵', '前端开发');
+      hireAgent('dog', '#c9daf5', '旺财', '后端开发');
+      hireAgent('rabbit', '#ffd5c9', '兔叽', 'UI 设计');
+      hireAgent('panda', '#c9f5c0', '团子', '数据分析');
+      hireAgent('fox', '#e5d5f5', '小狐', 'AI 训练');
+      placeAgentAtStation(agents[0].id, 1);
+      placeAgentAtStation(agents[1].id, 2);
+      placeAgentAtStation(agents[2].id, 3);
+      setTimeout(() => dispatchRandomTask(), 400);
+      setTimeout(() => dispatchRandomTask(), 900);
+      setTimeout(() => dispatchRandomTask(), 1500);
+      renderAll();
+    }
+
+    function hireAgent(type, color, name, role) {
+      const agent = { id: nextAgentId++, type, color, name, role, station: null, status: 'free' };
+      agents.push(agent);
+      return agent;
+    }
+
+    // ── Modal ──
+    function openAddModal() {
+      modalState = {
+        animalType: ANIMAL_TYPES[Math.floor(Math.random() * ANIMAL_TYPES.length)].type,
+        color: COLOR_SCHEMES[Math.floor(Math.random() * COLOR_SCHEMES.length)].color,
+        name: CUTE_NAMES[Math.floor(Math.random() * CUTE_NAMES.length)],
+        role: ROLES[Math.floor(Math.random() * ROLES.length)],
+      };
+      renderModal();
+      document.getElementById('modal-overlay').classList.add('show');
+    }
+
+    function closeModal() { document.getElementById('modal-overlay').classList.remove('show'); }
+
+    function randomizeEmployee() {
+      modalState.animalType = ANIMAL_TYPES[Math.floor(Math.random() * ANIMAL_TYPES.length)].type;
+      modalState.color = COLOR_SCHEMES[Math.floor(Math.random() * COLOR_SCHEMES.length)].color;
+      modalState.name = CUTE_NAMES[Math.floor(Math.random() * CUTE_NAMES.length)];
+      const tpl = ANIMAL_TYPES.find(t => t.type === modalState.animalType);
+      modalState.role = tpl ? tpl.defaultRole : ROLES[Math.floor(Math.random() * ROLES.length)];
+      renderModal();
+    }
+
+    function renderModal() {
+      const animalGrid = document.getElementById('animal-grid');
+      animalGrid.innerHTML = ANIMAL_TYPES.map(t => `
+        <div class="animal-pick ${modalState.animalType === t.type ? 'selected' : ''}" onclick="selectAnimal('${t.type}')">
+          <div class="pick-avatar">${makeAnimalSVG(t.type, modalState.color)}</div>
+          <div class="pick-name">${t.label}</div>
+        </div>
+      `).join('');
+
+      const colorGrid = document.getElementById('color-grid');
+      colorGrid.innerHTML = COLOR_SCHEMES.map(s => `
+        <div class="color-pick ${modalState.color === s.color ? 'selected' : ''}" style="background:${s.color}" onclick="selectColor('${s.color}')" title="${s.label}"></div>
+      `).join('');
+
+      document.getElementById('name-input').value = modalState.name;
+
+      const roleGrid = document.getElementById('role-grid');
+      roleGrid.innerHTML = ROLES.map(r => `
+        <div class="role-pick ${modalState.role === r ? 'selected' : ''}" onclick="selectRole('${r}')">${r}</div>
+      `).join('');
+
+      document.getElementById('preview-avatar').innerHTML = makeAnimalSVG(modalState.animalType, modalState.color);
+      document.getElementById('preview-name').textContent = modalState.name;
+      document.getElementById('preview-role').textContent = modalState.role;
+    }
+
+    function selectAnimal(type) {
+      modalState.animalType = type;
+      const tpl = ANIMAL_TYPES.find(t => t.type === type);
+      if (tpl) { modalState.name = tpl.defaultName; modalState.role = tpl.defaultRole; }
+      renderModal();
+    }
+    function selectColor(color) { modalState.color = color; renderModal(); }
+    function selectRole(role) { modalState.role = role; renderModal(); }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const nameInput = document.getElementById('name-input');
+      nameInput.addEventListener('input', (e) => {
+        modalState.name = e.target.value;
+        document.getElementById('preview-name').textContent = modalState.name || '???';
+      });
+      document.getElementById('modal-overlay').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeModal();
+      });
+    });
+
+    function confirmHire() {
+      const name = modalState.name.trim();
+      if (!name) { showToast('请给员工起个名字'); return; }
+      hireAgent(modalState.animalType, modalState.color, name, modalState.role);
+      closeModal();
+      renderAll();
+      showToast(`${name} 已入职！`);
+    }
+
+    // ── Station Management ──
+    function addStation() {
+      stations.push({ id: nextStationId++ });
+      renderAll();
+      showToast(`工位 ${stations[stations.length-1].id} 已添加`);
+    }
+
+    function renderWorkstations() {
+      const area = document.getElementById('workstations-area');
+      area.innerHTML = '';
+      stations.forEach(st => {
+        const agent = agents.find(a => a.station === st.id);
+        const isBusy = agent?.status === 'busy';
+        const currentTask = tasks.find(t => t.agentId === agent?.id && t.status === 'processing');
+        const screenText = isBusy && currentTask ? currentTask.name.slice(0, 6) : agent ? 'IDLE' : '---';
+
+        const ws = document.createElement('div');
+        ws.className = 'workstation';
+        ws.id = `station-${st.id}`;
+        ws.setAttribute('data-station-id', st.id);
+
+        const agentHTML = agent ? `
+          <div class="agent-wrapper ${isBusy ? 'busy' : agent.station !== null ? 'idle' : 'sleeping'}" data-agent-id="${agent.id}" draggable="true">
+            <div class="agent-avatar">${makeAnimalSVG(agent.type, agent.color)}</div>
+            <div class="agent-name-tag">${agent.name}</div>
+            <div class="agent-role-tag">${agent.role}</div>
+          </div>` : '';
+
+        ws.innerHTML = `
+          <div class="station-label">工位 ${st.id}</div>
+          <div class="desk">
+            ${agent ? `<div class="station-status-dot ${isBusy ? 'working' : 'idle'}"></div>` : ''}
+            <div class="desk-items">
+              <div>
+                <div class="monitor"><div class="monitor-screen ${isBusy ? 'working' : ''}"><span class="monitor-text">${screenText}</span></div><div class="monitor-led"></div></div>
+                <div class="monitor-stand"></div><div class="monitor-base"></div>
+              </div>
+              <div>
+                <div class="keyboard"></div>
+                ${isBusy ? '<div class="coffee-cup"><div class="steam"><div class="steam-line"></div><div class="steam-line"></div><div class="steam-line"></div></div></div>' : ''}
+              </div>
+            </div>
+            <div class="desk-leg-l"></div><div class="desk-leg-r"></div>
+          </div>
+          <div class="chair"><div class="chair-arm-l"></div><div class="chair-arm-r"></div>${agentHTML}</div>
+          <div class="station-task-label ${currentTask ? 'active' : ''}">${currentTask ? currentTask.name : '等待分配…'}</div>
+        `;
+
+        ws.addEventListener('dragover', (e) => { e.preventDefault(); ws.classList.add('drop-target'); });
+        ws.addEventListener('dragleave', () => ws.classList.remove('drop-target'));
+        ws.addEventListener('drop', (e) => {
+          e.preventDefault(); ws.classList.remove('drop-target');
+          try { const data = JSON.parse(e.dataTransfer.getData('text/plain')); if (data.type === 'agent') placeAgentAtStation(data.agentId, st.id); } catch {}
+        });
+        area.appendChild(ws);
+      });
+
+      // Add station button
+      const addBtn = document.createElement('div');
+      addBtn.className = 'add-station-btn';
+      addBtn.onclick = addStation;
+      addBtn.innerHTML = `<div class="add-station-inner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        <span>添加工位</span>
+      </div>`;
+      area.appendChild(addBtn);
+      bindAgentDrags();
+    }
+
+    function renderStandby() {
+      const container = document.getElementById('standby-agents');
+      container.innerHTML = '';
+      const standby = agents.filter(a => a.station === null);
+      standby.forEach(agent => {
+        const slot = document.createElement('div');
+        slot.className = 'standby-slot';
+        slot.innerHTML = `
+          <div class="agent-wrapper sleeping" data-agent-id="${agent.id}" draggable="true">
+            <div class="agent-avatar">${makeAnimalSVG(agent.type, agent.color)}</div>
+            <div class="agent-name-tag">${agent.name}</div>
+            <div class="agent-role-tag">${agent.role}</div>
+          </div>
+          <span class="zzz">zzZ</span>
+        `;
+        container.appendChild(slot);
+      });
+      if (standby.length === 0) {
+        container.innerHTML = '<div style="font:12px/1.4 var(--hand);color:var(--pencil);opacity:0.4;padding:8px;">所有员工都已上岗 ✨</div>';
+      }
+      const standbyArea = document.getElementById('standby-area');
+      standbyArea.ondragover = (e) => { e.preventDefault(); standbyArea.style.borderColor = 'var(--accent)'; };
+      standbyArea.ondragleave = () => { standbyArea.style.borderColor = ''; };
+      standbyArea.ondrop = (e) => {
+        e.preventDefault(); standbyArea.style.borderColor = '';
+        try { const data = JSON.parse(e.dataTransfer.getData('text/plain')); if (data.type === 'agent') removeAgentFromStation(data.agentId); } catch {}
+      };
+      bindAgentDrags();
+    }
+
+    function renderRoster() {
+      const list = document.getElementById('roster-list');
+      const count = document.getElementById('roster-count');
+      count.textContent = `${agents.length} 人`;
+      list.innerHTML = agents.map(a => {
+        const onStation = a.station !== null;
+        const statusClass = a.status === 'busy' ? 'busy' : onStation ? 'idle' : 'sleeping';
+        return `<div class="roster-chip ${onStation ? 'on-station' : ''}" title="${a.name} · ${a.role}${onStation ? ' · 工位'+a.station : ' · 待命'}">
+          <div class="mini-dot">${makeAnimalSVG(a.type, a.color)}</div>
+          <span>${a.name}</span>
+          <div class="chip-status ${statusClass}"></div>
+        </div>`;
+      }).join('');
+    }
+
+    function bindAgentDrags() {
+      document.querySelectorAll('.agent-wrapper[draggable="true"]').forEach(el => {
+        const agentId = parseInt(el.getAttribute('data-agent-id'));
+        el.ondragstart = (e) => {
+          e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'agent', agentId }));
+          el.classList.add('dragging');
+          document.querySelectorAll('.workstation').forEach(ws => ws.classList.add('drop-target'));
+          document.getElementById('delete-zone').classList.add('show');
+        };
+        el.ondragend = () => {
+          el.classList.remove('dragging');
+          document.querySelectorAll('.workstation').forEach(ws => ws.classList.remove('drop-target'));
+          document.getElementById('delete-zone').classList.remove('show');
+        };
+      });
+    }
+
+    const deleteZone = document.getElementById('delete-zone');
+    deleteZone.ondragover = (e) => { e.preventDefault(); deleteZone.classList.add('hover'); };
+    deleteZone.ondragleave = () => deleteZone.classList.remove('hover');
+    deleteZone.ondrop = (e) => {
+      e.preventDefault(); deleteZone.classList.remove('hover');
+      try { const data = JSON.parse(e.dataTransfer.getData('text/plain')); if (data.type === 'agent') removeAgentFromStation(data.agentId); } catch {}
+    };
+
+    // ── Agent Placement ──
+    function placeAgentAtStation(agentId, stationNum) {
+      removeAgentFromStation(agentId, false);
+      const existing = agents.find(a => a.station === stationNum && a.id !== agentId);
+      if (existing) { existing.station = null; existing.status = 'free'; }
+      const agent = agents.find(a => a.id === agentId);
+      if (agent) { agent.station = stationNum; }
+      renderAll();
+      showToast(`${agent?.name} 就位工位 ${stationNum}`);
+      autoAssignTask(agentId);
+    }
+
+    function removeAgentFromStation(agentId, rerender = true) {
+      const agent = agents.find(a => a.id === agentId);
+      if (!agent) return;
+      agent.station = null;
+      agent.status = 'free';
+      const task = tasks.find(t => t.agentId === agentId && t.status === 'processing');
+      if (task) { task.agentId = null; task.status = 'pending'; }
+      if (rerender) renderAll();
+    }
+
+    // ── Task Management ──
+    function dispatchRandomTask() {
+      const tpl = TASK_TEMPLATES[Math.floor(Math.random() * TASK_TEMPLATES.length)];
+      const task = { id: nextTaskId++, name: tpl.name, desc: tpl.desc, priority: tpl.priority, role: tpl.role, agentId: null, status: 'pending', createdAt: Date.now() };
+      tasks.push(task);
+      renderAll(); autoDispatch();
+      showToast(`新任务: ${task.name}`);
+    }
+
+    function autoDispatch() {
+      const pending = tasks.filter(t => t.status === 'pending');
+      for (const task of pending) {
+        const agent = agents.find(a => a.station !== null && a.status === 'free' && a.role === task.role);
+        if (agent) {
+          task.agentId = agent.id; task.status = 'processing';
+          agent.status = 'busy';
+          setTimeout(() => completeTask(task.id), 4000 + Math.random() * 8000);
+        }
+      }
+      renderAll();
+    }
+
+    function autoAssignTask(agentId) {
+      const agent = agents.find(a => a.id === agentId);
+      if (!agent) return;
+      const task = tasks.find(t => t.status === 'pending' && t.role === agent.role);
+      if (task) {
+        task.agentId = agentId; task.status = 'processing';
+        agent.status = 'busy';
+        renderAll();
+        setTimeout(() => completeTask(task.id), 4000 + Math.random() * 8000);
+      }
+    }
+
+    function completeTask(taskId) {
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) return;
+      task.status = 'done';
+      task.completedAt = Date.now();
+      if (task.agentId) { const a = agents.find(ag => ag.id === task.agentId); if (a) a.status = 'free'; }
+
+      // Generate output
+      const agent = task.agentId ? agents.find(a => a.id === task.agentId) : null;
+      const templates = RESULT_TEMPLATES[task.role] || RESULT_TEMPLATES['前端开发'];
+      const result = templates[Math.floor(Math.random() * templates.length)];
+      completedOutputs.unshift({
+        id: task.id,
+        taskName: task.name,
+        agentName: agent?.name || '未知',
+        agentColor: agent?.color || '#ccc',
+        agentType: agent?.type || 'cat',
+        role: task.role,
+        result: result,
+        time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+      });
+      if (completedOutputs.length > 20) completedOutputs.pop();
+
+      renderAll();
+      showToast(`✅ ${task.name} 已完成`);
+      setTimeout(autoDispatch, 600);
+    }
+
+    function renderTaskQueue() {
+      const queue = document.getElementById('task-queue');
+      const count = document.getElementById('queue-count');
+      const active = tasks.filter(t => t.status !== 'done');
+      count.textContent = active.length;
+      if (active.length === 0) {
+        queue.innerHTML = '<div style="text-align:center;padding:20px 0;color:var(--pencil);font:12px/1.5 var(--hand);"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="opacity:0.3;margin-bottom:4px;"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg><br>暂无任务<br><span style="font:10px/1 var(--mono);opacity:0.5;">点击「派发任务」开始</span></div>';
+        return;
+      }
+      queue.innerHTML = '';
+      active.forEach((task, i) => {
+        const card = document.createElement('div');
+        card.className = `task-card ${task.status === 'processing' ? 'processing' : ''}`;
+        card.draggable = true;
+        card.setAttribute('data-task-id', task.id);
+        const agentData = task.agentId ? agents.find(a => a.id === task.agentId) : null;
+        card.innerHTML = `
+          <div class="task-order">${i + 1}</div>
+          <div class="task-header">
+            <span class="task-id">#${String(task.id).padStart(3, '0')}</span>
+            <span class="task-priority priority-${task.priority}">${task.priority === 'high' ? '紧急' : task.priority === 'mid' ? '普通' : '低'}</span>
+          </div>
+          <div class="task-name">${task.name}</div>
+          <div class="task-desc">${task.desc}</div>
+          <div class="task-agent">
+            ${agentData ? `<span style="width:14px;height:14px;border-radius:50%;background:${agentData.color};border:1.5px solid var(--pencil);display:inline-block;"></span>${agentData.name} · 处理中` : `<span style="opacity:0.5">等待分配 · 需要: ${task.role}</span>`}
+          </div>
+        `;
+        card.ondragstart = (e) => { e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'task', taskId: task.id })); card.classList.add('dragging'); };
+        card.ondragend = () => card.classList.remove('dragging');
+        card.ondragover = (e) => { e.preventDefault(); card.classList.add('drag-over'); };
+        card.ondragleave = () => card.classList.remove('drag-over');
+        card.ondrop = (e) => { e.preventDefault(); card.classList.remove('drag-over'); try { const data = JSON.parse(e.dataTransfer.getData('text/plain')); if (data.type === 'task' && data.taskId !== task.id) reorderTask(data.taskId, task.id); } catch {} };
+        queue.appendChild(card);
+      });
+    }
+
+    function renderOutputs() {
+      const list = document.getElementById('output-list');
+      const countEl = document.getElementById('done-count');
+      countEl.textContent = completedOutputs.length;
+      if (completedOutputs.length === 0) {
+        list.innerHTML = '<div class="output-empty">完成任务后产出将显示在这里</div>';
+        return;
+      }
+      list.innerHTML = completedOutputs.map(out => `
+        <div class="output-card">
+          <div class="out-header">
+            <span class="out-task">${out.taskName}</span>
+            <span class="out-time">${out.time}</span>
+          </div>
+          <div class="out-agent">
+            <span class="mini-color" style="background:${out.agentColor}"></span>
+            ${out.agentName} · ${out.role}
+          </div>
+          <div class="out-result">${out.result}</div>
+        </div>
+      `).join('');
+    }
+
+    function reorderTask(draggedId, targetId) {
+      const di = tasks.findIndex(t => t.id === draggedId);
+      const ti = tasks.findIndex(t => t.id === targetId);
+      if (di === -1 || ti === -1) return;
+      const [removed] = tasks.splice(di, 1);
+      tasks.splice(ti, 0, removed);
+      renderTaskQueue();
+    }
+
+    function renderStats() {
+      const busy = agents.filter(a => a.status === 'busy').length;
+      const stationed = agents.filter(a => a.station !== null).length;
+      document.getElementById('busy-num').textContent = busy;
+      document.getElementById('free-num').textContent = stationed - busy;
+      document.getElementById('station-num').textContent = stations.length;
+    }
+
+    function renderAll() { renderWorkstations(); renderStandby(); renderRoster(); renderTaskQueue(); renderOutputs(); renderStats(); }
+    function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2500); }
+    function resetAll() {
+      agents = []; stations = []; tasks = []; completedOutputs = [];
+      nextAgentId = 1; nextStationId = 1; nextTaskId = 1;
+      init();
+      showToast('已重置');
+    }
+
+    init();
+  </script>
+</body>
+</html>

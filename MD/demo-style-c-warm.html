@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>风格C：温暖陪伴型</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f8f6f3;
+    color: #2d2d2d;
+    max-width: 390px;
+    margin: 0 auto;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* 顶部问候 */
+  .header {
+    background: linear-gradient(180deg, #fff5ee, #f8f6f3);
+    padding: 20px 20px 16px;
+  }
+  .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .header-top .time { font-size: 12px; color: #bbb; }
+  .header-top .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, #ff9a9e, #fad0c4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .greeting-block { margin-bottom: 8px; }
+  .greeting-block .hello { font-size: 24px; font-weight: 700; color: #2d2d2d; }
+  .greeting-block .encourage { font-size: 14px; color: #e8896c; margin-top: 4px; }
+
+  /* 今日心情/状态 */
+  .mood-bar {
+    margin: 0 20px 16px;
+    display: flex; gap: 8px;
+  }
+  .mood-chip {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid #f0e6dc;
+    background: #fff;
+    color: #999;
+  }
+  .mood-chip.active { background: #ff9a9e; color: #fff; border-color: #ff9a9e; }
+
+  /* 学习卡片 */
+  .learning-card {
+    margin: 0 20px 16px;
+    background: #fff;
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.04);
+  }
+  .lc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .lc-header .plan-name { font-size: 14px; color: #999; }
+  .lc-header .plan-switch { font-size: 13px; color: #e8896c; cursor: pointer; }
+  .lc-progress-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .lc-progress-ring { width: 56px; height: 56px; position: relative; }
+  .lc-progress-ring svg { width: 100%; height: 100%; }
+  .lc-progress-ring .ring-bg { fill: none; stroke: #f5ebe0; stroke-width: 5; }
+  .lc-progress-ring .ring-fg { fill: none; stroke: #e8896c; stroke-width: 5; stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; }
+  .lc-progress-ring .ring-val {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 14px; font-weight: 700; color: #e8896c;
+  }
+  .lc-progress-info { flex: 1; }
+  .lc-progress-info .lc-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .lc-progress-info .lc-sub { font-size: 13px; color: #999; }
+  .lc-encourage {
+    background: #fff5ee;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: #e8896c;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* 日历 */
+  .calendar-card {
+    margin: 0 20px 16px;
+    background: #fff;
+    border-radius: 20px;
+    padding: 18px 20px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.04);
+  }
+  .cal-header { display: flex; justify-content: space-between; margin-bottom: 14px; }
+  .cal-header span { font-size: 15px; font-weight: 600; }
+  .cal-header .streak { font-size: 13px; color: #e8896c; }
+  .cal-days { display: flex; justify-content: space-between; }
+  .cal-day { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .cal-day .d-label { font-size: 11px; color: #ccc; }
+  .cal-day .d-circle {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 600; color: #ccc;
+    background: #f8f6f3;
+    transition: all 0.2s;
+  }
+  .cal-day.done .d-circle { background: #ff9a9e; color: #fff; }
+  .cal-day.today .d-circle { background: #e8896c; color: #fff; box-shadow: 0 4px 12px rgba(232,137,108,0.3); }
+  .cal-day .d-emoji { font-size: 10px; }
+
+  /* 今日任务 */
+  .today-tasks { margin: 0 20px 12px; }
+  .tt-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .tt-header h3 { font-size: 17px; font-weight: 700; }
+  .tt-header .tt-time { font-size: 13px; color: #999; }
+
+  .task-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.03);
+    display: flex; align-items: center; gap: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .task-card:active { transform: scale(0.98); }
+  .task-emoji {
+    width: 44px; height: 44px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .task-emoji.main { background: #fff5ee; }
+  .task-emoji.side { background: #e8f5e9; }
+  .task-body { flex: 1; }
+  .task-body .t-title { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+  .task-body .t-meta { font-size: 12px; color: #999; }
+  .task-time { font-size: 12px; color: #ccc; padding: 4px 10px; background: #f8f6f3; border-radius: 12px; }
+
+  .task-label {
+    font-size: 12px; font-weight: 600; color: #e8896c;
+    margin: 16px 0 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  /* 资讯 */
+  .news-section { margin: 16px 20px; }
+  .news-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.03);
+    display: flex; gap: 12px;
+    cursor: pointer;
+  }
+  .news-img {
+    width: 64px; height: 64px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #ffecd2, #fcb69f);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+  .news-body { flex: 1; }
+  .news-body .n-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; line-height: 1.4; }
+  .news-body .n-meta { font-size: 12px; color: #999; }
+
+  /* 岗位推荐 */
+  .job-rec { margin: 16px 20px; }
+  .job-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.03);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .job-logo {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: linear-gradient(135deg, #a18cd1, #fbc2eb);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: #fff; font-weight: 700;
+  }
+  .job-info { flex: 1; }
+  .job-info .j-title { font-size: 14px; font-weight: 600; }
+  .job-info .j-company { font-size: 12px; color: #999; }
+  .job-match {
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+    background: #fff5ee; color: #e8896c;
+  }
+
+  .spacer { height: 90px; }
+
+  /* 底部导航 */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 390px;
+    background: #fff;
+    border-top: 1px solid #f0e6dc;
+    display: flex; justify-content: space-around;
+    padding: 8px 0 20px;
+    border-radius: 20px 20px 0 0;
+  }
+  .nav-item {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-size: 11px; color: #ccc; cursor: pointer;
+    transition: color 0.2s;
+  }
+  .nav-item.active { color: #e8896c; }
+  .nav-item .nav-icon { font-size: 22px; }
+</style>
+</head>
+<body>
+
+<!-- 顶部问候 -->
+<div class="header">
+  <div class="header-top">
+    <span class="time">6月11日 周三</span>
+    <span class="avatar">😊</span>
+  </div>
+  <div class="greeting-block">
+    <div class="hello">早上好，小明 ☀️</div>
+    <div class="encourage">今天也要加油哦，你已经连续学习12天了！</div>
+  </div>
+</div>
+
+<!-- 今日心情 -->
+<div class="mood-bar">
+  <div class="mood-chip active">😊 状态不错</div>
+  <div class="mood-chip">😌 一般般</div>
+  <div class="mood-chip">😴 有点累</div>
+</div>
+
+<!-- 学习进度卡片 -->
+<div class="learning-card">
+  <div class="lc-header">
+    <span class="plan-name">📘 前端开发计划</span>
+    <span class="plan-switch">切换计划 ›</span>
+  </div>
+  <div class="lc-progress-row">
+    <div class="lc-progress-ring">
+      <svg viewBox="0 0 56 56">
+        <circle class="ring-bg" cx="28" cy="28" r="24"/>
+        <circle class="ring-fg" cx="28" cy="28" r="24" stroke-dasharray="150.8" stroke-dashoffset="48.3"/>
+      </svg>
+      <span class="ring-val">68%</span>
+    </div>
+    <div class="lc-progress-info">
+      <div class="lc-title">匹配度 68%</div>
+      <div class="lc-sub">目标：前端开发工程师 · 预计8月达标</div>
+    </div>
+  </div>
+  <div class="lc-encourage">
+    💪 再学 3 个技能点就能解锁阶段考试，加油！
+  </div>
+</div>
+
+<!-- 日历 -->
+<div class="calendar-card">
+  <div class="cal-header">
+    <span>📅 本周学习</span>
+    <span class="streak">🔥 12天连续</span>
+  </div>
+  <div class="cal-days">
+    <div class="cal-day done"><span class="d-label">一</span><span class="d-circle">✓</span><span class="d-emoji">📖</span></div>
+    <div class="cal-day done"><span class="d-label">二</span><span class="d-circle">✓</span><span class="d-emoji">✏️</span></div>
+    <div class="cal-day today"><span class="d-label">三</span><span class="d-circle">11</span><span class="d-emoji">📚</span></div>
+    <div class="cal-day"><span class="d-label">四</span><span class="d-circle">12</span><span class="d-emoji"></span></div>
+    <div class="cal-day"><span class="d-label">五</span><span class="d-circle">13</span><span class="d-emoji"></span></div>
+    <div class="cal-day"><span class="d-label">六</span><span class="d-circle">14</span><span class="d-emoji"></span></div>
+    <div class="cal-day"><span class="d-label">日</span><span class="d-circle">15</span><span class="d-emoji"></span></div>
+  </div>
+</div>
+
+<!-- 今日任务 -->
+<div class="today-tasks">
+  <div class="tt-header"><h3>📋 今日任务</h3><span class="tt-time">预计 1h 35min</span></div>
+
+  <div class="task-label">🎯 主线任务</div>
+
+  <div class="task-card">
+    <div class="task-emoji main">📖</div>
+    <div class="task-body"><div class="t-title">React Hooks — useEffect</div><div class="task-body t-meta">讲义 + 练习题</div></div>
+    <div class="task-time">45min</div>
+  </div>
+
+  <div class="task-card">
+    <div class="task-emoji main">✏️</div>
+    <div class="task-body"><div class="t-title">JavaScript 闭包练习</div><div class="t-meta">编程题</div></div>
+    <div class="task-time">30min</div>
+  </div>
+
+  <div class="task-label">🌱 支线探索</div>
+
+  <div class="task-card">
+    <div class="task-emoji side">🐍</div>
+    <div class="task-body"><div class="t-title">Python 基础 — 变量类型</div><div class="t-meta">讲义</div></div>
+    <div class="task-time">20min</div>
+  </div>
+</div>
+
+<!-- 岗位推荐 -->
+<div class="job-rec">
+  <div class="tt-header"><h3>💼 适合你的岗位</h3><span style="color:#e8896c;font-size:13px">更多</span></div>
+  <div class="job-card">
+    <div class="job-logo">B</div>
+    <div class="job-info"><div class="j-title">前端开发工程师</div><div class="j-company">字节跳动 · 北京</div></div>
+    <div class="job-match">72%</div>
+  </div>
+</div>
+
+<!-- 资讯 -->
+<div class="news-section">
+  <div class="tt-header"><h3>📰 最新资讯</h3><span style="color:#e8896c;font-size:13px">更多</span></div>
+  <div class="news-card">
+    <div class="news-img">⚛️</div>
+    <div class="news-body"><div class="n-title">React 19 正式发布：新特性一览</div><div class="n-meta">技术趋势 · 2小时前</div></div>
+  </div>
+</div>
+
+<div class="spacer"></div>
+
+<div class="bottom-nav">
+  <div class="nav-item active"><span class="nav-icon">🏠</span><span>首页</span></div>
+  <div class="nav-item"><span class="nav-icon">📚</span><span>学习</span></div>
+  <div class="nav-item"><span class="nav-icon">💼</span><span>岗位</span></div>
+  <div class="nav-item"><span class="nav-icon">📰</span><span>资讯</span></div>
+  <div class="nav-item"><span class="nav-icon">👤</span><span>我的</span></div>
+</div>
+
+</body>
+</html>

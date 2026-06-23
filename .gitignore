@@ -1,0 +1,59 @@
+# ── Dependencies ──
+node_modules/
+.pnp
+.pnp.js
+
+# ── Build Output ──
+dist/
+build/
+.next/
+out/
+
+# ── Environment ──
+.env
+.env.local
+.env.*.local
+
+# ── IDE / Tools ──
+.vscode/
+.idea/
+.claude/
+.mimocode/
+*.swp
+*.swo
+*~
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs ──
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Test ──
+coverage/
+test-results/
+
+# ── Temp / Cache ──
+tmp/
+.cache/
+*.tsbuildinfo
+*.tgz
+
+# ── Python ──
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ── Video/TTS temp files ──
+/tmp/
+
+# ── Chat history (user data) ──
+backend-ts/data/chat_history/
