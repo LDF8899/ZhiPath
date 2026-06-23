@@ -56,4 +56,10 @@ export class AgentTask extends BaseEntity {
 
   @Column({ type: 'bigint', nullable: true, name: 'completed_at', comment: '完成时间' })
   completedAt: number;
+
+  @Column({ type: 'varchar', length: 64, nullable: true, name: 'group_id', comment: '任务组ID，用于批量关联' })
+  groupId: string;
+
+  @Column({ type: 'varchar', length: 128, nullable: true, unique: true, name: 'external_id', comment: '外部幂等ID，防重复创建' })
+  externalId: string;
 }

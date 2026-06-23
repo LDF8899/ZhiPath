@@ -6,7 +6,7 @@ import { Student } from '../../entities/student.entity';
 import { JobPosition, JobApplication } from '../../entities/job.entity';
 import { Enterprise } from '../../entities/enterprise.entity';
 import { News } from '../../entities/news.entity';
-import { ExamRecord } from '../../entities/exam.entity';
+import { ExamRecord, ExamQuestion } from '../../entities/exam.entity';
 import { Resume } from '../../entities/resume.entity';
 import { SystemConfig } from '../../entities/system.entity';
 
@@ -25,6 +25,7 @@ export class AdminService {
     @InjectRepository(ExamRecord) private examRepo: Repository<ExamRecord>,
     @InjectRepository(Resume) private resumeRepo: Repository<Resume>,
     @InjectRepository(SystemConfig) private configRepo: Repository<SystemConfig>,
+    @InjectRepository(ExamQuestion) private questionRepo: Repository<ExamQuestion>,
   ) {}
 
   // ── Dashboard ──
@@ -216,5 +217,41 @@ export class AdminService {
       await this.configRepo.save({ configKey: key, configValue: value, createTime: Date.now(), updateTime: Date.now() });
     }
     return { key, value };
+  }
+
+  // ── 题库管理 ──────────────────────────────
+
+  async getQuestions(page: number, pageSize: number, filters: { skillName?: string; questionType?: string; difficulty?: number; status?: number }) {
+    const qb = this.questionRepo.createQueryBuilder('q');
+    if (filters.skillName) qb.andWhere('q.skill_name LIKE :skill', { skill: `%${filters.skillName}%` });
+    if (filters.questionType) qb.andWhere('q.question_type = :type', { type: filters.questionType });
+    if (filters.difficulty) qb.andWhere('q.difficulty = :diff', { diff: filters.difficulty });
+    if (filters.status !== undefined) qb.andWhere('q.status = :status', { status: filters.status });
+    qb.orderBy('q.create_time', 'DESC').skip((page - 1) * pageSize).take(pageSize);
+    const [items, total] = await qb.getManyAndCount();
+    return { list: items, total, page, pageSize };
+  }
+
+  async updateQuestion(id: number, data: any) {
+    await this.questionRepo.update(id, { ...data, updateTime: Date.now() });
+    return this.questionRepo.findOne({ where: { id } });
+  }
+
+  async reviewQuestion(id: number, status: number) {
+    await this.questionRepo.update(id, { status, updateTime: Date.now() });
+    return this.questionRepo.findOne({ where: { id } });
+  }
+
+  async getQuestionStats(skillName?: string) {
+    const qb = this.questionRepo.createQueryBuilder('q').where('q.status = 1');
+    if (skillName) qb.andWhere('q.skill_name = :skill', { skill: skillName });
+    const questions = await qb.getMany();
+    const byType: Record<string, number> = {};
+    const byDifficulty: Record<string, number> = {};
+    for (const q of questions) {
+      byType[q.questionType] = (byType[q.questionType] || 0) + 1;
+      byDifficulty[String(q.difficulty)] = (byDifficulty[String(q.difficulty)] || 0) + 1;
+    }
+    return { total: questions.length, byType, byDifficulty };
   }
 }

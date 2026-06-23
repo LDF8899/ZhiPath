@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getExams } from '../../api/user';
+import { getExams, retryExam } from '../../api/user';
 import type { ExamRecord } from '../../types';
 import '../../styles/hand-draw.css';
+
+/* ── Toast helper ──────────────────────────────────── */
+function showToast(text: string, type: 'success' | 'error' = 'success') {
+  const el = document.createElement('div');
+  el.className = `hd-message ${type}`;
+  el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
 
 /* ── SVG icons ─────────────────────────────────────────── */
 const IconDoc = () => (
@@ -95,6 +104,19 @@ export default function Exams() {
   };
 
   useEffect(() => { fetchExams(); }, []);
+
+  /* ── Retry handler ────────────────────────────────── */
+  const handleRetry = async (examId: number) => {
+    try {
+      await retryExam(examId);
+      showToast('已发起重考，正在跳转...');
+      // Refresh the exam list then navigate to take page
+      await fetchExams();
+      navigate(`/user/exams/${examId}/take`);
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || '重考请求失败', 'error');
+    }
+  };
 
   /* ── Loading state ─────────────────────────────────── */
   if (loading) {
@@ -258,15 +280,27 @@ export default function Exams() {
                           <span style={{ fontSize: 14, fontWeight: 400 }}>分</span>
                         </div>
                       )}
-                      <button
-                        className="hd-btn small"
-                        onClick={() => navigate(`/user/exams/${exam.id}/take`)}
-                      >
-                        <span className="hd-flex" style={{ gap: 4 }}>
-                          <IconPlay />
-                          {status === 'failed' ? '重新考试' : '开始考试'}
-                        </span>
-                      </button>
+                      <div className="hd-flex" style={{ gap: 8, justifyContent: 'flex-end' }}>
+                        {status === 'failed' && (
+                          <button
+                            className="hd-btn small secondary"
+                            onClick={() => handleRetry(exam.id)}
+                          >
+                            <span className="hd-flex" style={{ gap: 4 }}>
+                              <IconRefresh /> 重新考试
+                            </span>
+                          </button>
+                        )}
+                        <button
+                          className="hd-btn small"
+                          onClick={() => navigate(`/user/exams/${exam.id}/take`)}
+                        >
+                          <span className="hd-flex" style={{ gap: 4 }}>
+                            <IconPlay />
+                            {status === 'failed' ? '进入考试' : '开始考试'}
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

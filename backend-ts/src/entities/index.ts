@@ -47,3 +47,9 @@ export { SystemConfig, OperationLog } from './system.entity';
 
 // 匹配度历史记录
 export { MatchHistory } from './match-history.entity';
+
+// 课程章节（树形结构）
+export { CourseChapter } from './course-chapter.entity';
+
+// 课程能力项
+export { CourseAbility } from './course-ability.entity';

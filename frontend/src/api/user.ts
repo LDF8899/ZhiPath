@@ -553,3 +553,31 @@ export const getQuickTestQuestions = (direction?: string) =>
 /** 提交速测答案 */
 export const submitQuickTest = (data: { skillName: string; answers: Record<string, any>; questions: any[] }) =>
   client.post('/user/quick-test/submit', data) as Promise<ApiResponse<any>>;
+
+// ── 考试重试 ──────────────────────────────
+export const getRetryableExams = () =>
+  client.get('/user/exams/retryable') as Promise<ApiResponse<any>>;
+export const retryExam = (examId: number) =>
+  client.post(`/user/exams/${examId}/retry`) as Promise<ApiResponse<any>>;
+
+// ── 课程章节 ──────────────────────────────
+export const getChapters = (planId: number) =>
+  client.get(`/user/courses/${planId}/chapters`) as Promise<ApiResponse<any>>;
+export const generateChapters = (planId: number) =>
+  client.post(`/user/courses/${planId}/chapters/generate`) as Promise<ApiResponse<any>>;
+export const parseChapters = (planId: number, treeText: string) =>
+  client.post(`/user/courses/${planId}/chapters/parse`, { treeText }) as Promise<ApiResponse<any>>;
+export const updateChapter = (planId: number, id: number, data: any) =>
+  client.put(`/user/courses/${planId}/chapters/${id}`, data) as Promise<ApiResponse<any>>;
+export const deleteChapter = (planId: number, id: number) =>
+  client.delete(`/user/courses/${planId}/chapters/${id}`) as Promise<ApiResponse<any>>;
+
+// ── 能力模型 ──────────────────────────────
+export const getAbilities = (planId: number) =>
+  client.get(`/user/courses/${planId}/abilities`) as Promise<ApiResponse<any>>;
+export const generateAbilities = (planId: number) =>
+  client.post(`/user/courses/${planId}/abilities/generate`) as Promise<ApiResponse<any>>;
+export const saveAbilities = (planId: number, abilities: any[]) =>
+  client.post(`/user/courses/${planId}/abilities/save`, { abilities }) as Promise<ApiResponse<any>>;
+export const matchChapterAbility = (planId: number) =>
+  client.post(`/user/courses/${planId}/abilities/match`) as Promise<ApiResponse<any>>;

@@ -35,6 +35,7 @@ import AdminApplications from './pages/admin/AdminApplications'
 import AdminEnterprises from './pages/admin/AdminEnterprises'
 import AdminNews from './pages/admin/AdminNews'
 import AdminExams from './pages/admin/AdminExams'
+import AdminQuestions from './pages/admin/AdminQuestions'
 import AdminResumes from './pages/admin/AdminResumes'
 import AdminSettings from './pages/admin/AdminSettings'
 
@@ -105,6 +106,7 @@ export default function App() {
           <Route path="enterprises" element={<AdminEnterprises />} />
           <Route path="news" element={<AdminNews />} />
           <Route path="exams" element={<AdminExams />} />
+          <Route path="questions" element={<AdminQuestions />} />
           <Route path="resumes" element={<AdminResumes />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>

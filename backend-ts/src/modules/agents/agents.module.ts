@@ -28,6 +28,7 @@ import { TtsService } from '../../services/tts.service';
 import { VideoRenderService } from '../../services/video-render.service';
 import { AgentTaskService } from '../../services/agent-task.service';
 import { AgentTask } from '../../entities/agent-task.entity';
+import { ExamQuestion } from '../../entities/exam.entity';
 import { AgentsController } from './agents.controller';
 import { AgentsTestController } from './agents-test.controller';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
@@ -54,7 +55,7 @@ import { KnowledgeModule } from '../knowledge/knowledge.module';
  * 14. OrchestratorAgentService — 中控智能体（意图识别 + 任务编排）
  */
 @Module({
-  imports: [KnowledgeModule, TypeOrmModule.forFeature([AgentTask])],
+  imports: [KnowledgeModule, TypeOrmModule.forFeature([AgentTask, ExamQuestion])],
   controllers: [AgentsController, AgentsTestController],
   providers: [
     // 基础服务

@@ -42,6 +42,13 @@ export class ExamsController {
     return success(result);
   }
 
+  /** GET /api/user/exams/stats — 题库统计（静态路由须在 :examId 之前） */
+  @Get('exams/stats')
+  async getQuestionBankStats(@Query('skillName') skillName?: string) {
+    const result = await this.examsService.getQuestionBankStats(skillName);
+    return success(result);
+  }
+
   /** POST /api/user/exams/submit */
   @Post('exams/submit')
   async submitExam(@CurrentUser() user: any, @Body() body: any) {
@@ -70,10 +77,24 @@ export class ExamsController {
     return success(result);
   }
 
+  /** GET /api/user/exams/retryable — 获取可重试的考试（静态路由须在 :examId 之前） */
+  @Get('exams/retryable')
+  async getRetryableExams(@CurrentUser() user: any) {
+    const result = await this.examsService.getRetryableExams(user.sub);
+    return success(result);
+  }
+
   /** GET /api/user/exams/:examId */
   @Get('exams/:examId')
   async getExam(@Param('examId') examId: string) {
     const exam = await this.examsService.getExam(Number(examId));
     return success(exam);
+  }
+
+  /** POST /api/user/exams/:examId/retry — 调度重试 */
+  @Post('exams/:examId/retry')
+  async scheduleRetry(@CurrentUser() user: any, @Param('examId') examId: string) {
+    const result = await this.examsService.scheduleRetry(+examId, user.sub);
+    return success(result);
   }
 }

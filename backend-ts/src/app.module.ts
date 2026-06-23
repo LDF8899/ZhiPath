@@ -30,6 +30,7 @@ import { QuickTestModule } from './modules/quick-test/quick-test.module';
 import { EventsModule } from './modules/events/events.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { MultimodalModule } from './modules/multimodal/multimodal.module';
+import { CoursesModule } from './modules/courses/courses.module';
 
 /**
  * ZhiPath API 根模块
@@ -66,6 +67,7 @@ import { MultimodalModule } from './modules/multimodal/multimodal.module';
     EventsModule,
     QueueModule,
     MultimodalModule,
+    CoursesModule,
 
     // 定时任务
     SchedulerModule,

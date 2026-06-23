@@ -4,6 +4,7 @@ import { AuthGuard } from '../../common/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { success, pageSuccess } from '../../common/api-response';
+import { ExamQuestion } from '../../entities/exam.entity';
 
 /**
  * Admin 控制器 — 对齐 Python api/admin/* 所有管理端接口
@@ -162,5 +163,40 @@ export class AdminController {
   @Get('settings/health')
   async getHealth() {
     return success({ status: 'ok', service: 'ZhiPath API', version: '3.0.0' });
+  }
+
+  // ── 题库管理 ──────────────────────────────
+
+  @Get('questions')
+  async getQuestions(
+    @Query('page') page = '1',
+    @Query('pageSize') pageSize = '20',
+    @Query('skillName') skillName?: string,
+    @Query('questionType') questionType?: string,
+    @Query('difficulty') difficulty?: string,
+    @Query('status') status?: string,
+  ) {
+    const result = await this.adminService.getQuestions(
+      +page, +pageSize, { skillName, questionType, difficulty: difficulty ? +difficulty : undefined, status: status ? +status : undefined }
+    );
+    return pageSuccess(result.list, result.total, result.page, result.pageSize);
+  }
+
+  @Put('questions/:id')
+  async updateQuestion(@Param('id') id: string, @Body() body: any) {
+    const result = await this.adminService.updateQuestion(+id, body);
+    return success(result);
+  }
+
+  @Post('questions/:id/review')
+  async reviewQuestion(@Param('id') id: string, @Body() body: { status: number }) {
+    const result = await this.adminService.reviewQuestion(+id, body.status);
+    return success(result);
+  }
+
+  @Get('questions/stats')
+  async getQuestionStats(@Query('skillName') skillName?: string) {
+    const result = await this.adminService.getQuestionStats(skillName);
+    return success(result);
   }
 }

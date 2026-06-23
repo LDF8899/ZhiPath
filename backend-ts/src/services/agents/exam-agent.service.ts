@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { LlmService } from '../llm.service';
 import { extractJson } from '../../common/json-repair';
+import { ReviewerAgentService } from './reviewer-agent.service';
+import { ExamQuestion as ExamQuestionEntity } from '../../entities/exam.entity';
 
 /**
  * 考试出题 Agent
@@ -70,7 +74,11 @@ export interface QuickTestConfig {
 
 @Injectable()
 export class ExamAgentService {
-  constructor(private llmService: LlmService) {}
+  constructor(
+    private llmService: LlmService,
+    private reviewerAgent: ReviewerAgentService,
+    @InjectRepository(ExamQuestionEntity) private questionRepo: Repository<ExamQuestionEntity>,
+  ) {}
 
   /**
    * 生成考试题目
@@ -84,7 +92,12 @@ export class ExamAgentService {
       tier: 'pro',
     });
 
-    return this.parseExam(raw, config);
+    const result = this.parseExam(raw, config);
+    // 异步入库（不阻塞返回）
+    this.saveToBank(result.questions, config).catch(e =>
+      console.warn('[ExamAgent] auto-save to bank failed:', e.message)
+    );
+    return result;
   }
 
   /**
@@ -318,5 +331,110 @@ ${typeRequirements}
         },
       };
     }
+  }
+
+  /** 将生成的题目批量写入题库 */
+  async saveToBank(questions: ExamQuestion[], config: ExamConfig): Promise<number> {
+    let saved = 0;
+    for (const q of questions) {
+      try {
+        const difficultyMap: Record<string, number> = { basic: 1, intermediate: 3, advanced: 5 };
+        await this.questionRepo.save({
+          examType: 1, // 通用技能
+          skillName: config.skillName,
+          questionType: q.type,
+          title: q.question,
+          content: { options: q.options },
+          answer: { value: q.answer, explanation: q.explanation },
+          difficulty: difficultyMap[q.difficulty] || 3,
+          confidenceScore: q.confidence,
+          status: 1, // 已上架
+          createdBy: 'agent',
+          createTime: Date.now(),
+          updateTime: Date.now(),
+        });
+        saved++;
+      } catch (e) {
+        console.warn(`[ExamAgent] saveToBank failed for question ${q.index}:`, e.message);
+      }
+    }
+    return saved;
+  }
+
+  /** 出题质量管线：生成→验证→入库 */
+  async qualityPipeline(config: ExamConfig): Promise<ExamData & { warnings?: string[] }> {
+    const warnings: string[] = [];
+
+    // Step 1: 生成
+    const exam = await this.generateExam(config);
+
+    // Step 2: 答案交叉验证（异步，不阻塞）
+    try {
+      const verifyResult = await this.reviewerAgent.verifyAnswers(
+        exam.questions.map(q => ({
+          question: q.question,
+          answer: q.answer,
+          type: q.type,
+        })),
+        config.skillName,
+      );
+      // 从验证结果中提取低置信度或错误答案的警告
+      if (Array.isArray(verifyResult)) {
+        for (const v of verifyResult) {
+          if (!v.isCorrect) {
+            warnings.push(`第${v.questionIndex}题答案可能有误：${v.explanation}`);
+          } else if (v.confidence < 0.6) {
+            warnings.push(`第${v.questionIndex}题答案置信度偏低(${v.confidence})`);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[ExamAgent] verifyAnswers failed:', e.message);
+      warnings.push('答案验证未完成');
+    }
+
+    // Step 3: 入库
+    try {
+      const saved = await this.saveToBank(exam.questions, config);
+      console.log(`[ExamAgent] ${saved}/${exam.questions.length} questions saved to bank`);
+    } catch (e) {
+      console.warn('[ExamAgent] saveToBank failed:', e.message);
+      warnings.push('题目入库失败');
+    }
+
+    return { ...exam, warnings };
+  }
+
+  /** 题库统计 */
+  async getQuestionBankStats(skillName?: string) {
+    const where: any = { status: 1 };
+    if (skillName) where.skillName = skillName;
+
+    const questions = await this.questionRepo.find({ where });
+
+    const byType: Record<string, number> = {};
+    const byDifficulty: Record<string, number> = {};
+    let totalConfidence = 0;
+    let totalPassRate = 0;
+    let countWithPassRate = 0;
+
+    for (const q of questions) {
+      byType[q.questionType] = (byType[q.questionType] || 0) + 1;
+      const diffKey = String(q.difficulty);
+      byDifficulty[diffKey] = (byDifficulty[diffKey] || 0) + 1;
+      totalConfidence += Number(q.confidenceScore) || 0;
+      if (q.passRate !== null && q.passRate !== undefined) {
+        totalPassRate += Number(q.passRate);
+        countWithPassRate++;
+      }
+    }
+
+    return {
+      total: questions.length,
+      byType,
+      byDifficulty,
+      avgConfidence: questions.length > 0 ? +(totalConfidence / questions.length).toFixed(2) : 0,
+      avgPassRate: countWithPassRate > 0 ? +(totalPassRate / countWithPassRate).toFixed(1) : null,
+    };
   }
 }

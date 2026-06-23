@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { ExamRecord, ExamQuestion } from '../../entities/exam.entity';
+import { LearningTask } from '../../entities/learning-tasks.entity';
 import { ReviewerAgentService } from '../../services/agents';
+import { LlmService } from '../../services/llm.service';
+import { extractJson } from '../../common/json-repair';
 
 /**
  * Exams 服务 — 对齐 Python api/user/exams.py
@@ -12,7 +15,9 @@ export class ExamsService {
   constructor(
     @InjectRepository(ExamRecord) private examRepo: Repository<ExamRecord>,
     @InjectRepository(ExamQuestion) private questionRepo: Repository<ExamQuestion>,
+    @InjectRepository(LearningTask) private learningTaskRepo: Repository<LearningTask>,
     private readonly reviewerAgent: ReviewerAgentService,
+    private readonly llmService: LlmService,
   ) {}
 
   /** 考试列表 — 对齐 GET /api/user/exams */
@@ -129,7 +134,7 @@ export class ExamsService {
 
     for (const q of questions) {
       const userAnswer = data.answers[q.id];
-      const isCorrect = this.checkAnswer(q.questionType, userAnswer, q.answer);
+      const isCorrect = await this.checkAnswer(q.questionType, userAnswer, q.answer, q.title);
       if (isCorrect) correctCount++;
       else wrongQuestions.push({
         question: q.title,
@@ -157,6 +162,11 @@ export class ExamsService {
       answers: data.answers, score, passed, wrongAnalysis, retryCount: 0,
       createTime: Date.now(), updateTime: Date.now(), status: 1,
     });
+
+    // 异步回写每题通过率（不阻塞返回）
+    for (const q of questions) {
+      this.updatePassRate(q.id).catch(() => {});
+    }
 
     return {
       ...exam,
@@ -186,7 +196,7 @@ export class ExamsService {
 
     for (const q of served) {
       const userAnswer = userAnswers[q.id];
-      const isCorrect = this.checkAnswer(q.questionType, userAnswer, q.answer);
+      const isCorrect = await this.checkAnswer(q.questionType, userAnswer, q.answer, q.title);
       if (isCorrect) correctCount++;
       else wrongQuestions.push({
         question: q.title,
@@ -230,6 +240,11 @@ export class ExamsService {
     record.wrongAnalysis = wrongAnalysis;
     record.updateTime = Date.now();
     await this.examRepo.save(record);
+
+    // 异步回写每题通过率（不阻塞返回）
+    for (const q of served) {
+      this.updatePassRate(q.id).catch(() => {});
+    }
 
     if (anomalies.length > 0) {
       console.warn(`[ExamsService] 考试 ${record.id} 异常行为:`, anomalies.join('; '));
@@ -333,8 +348,12 @@ export class ExamsService {
     return Math.round(sec * 1.5);
   }
 
-  /** 检查答案是否正确 */
-  private checkAnswer(questionType: string, userAnswer: any, correctAnswer: any): boolean {
+  /**
+   * 检查答案是否正确
+   * - choice/fill：本地精确匹配
+   * - coding/essay：AI 批改（60 分及格）
+   */
+  private async checkAnswer(questionType: string, userAnswer: any, correctAnswer: any, questionTitle?: string): Promise<boolean> {
     if (userAnswer === undefined || userAnswer === null) return false;
 
     switch (questionType) {
@@ -343,12 +362,74 @@ export class ExamsService {
       case 'fill':
         return String(userAnswer).trim().toLowerCase() === String(correctAnswer).trim().toLowerCase();
       case 'coding':
-      case 'essay':
-        // 编程题/简答题暂不自动批改
-        return false;
+      case 'essay': {
+        // 空白答案直接判错
+        const userAnsStr = typeof userAnswer === 'string' ? userAnswer.trim() : JSON.stringify(userAnswer);
+        if (!userAnsStr) return false;
+        try {
+          const result = await this.aiGrade(questionTitle || '', userAnsStr, correctAnswer, questionType);
+          return result.passed;
+        } catch (e: any) {
+          console.warn(`[ExamsService] AI 批改失败 (${questionType}):`, e.message);
+          return false;
+        }
+      }
       default:
         return false;
     }
+  }
+
+  /**
+   * AI 批改编程题/简答题
+   * - 编程题：功能实现(70%) + 语法规范(20%) + 代码结构(10%)
+   * - 简答题：意思相近可得分，支持同义词
+   */
+  private async aiGrade(
+    question: string,
+    userAnswer: string,
+    correctAnswer: any,
+    questionType: 'coding' | 'essay',
+  ): Promise<{ score: number; maxScore: number; passed: boolean; feedback: string }> {
+    const correctAnsStr = typeof correctAnswer === 'string'
+      ? correctAnswer
+      : (correctAnswer?.solution || correctAnswer?.content || JSON.stringify(correctAnswer));
+
+    const prompt = questionType === 'coding'
+      ? `你是编程教授，批改学生代码。
+题目：${question}
+参考答案：${correctAnsStr}
+学生答案：${userAnswer}
+评分标准：功能实现(70%)+语法规范(20%)+代码结构(10%)
+如果完全没有实现功能，给0分。
+输出JSON：{"grade": 0-100, "feedback": "给分理由"}`
+      : `你是课程专家，批改学生作答。
+题目：${question}
+参考答案：${correctAnsStr}
+学生答案：${userAnswer}
+学生答案与参考答案意思相近即可得分。
+输出JSON：{"grade": 0-100, "feedback": "给分理由"}`;
+
+    const raw = await this.llmService.chatCompletion(
+      [{ role: 'user', content: prompt }],
+      { temperature: 0.3, maxTokens: 512 },
+    );
+
+    let grade = 0;
+    let feedback = 'AI 批改未能解析结果';
+    try {
+      const parsed = extractJson(raw);
+      grade = typeof parsed.grade === 'number' ? parsed.grade : 0;
+      feedback = typeof parsed.feedback === 'string' ? parsed.feedback : feedback;
+    } catch (e: any) {
+      console.warn('[ExamsService] AI 批改 JSON 解析失败，默认 0 分。原始输出:', raw.slice(0, 200));
+    }
+
+    return {
+      score: grade,
+      maxScore: 100,
+      passed: grade >= 60,
+      feedback,
+    };
   }
 
   /** 获取用户错题本 — 聚合所有考试中的错题 */
@@ -472,5 +553,223 @@ export class ExamsService {
         items: grouped[skill],
       })),
     };
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  功能1：占位符记录模式
+  // ══════════════════════════════════════════════════════════
+
+  /**
+   * 创建占位符考试记录（score=null, passed=null）
+   * 返回 record.id，后续 submitExam 可更新这条记录
+   */
+  async createPlaceholderRecord(userId: number, data: { examId?: number; examType: number; skillName?: string }): Promise<number> {
+    const record = await this.examRepo.save({
+      userId,
+      examType: data.examType,
+      skillName: data.skillName,
+      answers: {},
+      score: null,
+      passed: null,
+      retryCount: 0,
+      createTime: Date.now(),
+      updateTime: Date.now(),
+      status: 1,
+    });
+    return record.id;
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  功能2：错题 → 自动补强学习任务
+  // ══════════════════════════════════════════════════════════
+
+  /**
+   * 从错题分析的 reinforcementPlan 中提取补强任务，自动创建 LearningTask
+   */
+  async createReinforcementTasks(userId: number, examId: number, wrongAnalysis: any): Promise<void> {
+    if (!wrongAnalysis?.reinforcementPlan) return;
+
+    const plan = wrongAnalysis.reinforcementPlan;
+    const tasks: Array<{ skill: string; action: string; estimatedMin?: number }> = [];
+
+    // reinforcementPlan 可能是数组或对象，兼容两种结构
+    if (Array.isArray(plan)) {
+      for (const item of plan) {
+        tasks.push({
+          skill: item.skill || item.topic || item.name || '未知技能',
+          action: item.action || item.description || item.task || '补强学习',
+          estimatedMin: item.estimatedMin || item.duration || 30,
+        });
+      }
+    } else if (typeof plan === 'object') {
+      for (const [skill, detail] of Object.entries(plan)) {
+        const d = detail as any;
+        tasks.push({
+          skill,
+          action: typeof d === 'string' ? d : (d.action || d.description || '补强学习'),
+          estimatedMin: typeof d === 'object' ? (d.estimatedMin || d.duration || 30) : 30,
+        });
+      }
+    }
+
+    if (tasks.length === 0) return;
+
+    // 查找用户当前最大 sortOrder，新任务排在末尾
+    const maxSort = await this.learningTaskRepo
+      .createQueryBuilder('t')
+      .select('MAX(t.sortOrder)', 'max')
+      .where('t.userId = :userId', { userId })
+      .getRawOne();
+    let nextSort = (maxSort?.max ?? 0) + 1;
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    for (const t of tasks) {
+      await this.learningTaskRepo.save({
+        userId,
+        planId: 0, // 补强任务无关联计划
+        skillName: t.skill,
+        taskType: 'side' as const,
+        taskStatus: 'pending' as const,
+        estimatedMin: t.estimatedMin,
+        sortOrder: nextSort++,
+        priority: 8, // 补强任务优先级较高
+        planDate: today,
+        isActive: 1,
+        createTime: Date.now(),
+        updateTime: Date.now(),
+        status: 1,
+      });
+    }
+
+    console.log(`[ExamsService] 为用户 ${userId} 创建 ${tasks.length} 个补强任务（examId=${examId}）`);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  功能3：考试通过率统计回写
+  // ══════════════════════════════════════════════════════════
+
+  /**
+   * 统计某题的所有考试记录，计算通过率，回写到 ExamQuestion.passRate
+   */
+  async updatePassRate(questionId: number): Promise<void> {
+    try {
+      // 找到所有包含该题目的考试记录
+      const records = await this.examRepo
+        .createQueryBuilder('r')
+        .where('r.status = 1')
+        .andWhere('r.score IS NOT NULL')
+        .getMany();
+
+      let total = 0;
+      let passed = 0;
+      for (const r of records) {
+        const qIds = r.questionIds || [];
+        const served = (r.answers?.served as any[])?.map((s: any) => s.id) || [];
+        const containsQuestion = qIds.includes(questionId) || served.includes(questionId);
+        if (!containsQuestion) continue;
+        total++;
+        if (r.passed) passed++;
+      }
+
+      if (total === 0) return;
+
+      const passRate = Math.round((passed / total) * 100) / 100; // 0.xx 精度
+      await this.questionRepo.update(questionId, { passRate, updateTime: Date.now() });
+    } catch (e: any) {
+      console.warn(`[ExamsService] updatePassRate(${questionId}) failed:`, e.message);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  功能4：题库统计（Controller 端点对应）
+  // ══════════════════════════════════════════════════════════
+
+  /**
+   * 题库统计：按技能/题型/难度聚合题目数量、平均通过率
+   */
+  async getQuestionBankStats(skillName?: string) {
+    const where: any = { status: 1 };
+    if (skillName) where.skillName = skillName;
+
+    const questions = await this.questionRepo.find({ where });
+
+    // 按技能分组
+    const bySkill: Record<string, { total: number; avgPassRate: number; avgDifficulty: number }> = {};
+    // 按题型分组
+    const byType: Record<string, { total: number; avgPassRate: number }> = {};
+    // 按难度分组
+    const byDifficulty: Record<number, { total: number; avgPassRate: number }> = {};
+
+    for (const q of questions) {
+      const skill = q.skillName || '未分类';
+      const type = q.questionType;
+      const diff = q.difficulty;
+      const pr = q.passRate ?? 0;
+
+      // bySkill
+      if (!bySkill[skill]) bySkill[skill] = { total: 0, avgPassRate: 0, avgDifficulty: 0 };
+      bySkill[skill].total++;
+      bySkill[skill].avgPassRate += pr;
+      bySkill[skill].avgDifficulty += diff;
+
+      // byType
+      if (!byType[type]) byType[type] = { total: 0, avgPassRate: 0 };
+      byType[type].total++;
+      byType[type].avgPassRate += pr;
+
+      // byDifficulty
+      if (!byDifficulty[diff]) byDifficulty[diff] = { total: 0, avgPassRate: 0 };
+      byDifficulty[diff].total++;
+      byDifficulty[diff].avgPassRate += pr;
+    }
+
+    // 计算平均值
+    for (const v of Object.values(bySkill)) {
+      v.avgPassRate = v.total > 0 ? Math.round((v.avgPassRate / v.total) * 100) / 100 : 0;
+      v.avgDifficulty = v.total > 0 ? Math.round((v.avgDifficulty / v.total) * 10) / 10 : 0;
+    }
+    for (const v of Object.values(byType)) {
+      v.avgPassRate = v.total > 0 ? Math.round((v.avgPassRate / v.total) * 100) / 100 : 0;
+    }
+    for (const v of Object.values(byDifficulty)) {
+      v.avgPassRate = v.total > 0 ? Math.round((v.avgPassRate / v.total) * 100) / 100 : 0;
+    }
+
+    return {
+      total: questions.length,
+      bySkill,
+      byType,
+      byDifficulty,
+    };
+  }
+
+  // ── 考试重试调度 ──────────────────────────────
+
+  /** 获取可重试的考试 */
+  async getRetryableExams(userId: number) {
+    const now = Date.now();
+    const exams = await this.examRepo.find({
+      where: { userId, status: 1, passed: 0 as any },
+      order: { createTime: 'DESC' },
+    });
+    return exams.filter(e => {
+      if (!e.nextRetryTime) return true; // 从未重试过
+      return e.nextRetryTime <= now;
+    });
+  }
+
+  /** 调度重试 */
+  async scheduleRetry(examId: number, userId: number) {
+    const exam = await this.examRepo.findOne({ where: { id: examId, userId, status: 1 } });
+    if (!exam) throw new Error('考试不存在');
+    if (exam.passed === 1) throw new Error('已通过的考试无需重试');
+
+    const retryCount = (exam.retryCount || 0) + 1;
+    const delayMs = retryCount * 24 * 60 * 60 * 1000; // 指数退避：1天、2天、3天...
+    const nextRetryTime = Date.now() + delayMs;
+
+    await this.examRepo.update(examId, { retryCount, nextRetryTime, updateTime: Date.now() });
+    return { retryCount, nextRetryTime, canRetryAt: new Date(nextRetryTime).toISOString() };
   }
 }

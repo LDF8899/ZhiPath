@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import '../styles/hand-draw.css';
 import {
+  IconBook,
   IconChart,
   IconUser,
   IconBriefcase,
@@ -24,6 +25,7 @@ const navItems = [
   { key: '/admin/enterprises', icon: IconBriefcase, label: '企业管理' },
   { key: '/admin/news', icon: IconNewspaper, label: '资讯管理' },
   { key: '/admin/exams', icon: IconGradCap, label: '考试管理' },
+  { key: '/admin/questions', icon: IconBook, label: '题库管理' },
   { key: '/admin/resumes', icon: IconDocument, label: '简历管理' },
   { key: '/admin/settings', icon: IconSettings, label: '系统设置' },
 ];

@@ -125,3 +125,21 @@ export const getAdminSettings = () =>
 /** 健康检查 */
 export const getAdminHealth = () =>
   client.get('/admin/settings/health') as Promise<ApiResponse<any>>;
+
+// ── 题库管理 ──────────────────────────────
+
+/** 题目列表 */
+export const getAdminQuestions = (params?: any) =>
+  client.get('/admin/questions', { params }) as Promise<PaginatedResponse<any>>;
+
+/** 更新题目 */
+export const updateAdminQuestion = (id: number, data: any) =>
+  client.put(`/admin/questions/${id}`, data) as Promise<ApiResponse<any>>;
+
+/** 审核题目 */
+export const reviewAdminQuestion = (id: number, status: number) =>
+  client.post(`/admin/questions/${id}/review`, { status }) as Promise<ApiResponse<any>>;
+
+/** 题目统计 */
+export const getAdminQuestionStats = (skillName?: string) =>
+  client.get('/admin/questions/stats', { params: { skillName } }) as Promise<ApiResponse<any>>;

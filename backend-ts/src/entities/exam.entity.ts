@@ -71,8 +71,8 @@ export class ExamRecord extends BaseEntity {
   @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true, name: 'score' })
   score: number;
 
-  @Column({ type: 'tinyint', default: 0, name: 'passed' })
-  passed: number;
+  @Column({ type: 'tinyint', default: 0, nullable: true, name: 'passed' })
+  passed: number | null;
 
   @Column({ type: 'json', nullable: true, name: 'answers', comment: '用户答题内容' })
   answers: Record<string, any> | null;
