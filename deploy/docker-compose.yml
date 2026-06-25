@@ -1,0 +1,153 @@
+# ZhiPath 中间件 Docker Compose 配置
+# 使用方法：
+#   启动核心服务: docker compose -f deploy/docker-compose.yml -p middleware --profile core up -d
+#   启动全部服务: docker compose -f deploy/docker-compose.yml -p middleware --profile core --profile optional up -d
+#   停止所有服务: docker compose -f deploy/docker-compose.yml -p middleware --profile core --profile optional down
+
+services:
+  # ==================== 核心服务 (core) ====================
+
+  mysql:
+    image: mysql:8.0.36
+    container_name: mysql
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: zhipath
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --max-connections=1000
+    profiles:
+      - core
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    profiles:
+      - core
+
+  mongodb:
+    image: mongo:7
+    container_name: mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+      MONGO_INITDB_DATABASE: zhipath
+    volumes:
+      - mongo-data:/data/db
+    profiles:
+      - core
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    profiles:
+      - core
+
+  # ==================== 按需服务 (optional) ====================
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    profiles:
+      - optional
+
+  neo4j:
+    image: neo4j:5.22
+    container_name: neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/neo4j123
+      NEO4J_PLUGINS: '["apoc"]'
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+    profiles:
+      - optional
+
+  chroma:
+    image: chromadb/chroma:0.4.20
+    container_name: chroma
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    environment:
+      - ANONYMIZED_TELEMETRY=False
+    profiles:
+      - optional
+
+  searxng:
+    image: searxng/searxng
+    container_name: searxng
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - searxng-data:/etc/searxng
+    profiles:
+      - optional
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: redisinsight
+    restart: unless-stopped
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight-data:/db
+    profiles:
+      - optional
+
+volumes:
+  mysql-data:
+  redis-data:
+  mongo-data:
+  rabbitmq-data:
+  minio-data:
+  neo4j-data:
+  neo4j-logs:
+  chroma-data:
+  searxng-data:
+  redisinsight-data:
