@@ -11,12 +11,24 @@ interface Props {
     salaryRange?: string;
     matchScore: number;
     requiredSkills?: Array<{ name: string; weight?: number }>;
+    source?: 'online' | 'local';
+    url?: string;
+    host?: string;
   };
   compact?: boolean;
 }
 
 export default function JobCard({ job, compact }: Props) {
   const navigate = useNavigate();
+  // 负数 id 或 source==='online' 表示联网搜索结果，点击新窗口打开 url
+  const isOnline = (typeof job.id === 'number' && job.id < 0) || job.source === 'online';
+  const handleClick = () => {
+    if (isOnline && job.url) {
+      window.open(job.url, '_blank', 'noopener,noreferrer');
+    } else if (!isOnline) {
+      navigate(`/user/jobs/${job.id}`);
+    }
+  };
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'green';
@@ -35,12 +47,19 @@ export default function JobCard({ job, compact }: Props) {
   if (compact) {
     return (
       <div
-        onClick={() => navigate(`/user/jobs/${job.id}`)}
+        onClick={handleClick}
         className="hd-card hd-flex-between"
         style={{ cursor: 'pointer' }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontFamily: 'var(--hand-bold)', fontSize: 15 }}>{job.title}</div>
+          <div style={{ fontWeight: 700, fontFamily: 'var(--hand-bold)', fontSize: 15 }}>
+            {job.title}
+            {isOnline && (
+              <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 6px', borderRadius: 6, background: 'var(--accent-soft, #ffe9d6)', color: 'var(--accent, #d2691e)', fontFamily: 'var(--mono)' }}>
+                联网
+              </span>
+            )}
+          </div>
           <div style={{ fontSize: 13, color: 'var(--pencil)', display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
             <IconBriefcase size={14} />
             {job.company}
@@ -57,7 +76,7 @@ export default function JobCard({ job, compact }: Props) {
           <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--serif)', color: getScoreHex(job.matchScore) }}>
             {job.matchScore}%
           </div>
-          <div style={{ fontSize: 10, color: 'var(--pencil)', fontFamily: 'var(--mono)' }}>匹配度</div>
+          <div style={{ fontSize: 10, color: 'var(--pencil)', fontFamily: 'var(--mono)' }}>{isOnline ? '估算' : '匹配度'}</div>
         </div>
       </div>
     );

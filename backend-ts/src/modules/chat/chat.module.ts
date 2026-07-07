@@ -7,6 +7,7 @@ import { ExamRecord } from '../../entities/exam.entity';
 import { LlmService } from '../../services/llm.service';
 import { ChatHistoryService } from '../../services/chat-history.service';
 import { ProfileService } from '../../services/profile.service';
+import { JobSearchService } from '../../services/job-search.service';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { IntentRouterService } from './intent-router.service';
@@ -44,6 +45,7 @@ import { EventsModule } from '../events/events.module';
     LlmService,
     ChatHistoryService,
     ProfileService,
+    JobSearchService,
     IntentRouterService,
     ActionExecutorService,
     TutorPromptService,

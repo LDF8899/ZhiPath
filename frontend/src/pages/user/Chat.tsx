@@ -260,7 +260,8 @@ export default function Chat() {
 
     const userMsg: ChatMessage = { role: 'user', content: msg, timestamp: Date.now() };
     const oldSessionId = currentSessionId || '__pending__';
-    const prevMessages = mainMessages[oldSessionId] || [];
+    // 用 getState() 读取最新 store，避免闭包拿到 stale state
+    const prevMessages = useChatStore.getState().mainMessages[oldSessionId] || [];
     setMainMessages(oldSessionId, [...prevMessages, userMsg]);
     setInput('');
     setSending(true);
@@ -350,7 +351,8 @@ export default function Chat() {
         }
 
         // 去重：新的 video 卡片替换旧的同 skill 卡片
-        let prevMsgs = mainMessages[oldSessionId] || [];
+        // 用 getState() 读取最新 store，避免闭包陷阱导致 userMsg 丢失
+        let prevMsgs = useChatStore.getState().mainMessages[oldSessionId] || [];
         const newVideoAction = aiMsg.actions?.find(
           (a: any) => a.type === 'video_pending' || a.type === 'video',
         );

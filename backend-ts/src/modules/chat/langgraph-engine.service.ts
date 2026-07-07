@@ -19,6 +19,7 @@ import { PlannerAgentService } from '../../services/planner-agent.service';
 import { MultimodalService } from '../../services/multimodal.service';
 import { VideoAgentService } from '../../services/agents/video-agent.service';
 import { EventsService } from '../events/events.service';
+import { JobSearchService } from '../../services/job-search.service';
 import { extractJson } from '../../common/json-repair';
 
 // ── State 定义 ──────────────────────────────────
@@ -106,6 +107,7 @@ export class LangGraphEngineService {
     private multimodal: MultimodalService,
     private videoAgent: VideoAgentService,
     private eventsService: EventsService,
+    private jobSearch: JobSearchService,
   ) {
     this.buildGraph();
   }
@@ -410,7 +412,15 @@ export class LangGraphEngineService {
       const rtype = r.type || '';
       if (rtype === 'jobs') {
         const jobs = r.data || [];
-        resultDesc.push(`推荐了 ${jobs.length} 个岗位`);
+        const onlineCount = jobs.filter((j: any) => j.source === 'online' || (typeof j.id === 'number' && j.id < 0)).length;
+        const localCount = jobs.length - onlineCount;
+        if (onlineCount > 0 && localCount === 0) {
+          resultDesc.push(`本地岗位库无匹配，已联网搜索到 ${onlineCount} 个相关岗位`);
+        } else if (onlineCount > 0 && localCount > 0) {
+          resultDesc.push(`推荐了 ${localCount} 个本地岗位 + ${onlineCount} 个联网岗位`);
+        } else {
+          resultDesc.push(`推荐了 ${localCount} 个岗位`);
+        }
       } else if (rtype === 'path_generated') {
         resultDesc.push(`学习路径已生成：${r.data?.planName || ''}`);
       } else if (rtype === 'video_pending') {
@@ -530,6 +540,26 @@ export class LangGraphEngineService {
         }
       }
       jobCards.sort((a, b) => b.matchScore - a.matchScore);
+
+      // ── 兜底：本地无结果 或 最高匹配度过低时，联网搜索 ──
+      const maxScore = jobCards.length > 0 ? jobCards[0].matchScore : 0;
+      const needOnline = jobCards.length === 0 || maxScore < 30;
+      if (needOnline) {
+        try {
+          const userSkills: string[] = (state.profile?.skills || []).map(
+            (s: any) => String(s.name || s.skillName || s).trim(),
+          ).filter(Boolean);
+          const onlineCards = await this.jobSearch.search(keyword, userSkills);
+          if (onlineCards.length > 0) {
+            console.log(`[LangGraph] online search returned ${onlineCards.length} jobs (local: ${jobCards.length}, maxScore: ${maxScore})`);
+            // 在线结果插到最前面（负数 id 标识来源）
+            jobCards.unshift(...onlineCards);
+          }
+        } catch (e: any) {
+          console.warn('[LangGraph] job online search fallback failed:', e.message);
+        }
+      }
+
       return { jobResults: jobCards, actions: [{ type: 'jobs', data: jobCards }] };
     } catch (e) {
       console.error('[LangGraph] recommendJobs failed:', e.message);
