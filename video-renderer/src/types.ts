@@ -79,6 +79,12 @@ export interface VideoSegment {
   narration: string;
   visual: SegmentVisual;
   emphasis: string[];
+  scene_goal?: string;
+  camera_motion?: 'none' | 'push_in' | 'slide_left' | 'slide_right' | 'pan_up';
+  transition?: 'cut' | 'fade' | 'wipe' | 'slide';
+  visual_density?: 'low' | 'medium' | 'high';
+  callout?: string;
+  keywords?: string[];
   estimated_duration_sec: number;
   audio?: {
     file_path: string;
@@ -91,6 +97,7 @@ export interface VideoScript {
   skill_name: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   total_segments: number;
+  visual_style?: 'technical' | 'interview' | 'career' | 'git';
   segments: VideoSegment[];
 }
 
@@ -133,5 +140,12 @@ export const VIDEO_THEME = {
     bulletStagger: 12,
     codeTypingSpeed: 2,
     emphasisPulseDuration: 20,
+  },
+  chrome: {
+    topBarHeight: 78,
+    safeX: 84,
+    accent2: '#22D3EE',
+    warning: '#FBBF24',
+    success: '#34D399',
   },
 } as const;

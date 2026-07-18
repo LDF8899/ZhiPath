@@ -8,7 +8,7 @@ export const RemotionRoot: React.FC = () => {
     <>
       <Composition
         id="VideoGenerator"
-        component={VideoGenerator}
+        component={VideoGenerator as unknown as React.FC<Record<string, unknown>>}
         durationInFrames={VIDEO_THEME.canvas.fps * 75} // 默认 75 秒，运行时由 inputProps 覆盖
         fps={VIDEO_THEME.canvas.fps}
         width={VIDEO_THEME.canvas.width}

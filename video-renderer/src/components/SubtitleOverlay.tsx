@@ -1,5 +1,5 @@
 import React from 'react';
-import { useCurrentFrame, useVideoConfig, interpolate, AbsoluteFill } from 'remotion';
+import { AbsoluteFill, interpolate, useCurrentFrame } from 'remotion';
 import type { VideoSegment } from '../types';
 import { VIDEO_THEME } from '../types';
 
@@ -9,20 +9,12 @@ interface Props {
   fps: number;
 }
 
-/**
- * 字幕叠加层
- *
- * 在视频底部显示当前 segment 的 narration 文字
- * 逐字显示效果，与 TTS 音频同步
- */
 export const SubtitleOverlay: React.FC<Props> = ({
   segments,
   segmentFrames,
   fps,
 }) => {
   const frame = useCurrentFrame();
-
-  // 找到当前活跃的 segment
   let activeIndex = -1;
   for (let i = 0; i < segmentFrames.length; i++) {
     const sf = segmentFrames[i];
@@ -37,27 +29,21 @@ export const SubtitleOverlay: React.FC<Props> = ({
   const segment = segments[activeIndex];
   const sf = segmentFrames[activeIndex];
   const localFrame = frame - sf.startFrame;
-  const narration = segment.narration;
-
-  // 逐字显示：按 TTS 语速计算应该显示多少字
-  const durationSec = sf.durationFrames / fps;
-  const charsPerFrame = narration.length / sf.durationFrames;
-  const charsToShow = Math.min(
-    narration.length,
-    Math.floor(localFrame * charsPerFrame) + 1,
+  const chunks = splitNarration(segment.narration);
+  const chunkIndex = Math.min(
+    chunks.length - 1,
+    Math.floor((localFrame / Math.max(1, sf.durationFrames)) * chunks.length),
   );
-
-  const displayText = narration.slice(0, charsToShow);
-
-  // 淡入淡出
-  const fadeIn = interpolate(localFrame, [0, 5], [0, 1], { extrapolateRight: 'clamp' });
-  const fadeOut = interpolate(
-    localFrame,
-    [sf.durationFrames - 10, sf.durationFrames],
-    [1, 0],
-    { extrapolateLeft: 'clamp' },
-  );
-  const opacity = Math.min(fadeIn, fadeOut);
+  const text = chunks[chunkIndex] || segment.narration;
+  const chunkStart = Math.floor((sf.durationFrames / chunks.length) * chunkIndex);
+  const chunkEnd = Math.floor((sf.durationFrames / chunks.length) * (chunkIndex + 1));
+  const fadeIn = interpolate(localFrame - chunkStart, [0, Math.round(fps * 0.16)], [0, 1], { extrapolateRight: 'clamp' });
+  const fadeOut = interpolate(localFrame, [chunkEnd - Math.round(fps * 0.2), chunkEnd], [1, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const opacity = Math.max(0, Math.min(fadeIn, fadeOut));
+  const keywords = Array.from(new Set([...(segment.keywords || []), ...(segment.emphasis || [])].filter(Boolean)));
 
   return (
     <AbsoluteFill
@@ -71,40 +57,73 @@ export const SubtitleOverlay: React.FC<Props> = ({
       <div
         style={{
           position: 'absolute',
-          bottom: 60,
+          bottom: 56,
           left: '50%',
-          transform: 'translateX(-50%)',
-          maxWidth: '75%',
-          padding: '14px 28px',
-          background: 'rgba(0, 0, 0, 0.7)',
-          borderRadius: 10,
+          transform: `translateX(-50%) translateY(${interpolate(opacity, [0, 1], [8, 0])}px)`,
+          width: 'min(1320px, 76%)',
+          padding: '16px 30px',
+          background: 'rgba(2, 6, 23, 0.78)',
+          border: '1px solid rgba(148, 163, 184, 0.22)',
+          borderRadius: 8,
           opacity,
+          boxShadow: '0 18px 54px rgba(0, 0, 0, 0.25)',
         }}
       >
         <span
           style={{
-            fontSize: 36,
+            fontSize: 34,
             color: VIDEO_THEME.text.primary,
             fontFamily: VIDEO_THEME.fonts.body,
-            lineHeight: 1.5,
-            letterSpacing: 1,
+            lineHeight: 1.42,
+            letterSpacing: 0,
           }}
         >
-          {displayText}
-          {charsToShow < narration.length && (
-            <span
-              style={{
-                display: 'inline-block',
-                width: 2,
-                height: '0.8em',
-                backgroundColor: VIDEO_THEME.text.accent,
-                marginLeft: 2,
-                verticalAlign: 'middle',
-              }}
-            />
-          )}
+          {highlightText(text, keywords)}
         </span>
       </div>
     </AbsoluteFill>
   );
 };
+
+function splitNarration(narration: string): string[] {
+  const raw = String(narration || '').replace(/\s+/g, ' ').trim();
+  if (!raw) return [''];
+  const chunks = raw
+    .split(/(?<=[。！？.!?；;])\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (chunks.length <= 1 && raw.length > 44) {
+    const result: string[] = [];
+    for (let i = 0; i < raw.length; i += 38) {
+      result.push(raw.slice(i, i + 38));
+    }
+    return result;
+  }
+  return chunks.length ? chunks : [raw];
+}
+
+function highlightText(text: string, keywords: string[]): React.ReactNode[] {
+  const valid = keywords
+    .map((kw) => String(kw || '').trim())
+    .filter((kw) => kw.length >= 2)
+    .sort((a, b) => b.length - a.length)
+    .slice(0, 8);
+  if (!valid.length) return [text];
+
+  const pattern = new RegExp(`(${valid.map(escapeRegExp).join('|')})`, 'gi');
+  return text.split(pattern).filter(Boolean).map((part, index) => {
+    const matched = valid.some((kw) => kw.toLowerCase() === part.toLowerCase());
+    return matched ? (
+      <span key={index} style={{ color: VIDEO_THEME.chrome.accent2, fontWeight: 800 }}>
+        {part}
+      </span>
+    ) : (
+      <span key={index}>{part}</span>
+    );
+  });
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}

@@ -380,6 +380,15 @@ narration（解说词）和 visual（画面）是同一段内容的"声音版"�
 }
 注意：解说词三句话，画面三条要点，顺序完全一致。
 
+## Video v2 director fields (fill them for every segment when possible)
+- scene_goal: the learning goal of this segment, short and concrete.
+- camera_motion: none | push_in | slide_left | slide_right | pan_up.
+- transition: cut | fade | wipe | slide.
+- visual_density: low | medium | high. Use high for code/diagrams, low for title/summary.
+- callout: one short on-screen takeaway, max 28 Chinese chars or 12 English words.
+- keywords: 2-6 words copied from narration or visual for subtitle/highlight.
+- Story rhythm: hook/problem first, use at least one code_walkthrough/diagram/comparison in the middle when appropriate, close with an actionable takeaway.
+
 ## JSON 结构
 
 {
@@ -392,6 +401,12 @@ narration（解说词）和 visual（画面）是同一段内容的"声音版"�
       "type": "title_card",
       "narration": "口语化解说词",
       "visual": { ... },
+      "scene_goal": "Explain the goal",
+      "camera_motion": "push_in",
+      "transition": "fade",
+      "visual_density": "medium",
+      "callout": "One key takeaway",
+      "keywords": ["keyword1", "keyword2"],
       "emphasis": ["关键词"],
       "estimated_duration_sec": 5
     }
@@ -426,15 +441,21 @@ ${knowledgeContent.slice(0, 3000)}`;
         narration: String(seg.narration || ''),
         visual: this.normalizeVisual(seg.type, seg.visual),
         emphasis: Array.isArray(seg.emphasis) ? seg.emphasis : [],
+        scene_goal: this.cleanOptionalText(seg.scene_goal, 80),
+        camera_motion: this.validateCameraMotion(seg.camera_motion),
+        transition: this.validateTransition(seg.transition),
+        visual_density: this.validateVisualDensity(seg.visual_density),
+        callout: this.cleanOptionalText(seg.callout, 80),
+        keywords: Array.isArray(seg.keywords) ? seg.keywords.map((kw: any) => String(kw).trim()).filter(Boolean).slice(0, 8) : undefined,
         estimated_duration_sec: Number(seg.estimated_duration_sec) || 5,
       }));
 
-      return {
+      return this.enrichScript({
         skill_name: parsed.skill_name || skillName,
         difficulty: parsed.difficulty || difficulty,
         total_segments: segments.length,
         segments,
-      };
+      });
     } catch (e: any) {
       console.error(`[VideoAgent] JSON 解析失败，尝试修复:`, e.message);
       return this.fallbackScript(skillName, difficulty);
@@ -457,8 +478,63 @@ ${knowledgeContent.slice(0, 3000)}`;
   }
 
   /** LLM 输出不可用时的降级脚本 */
-  private fallbackScript(skillName: string, difficulty: string): VideoScript {
+
+  private enrichScript(script: VideoScript): VideoScript {
+    const segments = script.segments.map((segment, index) => {
+      const emphasis = Array.isArray(segment.emphasis) ? segment.emphasis.filter(Boolean) : [];
+      return {
+        ...segment,
+        scene_goal: segment.scene_goal || this.defaultSceneGoal(segment.type, index),
+        camera_motion: segment.camera_motion || (segment.type === 'title_card' ? 'push_in' : 'none'),
+        transition: segment.transition || (index === 0 ? 'fade' : 'slide'),
+        visual_density: segment.visual_density || (segment.type === 'code_walkthrough' ? 'high' : 'medium'),
+        callout: segment.callout || emphasis[0] || '',
+        keywords: segment.keywords?.length ? segment.keywords : emphasis.slice(0, 6),
+      };
+    });
+
     return {
+      ...script,
+      total_segments: segments.length,
+      segments,
+    };
+  }
+
+  private defaultSceneGoal(type: SegmentType, index: number): string {
+    if (index === 0) return 'Set the learning goal';
+    const goals: Record<SegmentType, string> = {
+      title_card: 'Set the learning goal',
+      bullet_points: 'Break down the core idea',
+      code_walkthrough: 'Map the idea to code',
+      diagram: 'Clarify the flow',
+      formula: 'Explain the key relation',
+      comparison: 'Separate similar ideas',
+      summary: 'Capture the reusable takeaway',
+      highlight_reel: 'Reinforce the key memory',
+    };
+    return goals[type] || 'Understand this segment';
+  }
+
+  private cleanOptionalText(value: any, maxLen: number): string | undefined {
+    const text = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!text) return undefined;
+    return text.slice(0, maxLen);
+  }
+
+  private validateCameraMotion(value: any): VideoSegment['camera_motion'] {
+    return ['none', 'push_in', 'slide_left', 'slide_right', 'pan_up'].includes(value) ? value : undefined;
+  }
+
+  private validateTransition(value: any): VideoSegment['transition'] {
+    return ['cut', 'fade', 'wipe', 'slide'].includes(value) ? value : undefined;
+  }
+
+  private validateVisualDensity(value: any): VideoSegment['visual_density'] {
+    return ['low', 'medium', 'high'].includes(value) ? value : undefined;
+  }
+
+  private fallbackScript(skillName: string, difficulty: string): VideoScript {
+    return this.enrichScript({
       skill_name: skillName,
       difficulty: difficulty as any,
       total_segments: 3,
@@ -488,7 +564,7 @@ ${knowledgeContent.slice(0, 3000)}`;
           estimated_duration_sec: 5,
         },
       ],
-    };
+    });
   }
 
   private fail(taskId: string, error: string): VideoAgentOutput {

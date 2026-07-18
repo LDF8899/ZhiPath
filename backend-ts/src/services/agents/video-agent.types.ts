@@ -87,6 +87,12 @@ export interface VideoSegment {
   narration: string;           // 口语化解说词
   visual: SegmentVisual;
   emphasis: string[];          // 需要视觉高亮的关键词
+  scene_goal?: string;
+  camera_motion?: 'none' | 'push_in' | 'slide_left' | 'slide_right' | 'pan_up';
+  transition?: 'cut' | 'fade' | 'wipe' | 'slide';
+  visual_density?: 'low' | 'medium' | 'high';
+  callout?: string;
+  keywords?: string[];
   estimated_duration_sec: number; // LLM 预估时长（仅参考，实际由 TTS 驱动）
 
   // TTS 阶段写入

@@ -16,6 +16,7 @@ import { Summary } from './Summary';
 import { HighlightReel } from './HighlightReel';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { Background } from '../components/Background';
+import { SceneChrome } from '../components/SceneChrome';
 import type { VideoScript, AudioSegment, VideoSegment } from '../types';
 import { VIDEO_THEME } from '../types';
 
@@ -57,6 +58,13 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({
             durationInFrames={sf.durationFrames}
           >
             {renderSegment(segment, sf.durationFrames)}
+            <SceneChrome
+              script={script}
+              segment={segment}
+              segmentIndex={index}
+              totalSegments={script.segments.length}
+              durationFrames={sf.durationFrames}
+            />
             {audio?.staticSrc && <Audio src={staticFile(audio.staticSrc)} />}
           </Sequence>
         );
@@ -82,7 +90,7 @@ function renderSegment(segment: VideoSegment, durationFrames: number): React.Rea
     case 'bullet_points':
       return <BulletPoints segment={segment} durationFrames={durationFrames} />;
     case 'code_walkthrough':
-      return <CodeWalkthrough segment={segment} />;
+      return <CodeWalkthrough segment={segment} durationFrames={durationFrames} />;
     case 'diagram':
       return <Diagram segment={segment} />;
     case 'comparison':
