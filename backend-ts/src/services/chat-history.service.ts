@@ -70,13 +70,14 @@ export class ChatHistoryService {
     sessionId: string,
     role: string,
     content: string,
-    meta: { agent?: string; pageContext?: string } = {},
+    meta: { agent?: string; pageContext?: string; actions?: any[] } = {},
   ) {
     const message = {
       role,
       content,
       agent: meta.agent || '',
       timestamp: Date.now(),
+      ...(meta.actions !== undefined ? { actions: meta.actions } : {}),
     };
 
     // 1. 追加到 Redis

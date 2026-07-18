@@ -5,6 +5,7 @@ import { LearningTask } from '../../entities/learning-tasks.entity';
 import { Student } from '../../entities/student.entity';
 import { TaskSchedulerService } from '../../services/task-scheduler.service';
 import { SkillModule } from '../skill/skill.module';
+import { GitLearningModule } from '../git-learning/git-learning.module';
 
 /**
  * TaskScheduler 模块 — 学习任务调度
@@ -13,6 +14,7 @@ import { SkillModule } from '../skill/skill.module';
   imports: [
     TypeOrmModule.forFeature([LearningPlan, LearningTask, Student]),
     SkillModule,
+    GitLearningModule,
   ],
   providers: [TaskSchedulerService],
   exports: [TaskSchedulerService],

@@ -35,6 +35,7 @@ export class AgentEngineService {
     userId: number,
     messages: Array<{ role: string; content: string }>,
     pageContext?: string,
+    chatSessionId?: string,
   ): Promise<{ reply: string; actions: any[]; agent: string }> {
     // 1. 读取用户画像
     let profile: any = null;
@@ -76,7 +77,10 @@ export class AgentEngineService {
     try {
       const actions = this.actionExecutor.extractActions(reply);
       if (actions.length > 0) {
-        const results = await this.actionExecutor.executeActions(actions, userId);
+        const results = await this.actionExecutor.executeActions(actions, userId, {
+          source: 'chat',
+          chatSessionId,
+        });
         actionResults.push(...results);
       }
     } catch (e) {

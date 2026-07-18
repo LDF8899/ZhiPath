@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import type { AgentProfile, AgentTask } from './types';
+import type { GeneratedResource } from '../../types';
 import { makeAnimalSVG } from './AnimalSVG';
 import { AGENT_LABELS } from '../../hooks/useAgentOffice';
 
@@ -8,6 +9,7 @@ interface TaskCenterProps {
   tasks: AgentTask[];
   activeTasks: AgentTask[];
   completedOutputs: AgentTask[];
+  generatedOutputs: GeneratedResource[];
   failedTasks: AgentTask[];
   busyCount: number;
   idleCount: number;
@@ -24,7 +26,7 @@ interface TaskCenterProps {
  * 保留了原 monolith 中所有右侧面板的功能
  */
 export default function TaskCenter({
-  profiles, activeTasks, completedOutputs, failedTasks,
+  profiles, activeTasks, completedOutputs, generatedOutputs, failedTasks,
   busyCount, idleCount, stationCount, agentCount,
   standbyAgents, onTaskAction, onTaskReorder, onDirectUse,
 }: TaskCenterProps) {
@@ -205,10 +207,29 @@ export default function TaskCenter({
         <div className="office-output-title">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
           工作产出
-          <span className="done-count">{completedOutputs.length}</span>
+          <span className="done-count">{generatedOutputs.length || completedOutputs.length}</span>
         </div>
         <div className="office-output-list">
-          {completedOutputs.length > 0 ? completedOutputs.map(task => {
+          {generatedOutputs.length > 0 ? generatedOutputs.map(resource => {
+            const agent = profiles.find(p => p.agentType === resource.agentType);
+            return (
+              <div key={`resource-${resource.id}`} className="office-output-card">
+                <div className="out-header">
+                  <span className="out-task">{resource.title}</span>
+                  <span className="out-time">
+                    {formatResourceStatus(resource)}
+                  </span>
+                </div>
+                <div className="out-agent">
+                  <span className="mini-color" style={{ background: agent?.color || '#ccc' }} />
+                  {agent?.nickname || resource.agentType || 'Agent'} 路 {resource.resourceType}
+                </div>
+                <div className="out-result">
+                  {formatGeneratedPreview(resource)}
+                </div>
+              </div>
+            );
+          }) : completedOutputs.length > 0 ? completedOutputs.map(task => {
             const agent = profiles.find(p => p.agentType === task.agentType);
             return (
               <div key={task.id} className="office-output-card">
@@ -269,4 +290,33 @@ export default function TaskCenter({
       )}
     </div>
   );
+}
+
+function formatGeneratedPreview(resource: GeneratedResource): string {
+  const payload = resource.payload;
+  if (resource.resourceStatus === 'running' || resource.resourceStatus === 'pending') {
+    const progress = Number(resource.previewMeta?.progress || 0);
+    return progress > 0 ? `生成中，进度 ${progress}%` : '生成中，等待智能体产出';
+  }
+  if (resource.resourceStatus === 'failed') {
+    return resource.errorMessage || '生成失败';
+  }
+  if (!payload) return resource.skillName || resource.resourceType;
+  if (Array.isArray(payload)) return `${payload.length} items`;
+  if (typeof payload === 'string') return payload.slice(0, 100);
+  if (payload.questions?.length) return `${payload.questions.length} questions`;
+  if (payload.items?.length) return `${payload.items.length} items`;
+  if (payload.video_file_path || payload.url) return payload.video_file_path || payload.url;
+  if (payload.mermaid) return String(payload.mermaid).slice(0, 100);
+  if (payload.html) return 'HTML animation ready';
+  return JSON.stringify(payload).slice(0, 100);
+}
+
+function formatResourceStatus(resource: GeneratedResource): string {
+  if (resource.resourceStatus === 'running') return '进行中';
+  if (resource.resourceStatus === 'pending') return '等待中';
+  if (resource.resourceStatus === 'failed') return '失败';
+  return resource.updateTime
+    ? new Date(resource.updateTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    : '完成';
 }

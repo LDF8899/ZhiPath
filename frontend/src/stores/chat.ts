@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChatMessage } from '../types';
+import type { ChatAction, ChatMessage } from '../types';
 
 /**
  * 对话状态持久化 Store
@@ -21,6 +21,7 @@ interface ChatState {
   // ── 主聊天页操作 ──
   setMainMessages: (sessionId: string, messages: ChatMessage[]) => void;
   appendMainMessage: (sessionId: string, message: ChatMessage) => void;
+  upsertMainMessageAction: (sessionId: string, action: ChatAction, actionKey: string) => boolean;
   setCurrentSessionId: (sessionId: string) => void;
   clearMainSession: (sessionId: string) => void;
 
@@ -77,6 +78,47 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const prev = get().mainMessages[sessionId] || [];
     set({ mainMessages: { ...get().mainMessages, [sessionId]: [...prev, message] } });
     saveState(get());
+  },
+
+  upsertMainMessageAction: (sessionId, action, actionKey) => {
+    const prev = get().mainMessages[sessionId] || [];
+    if (!sessionId) return false;
+
+    const targetIndex = [...prev].reverse().findIndex((m) => m.role === 'assistant');
+    const assistantIndex = targetIndex < 0 ? prev.length : prev.length - 1 - targetIndex;
+    const next = targetIndex < 0
+      ? [
+          ...prev,
+          {
+            role: 'assistant' as const,
+            content: '已恢复本次对话生成的资源。',
+            timestamp: Date.now(),
+            actions: [],
+          },
+        ]
+      : [...prev];
+    const target = next[assistantIndex];
+    const normalized = { ...action, key: actionKey };
+    const actions = (target.actions || []).filter((a) => {
+      if (a.key === actionKey) return false;
+      const aData = a.data || {};
+      const nData = normalized.data || {};
+      const sameVideoTask = aData.taskId && nData.taskId && aData.taskId === nData.taskId;
+      const sameVideoSkill =
+        (a.type === 'video' || a.type === 'video_pending') &&
+        (normalized.type === 'video' || normalized.type === 'video_pending') &&
+        (aData.skillName || aData.skill) &&
+        (aData.skillName || aData.skill) === (nData.skillName || nData.skill);
+      return !sameVideoTask && !sameVideoSkill;
+    });
+
+    next[assistantIndex] = {
+      ...target,
+      actions: [...actions, normalized],
+    };
+    set({ mainMessages: { ...get().mainMessages, [sessionId]: next } });
+    saveState(get());
+    return true;
   },
 
   setCurrentSessionId: (sessionId) => {

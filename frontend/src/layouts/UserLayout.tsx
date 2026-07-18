@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
 import { useWorkspaceSync } from '../hooks/useWorkspaceSync';
+import { useChatResourceSync } from '../hooks/useChatResourceSync';
 import NotificationBell from '../components/NotificationBell';
 import '../styles/hand-draw.css';
 import {
@@ -30,6 +31,7 @@ const navItems = [
 export default function UserLayout() {
   // 全局事件同步：toast + SSE 桥接
   useWorkspaceSync();
+  useChatResourceSync();
 
   const navigate = useNavigate();
   const location = useLocation();

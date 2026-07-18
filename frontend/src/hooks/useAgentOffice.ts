@@ -3,6 +3,7 @@ import {
   getAgentOfficeStats,
   getAgentOfficeTasks,
   getAgentOfficeHistory,
+  getGeneratedResources,
   getAgentProfiles,
   getAgentTypes,
   hireAgent,
@@ -18,6 +19,7 @@ import {
   reorderAgentTasks,
 } from '../api/user';
 import type { AgentProfile, AgentTask, Station } from '../components/office/types';
+import type { GeneratedResource } from '../types';
 import { useSSE } from './useSSE';
 
 /** Toast helper — 复用原 office-toast DOM */
@@ -50,6 +52,7 @@ export function useAgentOffice() {
   const [stations, setStations] = useState<Station[]>([]);
   const [tasks, setTasks] = useState<AgentTask[]>([]);
   const [history, setHistory] = useState<AgentTask[]>([]);
+  const [generatedOutputs, setGeneratedOutputs] = useState<GeneratedResource[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [agentTypes, setAgentTypes] = useState<Record<string, { label: string; defaultRole: string }>>({});
@@ -64,18 +67,20 @@ export function useAgentOffice() {
   /* ── 数据拉取 ── */
   const fetchData = useCallback(async () => {
     try {
-      const [profRes, tasksRes, histRes, statsRes, typesRes] = await Promise.all([
+      const [profRes, tasksRes, histRes, statsRes, typesRes, resourcesRes] = await Promise.all([
         getAgentProfiles().catch(() => ({ data: [] })),
         getAgentOfficeTasks().catch(() => ({ data: [] })),
         getAgentOfficeHistory(10).catch(() => ({ data: [] })),
         getAgentOfficeStats().catch(() => ({ data: null })),
         getAgentTypes().catch(() => ({ data: {} })),
+        getGeneratedResources({ limit: 30 }).catch(() => ({ data: [] })),
       ]);
 
       const profs = (profRes.data || []) as AgentProfile[];
       setProfiles(profs);
       setTasks((tasksRes.data || []) as AgentTask[]);
       setHistory((histRes.data || []) as AgentTask[]);
+      setGeneratedOutputs(((resourcesRes.data || []) as GeneratedResource[]).slice(0, 10));
       setStats(statsRes.data);
       setAgentTypes(typesRes.data || {});
 
@@ -108,6 +113,7 @@ export function useAgentOffice() {
         break;
       case 'agent_progress':
         if (latestEvent.data?.message) showToast(latestEvent.data.message);
+        fetchData();
         break;
       case 'agent_status':
         if (latestEvent.data?.status === 'error') {
@@ -256,7 +262,7 @@ export function useAgentOffice() {
 
     try {
       const activeIds = [...reordered, ...remaining]
-        .filter(t => t.taskStatus !== 'done' && t.taskStatus !== 'cancelled' && t.taskStatus !== 'failed')
+        .filter(t => !['success', 'failed', 'cancelled'].includes(t.taskStatus))
         .map(t => t.id);
       await reorderAgentTasks(activeIds);
     } catch {
@@ -274,7 +280,7 @@ export function useAgentOffice() {
   const standbyAgents = profiles.filter(p => p.stationId === null);
   const busyCount = profiles.filter(p => p.agentStatus === 'busy').length;
   const idleCount = profiles.filter(p => p.agentStatus === 'idle' && p.stationId !== null).length;
-  const activeTasks = tasks.filter(t => t.taskStatus !== 'done' && t.taskStatus !== 'cancelled' && t.taskStatus !== 'failed');
+  const activeTasks = tasks.filter(t => !['success', 'failed', 'cancelled'].includes(t.taskStatus));
   const completedOutputs = history.filter(t => t.taskStatus === 'success').slice(0, 10);
   const failedTasks = tasks.filter(t => t.taskStatus === 'failed').slice(0, 5);
 
@@ -286,7 +292,7 @@ export function useAgentOffice() {
 
   return {
     // 数据
-    profiles, stations, tasks, history, stats, loading, agentTypes,
+    profiles, stations, tasks, history, generatedOutputs, stats, loading, agentTypes,
     standbyAgents, busyCount, idleCount, activeTasks, completedOutputs, failedTasks,
 
     // UI 状态

@@ -4,6 +4,7 @@ import { ResourceAgentService } from '../../services/resource-agent.service';
 import { KnowledgeBaseService } from '../../services/knowledge-base.service';
 import { EventsService } from '../events/events.service';
 import { VideoAgentService } from '../../services/agents/video-agent.service';
+import { GeneratedResourceService } from '../../services/generated-resource.service';
 
 /**
  * 资源生成任务处理器
@@ -24,19 +25,30 @@ export class ResourceProcessor extends WorkerHost {
     private knowledgeBase: KnowledgeBaseService,
     private events: EventsService,
     private videoAgent: VideoAgentService,
+    private generatedResources: GeneratedResourceService,
   ) {
     super();
   }
 
   async process(job: Job): Promise<any> {
     const { userId, resourceType, params } = job.data;
+    const jobId = String(job.id);
 
     console.log(`[ResourceProcessor] Processing ${resourceType} for user ${userId}, job ${job.id}`);
     this.events.emitAgentStatus(userId, 'ResourceAgent', 'working', `生成 ${params.skillName || '学习路径'} 资源中`);
 
+    await this.saveQueueResource(
+      userId,
+      jobId,
+      resourceType,
+      params || {},
+      null,
+      resourceType === 'video' ? 'VideoAgent' : 'ResourceAgent',
+      'running',
+    );
+
     try {
       let result: any;
-      const jobId = String(job.id);
 
       switch (resourceType) {
         case 'lecture':
@@ -50,6 +62,7 @@ export class ResourceProcessor extends WorkerHost {
           this.events.emitAgentProgress(userId, 'ResourceAgent', jobId, 100, `「${params.skillName}」讲义已生成`);
           this.events.emitResourceReady(userId, params.skillName, 'lecture');
           this.events.emitAgentStatus(userId, 'ResourceAgent', 'idle');
+          await this.saveQueueResource(userId, jobId, 'lecture', params, result, 'ResourceAgent');
           return { type: 'lecture', skill: params.skillName, generated: !!result };
 
         case 'quiz':
@@ -64,6 +77,7 @@ export class ResourceProcessor extends WorkerHost {
           this.events.emitAgentProgress(userId, 'ResourceAgent', jobId, 100, `「${params.skillName}」练习题已生成`);
           this.events.emitResourceReady(userId, params.skillName, 'quiz');
           this.events.emitAgentStatus(userId, 'ResourceAgent', 'idle');
+          await this.saveQueueResource(userId, jobId, 'quiz', params, result, 'ResourceAgent');
           return { type: 'quiz', skill: params.skillName, count: result?.length || 0, generated: !!result };
 
         case 'coding':
@@ -78,6 +92,7 @@ export class ResourceProcessor extends WorkerHost {
           this.events.emitAgentProgress(userId, 'ResourceAgent', jobId, 100, `「${params.skillName}」编程题已生成`);
           this.events.emitResourceReady(userId, params.skillName, 'coding');
           this.events.emitAgentStatus(userId, 'ResourceAgent', 'idle');
+          await this.saveQueueResource(userId, jobId, 'coding', params, result, 'ResourceAgent');
           return { type: 'coding', skill: params.skillName, count: result?.length || 0, generated: !!result };
 
         case 'reading':
@@ -91,6 +106,7 @@ export class ResourceProcessor extends WorkerHost {
           await job.updateProgress(100);
           this.events.emitResourceReady(userId, params.skillName, 'reading');
           this.events.emitAgentStatus(userId, 'ResourceAgent', 'idle');
+          await this.saveQueueResource(userId, jobId, 'reading', params, result, 'ResourceAgent');
           return { type: 'reading', skill: params.skillName, generated: !!result };
 
         case 'video': {
@@ -113,6 +129,7 @@ export class ResourceProcessor extends WorkerHost {
           this.events.emitAgentProgress(userId, 'VideoAgent', jobId, 100, `「${params.skillName}」视频已生成`);
           this.events.emitResourceReady(userId, params.skillName, 'video');
           this.events.emitAgentStatus(userId, 'VideoAgent', 'idle');
+          await this.saveQueueResource(userId, jobId, 'video', params, result, 'VideoAgent');
           return { type: 'video', skill: params.skillName, generated: result.status === 'completed' };
         }
 
@@ -147,6 +164,7 @@ export class ResourceProcessor extends WorkerHost {
 
           await job.updateProgress(100);
           this.events.emitAgentStatus(userId, 'ResourceAgent', 'idle');
+          await this.saveQueueResource(userId, jobId, 'path_resources', params, { generated, skipped, failed, total }, 'ResourceAgent');
           return { type: 'path_resources', generated, skipped, failed, total };
         }
 
@@ -156,11 +174,64 @@ export class ResourceProcessor extends WorkerHost {
     } catch (e: any) {
       console.error(`[ResourceProcessor] Failed ${resourceType} for user ${userId}:`, e.message);
       this.events.emitAgentStatus(userId, 'ResourceAgent', 'error', e.message);
+      await this.generatedResources.upsert({
+        userId,
+        resourceType: resourceType || 'error',
+        title: params?.skillName ? `${params.skillName} ${resourceType}` : `${resourceType} resource`,
+        status: 'failed',
+        source: 'queue',
+        externalId: this.queueExternalId(String(job.id), resourceType),
+        chatSessionId: params?._chatSessionId || params?.chatSessionId || params?.sessionId || null,
+        skillName: params?.skillName || null,
+        agentType: resourceType === 'video' ? 'VideoAgent' : 'ResourceAgent',
+        payload: { message: e.message },
+        previewMeta: { actionType: 'error' },
+        rawRequest: params || null,
+        errorMessage: e.message,
+      }).catch((err) => console.warn('[ResourceProcessor] generated resource failure upsert failed:', err.message));
       throw e;
     }
   }
 
   /** 从 pathData 抽取去重技能列表（含难度） */
+  private async saveQueueResource(
+    userId: number,
+    jobId: string,
+    resourceType: string,
+    params: Record<string, any>,
+    payload: any,
+    agentType: string,
+    status: 'running' | 'success' = 'success',
+  ): Promise<void> {
+    await this.generatedResources.upsert({
+      userId,
+      resourceType,
+      title: params?.skillName ? `${params.skillName} ${resourceType}` : `${resourceType} resource`,
+      status,
+      source: 'queue',
+      externalId: this.queueExternalId(jobId, resourceType),
+      chatSessionId: params?._chatSessionId || params?.chatSessionId || params?.sessionId || null,
+      skillName: params?.skillName || null,
+      agentType,
+      payload,
+      previewMeta: {
+        actionType: this.actionTypeForQueueResource(resourceType),
+      },
+      rawRequest: params || null,
+      rawResponse: payload && typeof payload === 'object' ? payload : null,
+    }).catch((e) => console.warn('[ResourceProcessor] generated resource upsert failed:', e.message));
+  }
+
+  private queueExternalId(jobId: string, resourceType: string): string {
+    return `resource-job:${jobId}:${resourceType}`;
+  }
+
+  private actionTypeForQueueResource(resourceType: string): string {
+    if (resourceType === 'quiz' || resourceType === 'coding') return 'exam';
+    if (resourceType === 'path_resources' || resourceType === 'lecture' || resourceType === 'reading') return 'resources';
+    return resourceType;
+  }
+
   private extractSkills(pathData: Record<string, any>): Array<{ name: string; difficulty: string }> {
     const seen = new Set<string>();
     const out: Array<{ name: string; difficulty: string }> = [];

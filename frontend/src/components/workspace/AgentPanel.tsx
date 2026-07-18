@@ -7,9 +7,10 @@ import AnimalAvatar from '../office/AnimalAvatar';
 import {
   getAgentOfficeTasks,
   getAgentProfiles,
+  getGeneratedResources,
 } from '../../api/user';
 import type { AgentProfile, AgentTask } from '../office/types';
-import type { ResourceItem } from '../../types';
+import type { GeneratedResource, ResourceItem } from '../../types';
 
 type Tab = 'room' | 'tasks' | 'resources';
 type ResourceSubTab = 'lecture' | 'graph' | 'quiz' | 'video';
@@ -30,9 +31,21 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
   const [resources, setResources] = useState<ResourceItem[]>([]);
   const [expandedRes, setExpandedRes] = useState<string | null>(null);
 
-  const loadResources = useCallback(() => {
+  const loadResources = useCallback(async () => {
     try {
-      setResources(JSON.parse(localStorage.getItem('zhpath_resources') || '[]'));
+      const localResources = JSON.parse(localStorage.getItem('zhpath_resources') || '[]') as ResourceItem[];
+      const remoteRes = await getGeneratedResources({ limit: 100 }).catch(() => ({ data: [] }));
+      const remoteResources = ((remoteRes.data || []) as GeneratedResource[])
+        .map(resourceItemFromGenerated)
+        .filter(Boolean) as ResourceItem[];
+      const seen = new Set<string>();
+      const merged = [...remoteResources, ...localResources].filter((item) => {
+        const key = `${item.type}:${item.skill}:${item.title}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setResources(merged);
     } catch {}
   }, []);
 
@@ -103,9 +116,9 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
               <div className="agent-panel-floor">
                 {/* 工位 */}
                 {agentList.map(([key, config]) => {
-                  const status = agentStatuses[key] || 'idle';
-                  const isActive = activeAgent === key;
-                  const task = activeTasks.find(t => t.agentId === key);
+                  const status = agentStatuses[key] || agentStatuses[config.id] || agentStatuses[config.intent] || 'idle';
+                  const isActive = activeAgent === key || activeAgent === config.id || activeAgent === config.intent;
+                  const task = activeTasks.find(t => t.agentId === key || t.agentId === config.id || t.agentId === config.intent);
                   return (
                     <div key={key} className={`agent-panel-workstation ${isActive ? 'active' : ''}`}>
                       <div className="agent-panel-desk">
@@ -131,8 +144,8 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
             {/* 智能体列表 */}
             <div className="agent-panel-list">
               {agentList.map(([key, config]) => {
-                const status = agentStatuses[key] || 'idle';
-                const isActive = activeAgent === key;
+                const status = agentStatuses[key] || agentStatuses[config.id] || agentStatuses[config.intent] || 'idle';
+                const isActive = activeAgent === key || activeAgent === config.id || activeAgent === config.intent;
                 return (
                   <div
                     key={key}
@@ -320,4 +333,32 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
       </aside>
     </>
   );
+}
+
+function resourceItemFromGenerated(resource: GeneratedResource): ResourceItem | null {
+  if (resource.resourceStatus !== 'success') return null;
+  const typeMap: Record<string, ResourceItem['type']> = {
+    lecture: 'lecture',
+    reading: 'lecture',
+    resources: 'lecture',
+    quiz: 'quiz',
+    coding: 'coding',
+    animation: 'animation',
+    diagram: 'diagram',
+    video: 'video',
+    avatar: 'video',
+  };
+  const type = typeMap[resource.resourceType];
+  if (!type) return null;
+  const data = resource.payload || {};
+  const skill = resource.skillName || data.skillName || data.skill_name || data.skill || resource.title;
+  return {
+    id: `generated_${resource.id}`,
+    skill,
+    type,
+    title: resource.title,
+    data,
+    savedAt: resource.updateTime || resource.createTime || Date.now(),
+    source: resource.source === 'chat' ? 'chat' : 'sse',
+  };
 }

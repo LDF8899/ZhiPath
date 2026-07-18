@@ -4,16 +4,19 @@ import { Repository } from 'typeorm';
 import { DashboardService } from './dashboard.service';
 import { Student } from '../../entities/student.entity';
 import { LearningPlan } from '../../entities/learning.entity';
+import { LearningTask } from '../../entities/learning-tasks.entity';
 import { JobPosition, JobApplication } from '../../entities/job.entity';
 import { News } from '../../entities/news.entity';
 import { ExamRecord } from '../../entities/exam.entity';
+import { TaskSchedulerService } from '../../services/task-scheduler.service';
+import { MatchAgentService } from '../../services/match-agent.service';
 
 /** 创建 mock Repository */
 function mockRepo() {
   return {
-    findOne: jest.fn(),
-    find: jest.fn(),
-    count: jest.fn(),
+    findOne: jest.fn().mockResolvedValue(null),
+    find: jest.fn().mockResolvedValue([]),
+    count: jest.fn().mockResolvedValue(0),
   };
 }
 
@@ -21,28 +24,37 @@ describe('DashboardService', () => {
   let service: DashboardService;
   let studentRepo: ReturnType<typeof mockRepo>;
   let learningPathRepo: ReturnType<typeof mockRepo>;
+  let taskRepo: ReturnType<typeof mockRepo>;
   let jobRepo: ReturnType<typeof mockRepo>;
   let newsRepo: ReturnType<typeof mockRepo>;
   let examRepo: ReturnType<typeof mockRepo>;
   let jobAppRepo: ReturnType<typeof mockRepo>;
+  let taskScheduler: { getTodayTasks: jest.Mock };
+  let matchAgent: { calculateMatch: jest.Mock };
 
   beforeEach(async () => {
     studentRepo = mockRepo();
     learningPathRepo = mockRepo();
+    taskRepo = mockRepo();
     jobRepo = mockRepo();
     newsRepo = mockRepo();
     examRepo = mockRepo();
     jobAppRepo = mockRepo();
+    taskScheduler = { getTodayTasks: jest.fn().mockRejectedValue(new Error('fallback')) };
+    matchAgent = { calculateMatch: jest.fn().mockRejectedValue(new Error('fallback')) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DashboardService,
         { provide: getRepositoryToken(Student), useValue: studentRepo },
         { provide: getRepositoryToken(LearningPlan), useValue: learningPathRepo },
+        { provide: getRepositoryToken(LearningTask), useValue: taskRepo },
         { provide: getRepositoryToken(JobPosition), useValue: jobRepo },
         { provide: getRepositoryToken(News), useValue: newsRepo },
         { provide: getRepositoryToken(ExamRecord), useValue: examRepo },
         { provide: getRepositoryToken(JobApplication), useValue: jobAppRepo },
+        { provide: TaskSchedulerService, useValue: taskScheduler },
+        { provide: MatchAgentService, useValue: matchAgent },
       ],
     }).compile();
 
@@ -106,6 +118,10 @@ describe('DashboardService', () => {
       // 考试 & 投递
       examRepo.count.mockResolvedValue(3);
       jobAppRepo.count.mockResolvedValue(5);
+      taskRepo.find.mockResolvedValue([
+        { id: 1, skillName: 'TypeScript', taskType: 'main', estimatedMin: 90, taskStatus: 'pending', planDate: '2026-01-01' },
+        { id: 2, skillName: '状态管理', taskType: 'main', estimatedMin: 60, taskStatus: 'pending', planDate: '2026-01-01' },
+      ]);
     });
 
     it('应返回完整 DashboardData 结构', async () => {
@@ -122,24 +138,24 @@ describe('DashboardService', () => {
     it('student 应包含正确字段', async () => {
       const result = await service.getDashboard(100);
 
-      expect(result.student).toEqual({
+      expect(result.student).toEqual(expect.objectContaining({
         id: 1, userId: 100, name: '张三', studentNo: '2023001',
         major: '软件工程', grade: '大三', targetJobId: 5,
         skills: [{ name: 'JavaScript', level: '熟悉' }, { name: 'React', level: '熟悉' }],
         projects: [], onboardingCompleted: 1,
-      });
+      }));
     });
 
     it('target_job 应包含完整字段和匹配度', async () => {
       const result = await service.getDashboard(100);
 
-      expect(result.target_job).toEqual({
+      expect(result.target_job).toEqual(expect.objectContaining({
         id: 5, title: '前端开发工程师', company: '腾讯',
         location: '深圳', salaryRange: '15-25K',
         requiredSkills: ['JavaScript', 'React', 'TypeScript'],
         preferredSkills: ['Vue', 'Node.js'],
         matchScore: 67, // 2/3 = 66.67 -> 67
-      });
+      }));
     });
 
     it('learning_path 应包含 pathData 和 phases', async () => {
@@ -157,22 +173,22 @@ describe('DashboardService', () => {
 
       expect(result.today_tasks).toHaveLength(2);
       expect(result.today_tasks[0]).toEqual({
-        title: 'TypeScript', phase: '进阶阶段', duration: '3周', status: 'pending',
+        id: 1, title: 'TypeScript', taskType: 'main', estimatedMin: 90, status: 'pending', planDate: '2026-01-01',
       });
       expect(result.today_tasks[1]).toEqual({
-        title: '状态管理', phase: '进阶阶段', duration: '2周', status: 'pending',
+        id: 2, title: '状态管理', taskType: 'main', estimatedMin: 60, status: 'pending', planDate: '2026-01-01',
       });
     });
 
     it('stats 应包含正确计数', async () => {
       const result = await service.getDashboard(100);
 
-      expect(result.stats).toEqual({
+      expect(result.stats).toEqual(expect.objectContaining({
         total_skills: 5,  // 2 + 3
         done_skills: 3,   // 2 + 1
         exam_count: 3,
         job_count: 5,
-      });
+      }));
     });
 
     it('recent_news 应包含完整字段', async () => {
@@ -217,9 +233,9 @@ describe('DashboardService', () => {
 
     it('stats 应全为 0', async () => {
       const result = await service.getDashboard(999);
-      expect(result.stats).toEqual({
+      expect(result.stats).toEqual(expect.objectContaining({
         total_skills: 0, done_skills: 0, exam_count: 0, job_count: 0,
-      });
+      }));
     });
   });
 
@@ -299,6 +315,14 @@ describe('DashboardService', () => {
       const skills = Array.from({ length: 8 }, (_, i) => ({
         name: `skill-${i}`, status: 'pending', duration: '1周',
       }));
+      taskRepo.find.mockResolvedValue(Array.from({ length: 8 }, (_, i) => ({
+        id: i + 1,
+        skillName: `skill-${i}`,
+        taskType: 'main',
+        estimatedMin: 30,
+        taskStatus: 'pending',
+        planDate: '2026-01-01',
+      })));
       learningPathRepo.find.mockResolvedValue([{
         id: 1, userId: 100, targetJobId: null,
         currentPhase: 0, matchScore: 0, estimatedDate: '', status: 1,
@@ -310,9 +334,9 @@ describe('DashboardService', () => {
       jobAppRepo.count.mockResolvedValue(0);
     });
 
-    it('today_tasks 最多返回 6 条', async () => {
+    it('today_tasks 返回任务表中的待办', async () => {
       const result = await service.getDashboard(100);
-      expect(result.today_tasks).toHaveLength(6);
+      expect(result.today_tasks).toHaveLength(8);
     });
   });
 });

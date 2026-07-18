@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 interface Props {
   data: {
-    exam_id: number;
+    exam_id?: number;
     skill: string;
     questions: Array<{ type: string; question: string }>;
   };
@@ -12,6 +12,7 @@ interface Props {
 
 export default function ExamCard({ data }: Props) {
   const navigate = useNavigate();
+  const canStartExam = data.exam_id !== undefined && data.exam_id !== null;
 
   return (
     <div className="hd-card">
@@ -37,7 +38,7 @@ export default function ExamCard({ data }: Props) {
       <button
         className="hd-btn small"
         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-        onClick={() => navigate(`/user/exams/${data.exam_id}/take`)}
+        onClick={() => canStartExam ? navigate(`/user/exams/${data.exam_id}/take`) : navigate('/user/exams')}
       >
         开始做题
         <IconArrowRight size={14} />

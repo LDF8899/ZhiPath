@@ -7,11 +7,14 @@ import { Student } from '../../entities/student.entity';
 import { Enterprise } from '../../entities/enterprise.entity';
 import { LearningPlan } from '../../entities/learning.entity';
 import { MatchModule } from '../match/match.module';
+import { SkillModule } from '../skill/skill.module';
+import { JobSearchService } from '../../services/job-search.service';
+import { LlmService } from '../../services/llm.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([JobPosition, JobApplication, Student, Enterprise, LearningPlan]), MatchModule],
+  imports: [TypeOrmModule.forFeature([JobPosition, JobApplication, Student, Enterprise, LearningPlan]), MatchModule, SkillModule],
   controllers: [JobsController],
-  providers: [JobsService],
+  providers: [JobsService, JobSearchService, LlmService],
   exports: [JobsService],
 })
 export class JobsModule {}

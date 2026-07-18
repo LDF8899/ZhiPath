@@ -11,6 +11,8 @@ import { SkillService } from '../../services/skill.service';
 import { PlannerAgentService } from '../../services/planner-agent.service';
 import { QueueService } from '../queue/queue.service';
 import { getPlanTemplate } from './plan-templates';
+import { BranchService } from '../../services/branch.service';
+import { SkillSnapshotService } from '../../services/skill-snapshot.service';
 
 /**
  * Student 服务 — 对齐 Python api/user/profile.py + api/user/onboarding.py
@@ -27,6 +29,8 @@ export class StudentService {
     private skillService: SkillService,
     private plannerAgent: PlannerAgentService,
     private queueService: QueueService,
+    private branchService: BranchService,
+    private snapshotService: SkillSnapshotService,
   ) {}
 
   /** 根据 userId 获取学生信息 */
@@ -38,6 +42,7 @@ export class StudentService {
   async getProfile(userId: number) {
     const student = await this.getByUserId(userId);
     const mongoProfile = await this.profileService.getProfile(userId);
+    const gitProfile = await this.getGitProfileState(userId);
 
     return {
       userId,
@@ -62,6 +67,42 @@ export class StudentService {
       traits: mongoProfile?.traits || {},
       chat_insights: mongoProfile?.chat_insights || [],
       goals: mongoProfile?.goals || {},
+      radarDimensions: gitProfile.radarDimensions,
+      abilityMetrics: gitProfile.abilityMetrics,
+      latestSnapshot: gitProfile.latestSnapshot,
+      activeBranch: gitProfile.activeBranch,
+    };
+  }
+
+  async getRadarProfile(userId: number) {
+    const gitProfile = await this.getGitProfileState(userId);
+    return {
+      radarDimensions: gitProfile.radarDimensions,
+      latestSnapshot: gitProfile.latestSnapshot,
+      activeBranch: gitProfile.activeBranch,
+    };
+  }
+
+  async getAbilityMetrics(userId: number) {
+    const gitProfile = await this.getGitProfileState(userId);
+    return {
+      abilityMetrics: gitProfile.abilityMetrics,
+      latestSnapshot: gitProfile.latestSnapshot,
+      activeBranch: gitProfile.activeBranch,
+    };
+  }
+
+  private async getGitProfileState(userId: number) {
+    const branches = await this.branchService.listBranches(userId);
+    const activeBranch = branches.find((b) => b.branchType === 'main') || branches[0] || null;
+    const latestSnapshot = activeBranch?.headCommitId
+      ? await this.snapshotService.getSnapshotByCommit(userId, activeBranch.headCommitId)
+      : null;
+    return {
+      activeBranch,
+      latestSnapshot,
+      radarDimensions: latestSnapshot?.radarJson || [],
+      abilityMetrics: latestSnapshot?.abilityMetricsJson || null,
     };
   }
 

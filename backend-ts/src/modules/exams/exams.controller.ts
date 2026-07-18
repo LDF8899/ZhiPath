@@ -1,7 +1,5 @@
 import { Controller, Get, Post, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { ExamsService } from './exams.service';
-import { MatchAgentService } from '../../services/match-agent.service';
-import { SkillService } from '../../services/skill.service';
 import { AuthGuard } from '../../common/auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { success, pageSuccess } from '../../common/api-response';
@@ -11,8 +9,6 @@ import { success, pageSuccess } from '../../common/api-response';
 export class ExamsController {
   constructor(
     private readonly examsService: ExamsService,
-    private readonly matchAgent: MatchAgentService,
-    private readonly skillService: SkillService,
   ) {}
 
   /** GET /api/user/exams */
@@ -53,12 +49,6 @@ export class ExamsController {
   @Post('exams/submit')
   async submitExam(@CurrentUser() user: any, @Body() body: any) {
     const result = await this.examsService.submitExam(user.sub, body);
-    // 考试提交后触发匹配度重算（事件驱动，异步不阻塞）
-    this.matchAgent.recalculateOnSkillChange(user.sub);
-    // 如果考试关联了技能，升级该技能的信任度到 exam(1.0)
-    if (body.skillName) {
-      this.skillService.upgradeTrust(user.sub, body.skillName, 'exam', 1.0).catch(() => {});
-    }
     return success(result);
   }
 

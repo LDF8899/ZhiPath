@@ -31,6 +31,8 @@ import { EventsModule } from './modules/events/events.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { MultimodalModule } from './modules/multimodal/multimodal.module';
 import { CoursesModule } from './modules/courses/courses.module';
+import { GitLearningModule } from './modules/git-learning/git-learning.module';
+import { EvaluationModule } from './modules/evaluation/evaluation.module';
 
 /**
  * ZhiPath API 根模块
@@ -68,6 +70,8 @@ import { CoursesModule } from './modules/courses/courses.module';
     QueueModule,
     MultimodalModule,
     CoursesModule,
+    GitLearningModule,
+    EvaluationModule,
 
     // 定时任务
     SchedulerModule,

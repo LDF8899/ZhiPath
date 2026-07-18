@@ -22,7 +22,7 @@ export default function AdminNews() {
   const [typeFilter, setTypeFilter] = useState<string | undefined>(undefined);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState({ title: '', type: 'article', source: '', url: '', summary: '', content: '' });
+  const [form, setForm] = useState({ title: '', type: 'industry', source: '', sourceUrl: '', summary: '', content: '' });
   const [saving, setSaving] = useState(false);
 
   const fetchData = useCallback(async (p = page, t = typeFilter) => {
@@ -33,8 +33,8 @@ export default function AdminNews() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const openCreate = () => { setEditingId(null); setForm({ title: '', type: 'article', source: '', url: '', summary: '', content: '' }); setModalOpen(true); };
-  const openEdit = (row: any) => { setEditingId(row.id); setForm({ title: row.title || '', type: row.type || 'article', source: row.source || '', url: row.url || '', summary: row.summary || '', content: row.content || '' }); setModalOpen(true); };
+  const openCreate = () => { setEditingId(null); setForm({ title: '', type: 'industry', source: '', sourceUrl: '', summary: '', content: '' }); setModalOpen(true); };
+  const openEdit = (row: any) => { setEditingId(row.id); setForm({ title: row.title || '', type: row.type || 'industry', source: row.source || '', sourceUrl: row.sourceUrl || '', summary: row.summary || '', content: row.content || '' }); setModalOpen(true); };
 
   const handleSave = async () => {
     if (!form.title) { showToast('请填写标题', 'error'); return; }
@@ -53,7 +53,7 @@ export default function AdminNews() {
     catch (e: any) { showToast(e?.message || '删除失败', 'error'); }
   };
 
-  const typeLabel: Record<string, string> = { article: '文章', news: '资讯', tutorial: '教程', announcement: '公告' };
+  const typeLabel: Record<string, string> = { industry: '行业动态', tech: '技术趋势', recruit: '招聘信息' };
 
   const columns: AdminColumn[] = [
     { key: 'id', title: 'ID', width: 60 },
@@ -71,10 +71,9 @@ export default function AdminNews() {
 
   const filterOptions = [
     { label: '全部', value: undefined },
-    { label: '文章', value: 'article' },
-    { label: '资讯', value: 'news' },
-    { label: '教程', value: 'tutorial' },
-    { label: '公告', value: 'announcement' },
+    { label: '行业动态', value: 'industry' },
+    { label: '技术趋势', value: 'tech' },
+    { label: '招聘信息', value: 'recruit' },
   ];
 
   return (
@@ -104,12 +103,12 @@ export default function AdminNews() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
           <div className="admin-form-group"><label className="admin-form-label">类型</label>
             <select className="admin-form-input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-              <option value="article">文章</option><option value="news">资讯</option><option value="tutorial">教程</option><option value="announcement">公告</option>
+              <option value="industry">行业动态</option><option value="tech">技术趋势</option><option value="recruit">招聘信息</option>
             </select>
           </div>
           <div className="admin-form-group"><label className="admin-form-label">来源</label><input className="admin-form-input" value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} /></div>
         </div>
-        <div className="admin-form-group"><label className="admin-form-label">链接</label><input className="admin-form-input" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://..." /></div>
+        <div className="admin-form-group"><label className="admin-form-label">链接</label><input className="admin-form-input" value={form.sourceUrl} onChange={(e) => setForm({ ...form, sourceUrl: e.target.value })} placeholder="https://..." /></div>
         <div className="admin-form-group"><label className="admin-form-label">摘要</label><textarea className="admin-form-input" rows={2} value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} /></div>
         <div className="admin-form-group"><label className="admin-form-label">内容</label><textarea className="admin-form-input" rows={6} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} /></div>
       </AdminModal>

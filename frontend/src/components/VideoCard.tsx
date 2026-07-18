@@ -12,10 +12,13 @@ interface Props {
     skill?: string;
     title?: string;
     video_file_path?: string;
+    videoFilePath?: string;
     url?: string;
     poster?: string;
     duration_sec?: number;
+    durationSec?: number;
     segments_count?: number;
+    segmentsCount?: number;
     // common
     status?: string;
     message?: string;
@@ -41,11 +44,12 @@ const STAGE_LABELS: Record<string, string> = {
  * status: pending(轮询中) / completed(播放器) / failed
  */
 export default function VideoCard({ data }: Props) {
+  const initialCompletedResult = data?.video_file_path || data?.videoFilePath || data?.url ? data : null;
   const [taskState, setTaskState] = useState({
-    status: data?.status || 'pending',
+    status: data?.status || (initialCompletedResult ? 'completed' : 'pending'),
     progress: 0,
     message: data?.message || '',
-    result: null as any,
+    result: (data as any)?.result || initialCompletedResult,
     error: '',
     elapsedSec: 0,
   });
@@ -209,7 +213,7 @@ export default function VideoCard({ data }: Props) {
       {status === 'completed' && result && (
         <div>
           <video
-            src={`/api/video/${result.video_file_path?.split('/').pop() || result.video_file_path?.split('\\').pop() || ''}`}
+            src={getVideoSrc(result)}
             controls
             style={{
               width: '100%',
@@ -227,8 +231,8 @@ export default function VideoCard({ data }: Props) {
             fontSize: 12,
             color: 'var(--pencil)',
           }}>
-            {result.duration_sec && <span>时长 {Math.round(result.duration_sec)}s</span>}
-            {result.segments_count && <span>{result.segments_count} 个片段</span>}
+            {(result.duration_sec || result.durationSec) && <span>时长 {Math.round(result.duration_sec || result.durationSec)}s</span>}
+            {(result.segments_count || result.segmentsCount) && <span>{result.segments_count || result.segmentsCount} 个片段</span>}
             {elapsedSec > 0 && <span>耗时 {elapsedSec}s</span>}
           </div>
         </div>
@@ -291,4 +295,11 @@ export default function VideoCard({ data }: Props) {
       )}
     </div>
   );
+}
+
+function getVideoSrc(result: any): string {
+  if (result?.url) return result.url;
+  const videoPath = result?.video_file_path || result?.videoFilePath || result?.video_file || result?.videoFile || '';
+  const filename = videoPath.split('/').pop() || videoPath.split('\\').pop() || '';
+  return filename ? `/api/video/${filename}` : '';
 }

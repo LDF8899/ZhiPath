@@ -37,7 +37,7 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
     profiles:
       - core
 
@@ -106,7 +106,7 @@ services:
       - optional
 
   chroma:
-    image: chromadb/chroma:0.4.20
+    image: chromadb/chroma:0.5.23
     container_name: chroma
     restart: unless-stopped
     ports:

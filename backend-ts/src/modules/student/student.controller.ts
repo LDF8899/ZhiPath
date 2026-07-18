@@ -20,6 +20,18 @@ export class StudentController {
     return success(profile);
   }
 
+  /** GET /api/user/profile/radar */
+  @Get('profile/radar')
+  async getProfileRadar(@CurrentUser() user: any) {
+    return success(await this.studentService.getRadarProfile(user.sub));
+  }
+
+  /** GET /api/user/profile/ability-metrics */
+  @Get('profile/ability-metrics')
+  async getProfileAbilityMetrics(@CurrentUser() user: any) {
+    return success(await this.studentService.getAbilityMetrics(user.sub));
+  }
+
   /** PUT /api/user/profile */
   @Put('profile')
   async updateProfile(@CurrentUser() user: any, @Body() body: Record<string, any>) {

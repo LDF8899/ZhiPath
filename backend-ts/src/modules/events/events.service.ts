@@ -69,41 +69,56 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   /** 心跳定时器 */
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   /** 用户事件流 Map<userId, Subject> */
-  private userStreams = new Map<number, Subject<any>>();
+  private userStreams = new Map<number, Set<Subject<any>>>();
 
   /**
    * 获取用户的 SSE 事件流
    */
   getEventStream(userId: number): Observable<any> {
-    if (!this.userStreams.has(userId)) {
-      this.userStreams.set(userId, new Subject<any>());
+    const subject = new Subject<any>();
+    let streams = this.userStreams.get(userId);
+    if (!streams) {
+      streams = new Set<Subject<any>>();
+      this.userStreams.set(userId, streams);
       this.connectionInfo.set(userId, {
         connectedAt: Date.now(),
         lastActivityAt: Date.now(),
         eventsSent: 0,
       });
-      // 新连接建立后重放缓存事件（异步，不阻塞 Observable 返回）
-      Promise.resolve().then(() => this.replayHistory(userId));
     }
-    return this.userStreams.get(userId)!.asObservable();
+    streams.add(subject);
+
+    const info = this.connectionInfo.get(userId);
+    if (info) info.lastActivityAt = Date.now();
+
+    Promise.resolve().then(() => this.replayHistory(userId, subject));
+
+    return new Observable<any>((subscriber) => {
+      const subscription = subject.asObservable().subscribe(subscriber);
+      return () => {
+        subscription.unsubscribe();
+        subject.complete();
+        this.removeConnection(userId, subject);
+      };
+    });
   }
 
   /**
    * 发送事件给用户
    */
   emit(userId: number, event: { type: string; data: any }) {
-    const subject = this.userStreams.get(userId);
-    if (subject) {
+    const subjects = this.userStreams.get(userId);
+    if (subjects && subjects.size > 0) {
       const timestamped = { ...event, timestamp: Date.now() };
-      subject.next(timestamped);
-      // 更新统计
+      for (const subject of subjects) {
+        subject.next(timestamped);
+      }
       this.totalEventsSent++;
       const info = this.connectionInfo.get(userId);
       if (info) {
         info.eventsSent++;
         info.lastActivityAt = Date.now();
       }
-      // 缓存事件（跳过心跳事件，避免噪音）
       if (event.type !== 'heartbeat') {
         this.cacheEvent(userId, timestamped);
       }
@@ -204,12 +219,13 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
    * 关闭用户事件流
    */
   closeStream(userId: number) {
-    const subject = this.userStreams.get(userId);
-    if (subject) {
-      subject.complete();
+    const subjects = this.userStreams.get(userId);
+    if (subjects) {
+      for (const subject of subjects) {
+        subject.complete();
+      }
       this.userStreams.delete(userId);
       this.connectionInfo.delete(userId);
-      // 保留事件缓存，以便重连后重放
     }
   }
 
@@ -243,11 +259,11 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   /**
    * 重放缓存事件给指定用户（新连接建立时调用）
    */
-  private replayHistory(userId: number) {
+  private replayHistory(userId: number, targetSubject?: Subject<any>) {
     const history = this.eventHistory.get(userId);
     if (!history || history.length === 0) return;
 
-    const subject = this.userStreams.get(userId);
+    const subject = targetSubject || Array.from(this.userStreams.get(userId) || [])[0];
     if (!subject) return;
 
     for (const event of history) {
@@ -389,20 +405,23 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
     const now = Date.now();
     const deadUserIds: number[] = [];
 
-    for (const [userId, subject] of this.userStreams) {
-      try {
-        subject.next({
-          type: 'heartbeat',
-          data: { ts: now },
-          timestamp: now,
-        });
-      } catch {
-        // 发送失败 → 标记为死连接
+    for (const [userId, subjects] of this.userStreams) {
+      for (const subject of subjects) {
+        try {
+          subject.next({
+            type: 'heartbeat',
+            data: { ts: now },
+            timestamp: now,
+          });
+        } catch {
+          subjects.delete(subject);
+        }
+      }
+      if (subjects.size === 0) {
         deadUserIds.push(userId);
       }
     }
 
-    // 先收集再清理，避免迭代时修改 Map
     for (const userId of deadUserIds) {
       this.closeStream(userId);
     }
@@ -416,16 +435,17 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
    * 关闭所有连接并清理资源（模块销毁时调用）
    */
   closeAllStreams() {
-    for (const [userId, subject] of this.userStreams) {
-      try {
-        subject.complete();
-      } catch {
-        // 忽略已关闭的 subject
+    for (const [, subjects] of this.userStreams) {
+      for (const subject of subjects) {
+        try {
+          subject.complete();
+        } catch {
+          // ignore already closed subjects
+        }
       }
     }
     this.userStreams.clear();
     this.connectionInfo.clear();
-    // 保留 eventHistory，以便服务重启后可恢复
     this.logger.log('All streams closed');
   }
 
@@ -454,6 +474,16 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   // ──────────────────────────────────────────────
   //  生命周期钩子
   // ──────────────────────────────────────────────
+
+  private removeConnection(userId: number, subject: Subject<any>) {
+    const subjects = this.userStreams.get(userId);
+    if (!subjects) return;
+    subjects.delete(subject);
+    if (subjects.size === 0) {
+      this.userStreams.delete(userId);
+      this.connectionInfo.delete(userId);
+    }
+  }
 
   onModuleInit() {
     this.startHeartbeat();

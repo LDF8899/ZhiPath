@@ -19,16 +19,20 @@ export class JobsController {
     @Query('company') company?: string,
     @Query('location') location?: string,
     @Query('level') level?: string,
+    @Query('searchMode') searchMode?: 'local' | 'hybrid' | 'online',
+    @Query('includeOnline') includeOnline?: string,
   ) {
-    const result = await this.jobsService.getJobs(user.sub, {
+    const result = await this.jobsService.searchJobs(user.sub, {
       page: page ? Number(page) : 1,
       pageSize: pageSize ? Number(pageSize) : 20,
       keyword,
       company,
       location,
       level,
+      searchMode,
+      includeOnline: includeOnline === '1' || includeOnline === 'true',
     });
-    return pageSuccess(result.list, result.total, result.page, result.pageSize);
+    return { ...pageSuccess(result.list, result.total, result.page, result.pageSize), meta: result.meta };
   }
 
   /** GET /api/user/jobs/:jobId */

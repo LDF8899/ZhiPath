@@ -18,6 +18,24 @@ const DEFAULT_PROFILES: Array<{
   { agentType: 'assess', animalType: 'owl', color: '#ffd5c9', nickname: '咕咕', displayRole: '评估官' },
 ];
 
+const PROFILE_PRESETS: Record<string, {
+  animalType: string;
+  color: string;
+  nickname: string;
+  displayRole: string;
+}> = {
+  lecture: { animalType: 'cat', color: '#f9d27c', nickname: '小喵', displayRole: '讲义专家' },
+  reading: { animalType: 'dog', color: '#c9daf5', nickname: '旺财', displayRole: '阅读向导' },
+  code: { animalType: 'fox', color: '#e5d5f5', nickname: '小狐', displayRole: '代码大师' },
+  path: { animalType: 'panda', color: '#c9f5c0', nickname: '团子', displayRole: '路径规划' },
+  assess: { animalType: 'owl', color: '#ffd5c9', nickname: '咕咕', displayRole: '评估官' },
+  exam: { animalType: 'dog', color: '#d7ccff', nickname: '阿题', displayRole: '出题专家' },
+  skillgap: { animalType: 'duck', color: '#c8d7ff', nickname: '蓝蓝', displayRole: '差距分析师' },
+  resume: { animalType: 'hamster', color: '#ffd1e8', nickname: '米米', displayRole: '简历顾问' },
+  profile: { animalType: 'owl', color: '#cce6ff', nickname: '镜镜', displayRole: '画像分析师' },
+  news: { animalType: 'parrot', color: '#c8f5c8', nickname: '小鹦', displayRole: '资讯编辑' },
+};
+
 /**
  * AgentProfile 服务 — 管理用户 Agent 员工配置
  */
@@ -172,6 +190,33 @@ export class AgentProfileService {
       updateData,
     );
     console.log(`[AgentProfile] updateStatus affected=${result.affected}, data=`, JSON.stringify(updateData));
+  }
+
+  /**
+   * 确保某个 agent 档案存在。
+   * 聊天触发办公室任务时会调用它，避免任务队列里出现没有员工承接的任务。
+   */
+  async ensureAgent(userId: number, agentType: AgentProfile['agentType']): Promise<AgentProfile> {
+    const existing = await this.profileRepo.findOne({
+      where: { userId, agentType, status: 1 },
+    });
+    if (existing) return existing;
+
+    const preset = PROFILE_PRESETS[agentType] || {
+      animalType: 'hamster',
+      color: '#ff69b4',
+      nickname: '助手',
+      displayRole: '智能体',
+    };
+
+    return this.hireAgent(
+      userId,
+      agentType,
+      preset.animalType,
+      preset.color,
+      preset.nickname,
+      preset.displayRole,
+    );
   }
 
   /**

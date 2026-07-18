@@ -139,6 +139,8 @@ export default function Profile() {
   }
 
   const p = profile;
+  const radarDimensions = p.radarDimensions || [];
+  const abilityMetrics = p.abilityMetrics || null;
 
   // Mastery level -> badge color class
   const levelBadge = (level: string) => {
@@ -446,7 +448,7 @@ export default function Profile() {
               </div>
 
               {/* ── Radar Chart ── */}
-              {skills.length >= 3 && (
+              {radarDimensions.length >= 3 && (
                 <div className="hd-card-accent">
                   <div className="hd-section-label">
                     <IconChart size={18} />
@@ -454,16 +456,24 @@ export default function Profile() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
                     <RadarChart
-                      data={skills.slice(0, 8).map((s: any) => ({
-                        label: s.skillName?.substring(0, 6) || '',
-                        value: Number(s.masteryPct) || 0,
-                        max: 100,
-                      }))}
+                      data={radarDimensions.map((d) => ({ name: d.name, score: d.score, trend: d.trend }))}
                       size={220}
                       color="#d8482b"
                       bgColor="#fbf6ec"
+                      showTrend
+                      animated
                     />
                   </div>
+                  {abilityMetrics && (
+                    <div className="hd-grid-2" style={{ gap: 8, marginTop: 8 }}>
+                      <MetricPill label="综合" value={abilityMetrics.overallScore} />
+                      <MetricPill label="深度" value={abilityMetrics.depth} />
+                      <MetricPill label="广度" value={abilityMetrics.breadth} />
+                      <MetricPill label="均衡" value={abilityMetrics.balance} />
+                      <MetricPill label="速度" value={abilityMetrics.learningSpeed} />
+                      <MetricPill label="连续性" value={abilityMetrics.consistency} />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -602,6 +612,17 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
       <span style={{ font: "15px/1 var(--hand)", color: value ? 'var(--ink)' : 'var(--rule)' }}>
         {value || '未设置'}
       </span>
+    </div>
+  );
+}
+
+function MetricPill({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="hd-card" style={{ padding: '8px 10px' }}>
+      <div style={{ font: "11px/1 var(--mono)", color: 'var(--pencil)' }}>{label}</div>
+      <div style={{ font: "700 18px/1.2 var(--serif)", color: 'var(--ink)', marginTop: 3 }}>
+        {Math.round(Number(value) || 0)}
+      </div>
     </div>
   );
 }

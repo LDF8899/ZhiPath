@@ -14,6 +14,7 @@ import { MatchAgentService } from '../../services/match-agent.service';
 import { PlannerAgentService } from '../../services/planner-agent.service';
 import { MultimodalService } from '../../services/multimodal.service';
 import { VideoAgentService } from '../../services/agents/video-agent.service';
+import { AgentOfficeBridgeService } from '../../services/agent-office-bridge.service';
 import { extractJson } from '../../common/json-repair';
 
 /**
@@ -59,6 +60,11 @@ const RESOURCE_DB: Record<string, Array<{ title: string; url: string; type: stri
 };
 
 /** 视频生成任务进度 */
+interface ActionExecutionContext {
+  source?: string;
+  chatSessionId?: string;
+}
+
 interface VideoTaskProgress {
   status: 'pending' | 'script' | 'tts' | 'render' | 'compose' | 'completed' | 'failed';
   progress: number;   // 0-100
@@ -123,6 +129,7 @@ export class ActionExecutorService {
     private plannerAgent: PlannerAgentService,
     private multimodal: MultimodalService,
     private videoAgent: VideoAgentService,
+    private officeBridge: AgentOfficeBridgeService,
   ) {}
 
   /** 从 AI 回复中提取所有 ```action ... ``` 块 — 对齐 Python extract_actions() */
@@ -146,21 +153,42 @@ export class ActionExecutorService {
   }
 
   /** 执行所有动作 — 对齐 Python execute_actions() */
-  async executeActions(actions: any[], userId: number): Promise<any[]> {
+  async executeActions(actions: any[], userId: number, context: ActionExecutionContext = {}): Promise<any[]> {
     const results: any[] = [];
-    for (const action of actions) {
+    for (const rawAction of actions) {
       try {
+        const action = this.withExecutionContext(rawAction, context);
         const result = await this.executeSingle(action, userId);
         if (result) results.push(result);
       } catch (e) {
-        console.error('[ActionExecutor] Execution failed:', e.message, 'action:', action);
+        console.error('[ActionExecutor] Execution failed:', e.message, 'action:', rawAction);
       }
     }
     return results;
   }
 
+  private withExecutionContext(action: any, context: ActionExecutionContext): any {
+    if (!context.source && !context.chatSessionId) return action;
+    return {
+      ...action,
+      _source: action?._source || context.source,
+      _chatSessionId: action?._chatSessionId || context.chatSessionId,
+    };
+  }
+
   /** 执行单个动作 — 对齐 Python execute_single() */
   private async executeSingle(action: any, userId: number): Promise<any | null> {
+    if (action.type === 'generate_video') {
+      return this.generateVideo(action, userId);
+    }
+
+    return this.officeBridge.runTrackedAction(userId, action, () =>
+      this.executeSingleUntracked(action, userId),
+    );
+  }
+
+  /** 执行单个动作，不处理办公室任务追踪。 */
+  private async executeSingleUntracked(action: any, userId: number): Promise<any | null> {
     const type = action.type;
 
     switch (type) {
@@ -182,8 +210,6 @@ export class ActionExecutorService {
         return this.multimodal.generateAnimation(action.skillName || action.skill_name);
       case 'generate_diagram':
         return this.multimodal.generateDiagram(action.skillName || action.skill_name, action.diagramType || action.diagram_type || 'flowchart');
-      case 'generate_video':
-        return this.generateVideo(action);
       case 'generate_avatar':
         return this.multimodal.generateAvatar(action.skillName || action.skill_name);
       default:
@@ -496,10 +522,21 @@ export class ActionExecutorService {
   }
 
   /** 生成教学视频 — 异步执行，立即返回 taskId */
-  private async generateVideo(action: any): Promise<any> {
+  private async generateVideo(action: any, userId?: number): Promise<any> {
     const skillName = action.skillName || action.skill_name || '';
     const difficulty = action.difficulty || 'beginner';
     const taskId = `chat_video_${Date.now()}`;
+    const officeTask = userId
+      ? await this.officeBridge.startActionTask(
+        userId,
+        { ...action, type: 'generate_video', skillName },
+        {
+          externalId: taskId,
+          title: skillName ? `生成教学视频: ${skillName}` : '生成教学视频',
+          description: '来自对话触发的视频生成任务',
+        },
+      )
+      : null;
 
     // 注册任务（内存 + Redis），立即返回
     await this.saveVideoTask(taskId, {
@@ -526,6 +563,15 @@ export class ActionExecutorService {
           task.message = message;
           await this.syncVideoTask(taskId);
         }
+        if (userId && officeTask) {
+          await this.officeBridge.reportProgress(
+            userId,
+            officeTask.id,
+            officeTask.agentType,
+            Math.min(progress, 99),
+            message,
+          ).catch(() => {});
+        }
       },
     ).then(async (result) => {
       const task = ActionExecutorService.videoTasks.get(taskId);
@@ -542,10 +588,18 @@ export class ActionExecutorService {
           segments_count: result.result.segments_count,
           skill_name: skillName,
         };
+        if (userId && officeTask) {
+          await this.officeBridge.completeTask(userId, officeTask.id, officeTask.agentType, task.result)
+            .catch(() => {});
+        }
       } else {
         task.status = 'failed';
         task.error = result.error || '视频生成失败';
         task.message = result.error || '视频生成失败';
+        if (userId && officeTask) {
+          await this.officeBridge.failTask(userId, officeTask.id, officeTask.agentType, task.error)
+            .catch(() => {});
+        }
       }
       await this.syncVideoTask(taskId);
     }).catch(async (e: any) => {
@@ -555,6 +609,10 @@ export class ActionExecutorService {
         task.error = e.message;
         task.message = `视频生成失败：${e.message}`;
         await this.syncVideoTask(taskId);
+      }
+      if (userId && officeTask) {
+        await this.officeBridge.failTask(userId, officeTask.id, officeTask.agentType, e.message)
+          .catch(() => {});
       }
     });
 
@@ -573,8 +631,8 @@ export class ActionExecutorService {
   }
 
   /** 直接触发视频生成（供 controller 调用，跳过 IntentRouter） */
-  async generateVideoDirect(skillName: string, difficulty = 'beginner') {
-    const result = await this.generateVideo({ skillName, difficulty });
+  async generateVideoDirect(skillName: string, difficulty = 'beginner', userId?: number) {
+    const result = await this.generateVideo({ skillName, difficulty }, userId);
     return result.data;
   }
 }

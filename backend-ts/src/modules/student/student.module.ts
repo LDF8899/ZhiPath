@@ -11,9 +11,10 @@ import { ProfileService } from '../../services/profile.service';
 import { SkillModule } from '../skill/skill.module';
 import { PlannerModule } from '../planner/planner.module';
 import { QueueModule } from '../queue/queue.module';
+import { GitLearningModule } from '../git-learning/git-learning.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Student, UserSkill, LearningPlan, LearningTask, JobPosition]), SkillModule, PlannerModule, QueueModule],
+  imports: [TypeOrmModule.forFeature([Student, UserSkill, LearningPlan, LearningTask, JobPosition]), SkillModule, PlannerModule, QueueModule, GitLearningModule],
   controllers: [StudentController],
   providers: [StudentService, ProfileService],
   exports: [StudentService],

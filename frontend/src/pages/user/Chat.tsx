@@ -32,6 +32,7 @@ import DiagramCard from '../../components/DiagramCard';
 import VideoCard from '../../components/VideoCard';
 import AvatarCard from '../../components/AvatarCard';
 import SkillGapCard from '../../components/SkillGapCard';
+import { reconcileChatAgentTasks, reconcileChatSessionResources, saveResourcesFromActions } from '../../utils/chatResources';
 
 /** 拖拽智能体到输入框时的提示语映射 */
 const AGENT_DROP_PROMPTS: Record<string, string> = {
@@ -112,6 +113,8 @@ export default function Chat() {
   // ── SSE 监听：资源就绪事件 → 在聊天中渲染资源卡片 ──
   // 直接用 EventSource，不走 useSSE hook（避免频繁 setEvents 触发重渲染）
   useEffect(() => {
+    // Resource events are handled globally by useChatResourceSync.
+    return;
     const token = sessionStorage.getItem('token');
     if (!token) return;
     const es = new EventSource(`/api/user/events/stream?token=${encodeURIComponent(token)}`);
@@ -178,6 +181,14 @@ export default function Chat() {
   // 从 store 获取当前 session 的消息
   const messages = mainMessages[currentSessionId] || [];
 
+  useEffect(() => {
+    if (currentSessionId) {
+      reconcileChatSessionResources(currentSessionId).catch(() => {});
+    } else {
+      reconcileChatAgentTasks().catch(() => {});
+    }
+  }, [currentSessionId]);
+
   // ── 加载历史会话列表 ──
   useEffect(() => {
     let cancelled = false;
@@ -198,6 +209,7 @@ export default function Chat() {
             const detail = await getChatSession(target.sessionId);
             if (!cancelled && detail.code === 200 && detail.data) {
               setMainMessages(target.sessionId, (detail.data as ChatSession).messages || []);
+              reconcileChatSessionResources(target.sessionId).catch(() => {});
             }
           }
         }
@@ -247,6 +259,7 @@ export default function Chat() {
         const detail = await getChatSession(sessionId);
         if (detail.code === 200 && detail.data) {
           setMainMessages(sessionId, (detail.data as ChatSession).messages || []);
+          reconcileChatSessionResources(sessionId).catch(() => {});
         }
       } catch (e) {
         console.warn('[Chat] Failed to load session detail:', e);
@@ -352,6 +365,10 @@ export default function Chat() {
 
         // 去重：新的 video 卡片替换旧的同 skill 卡片
         // 用 getState() 读取最新 store，避免闭包陷阱导致 userMsg 丢失
+        if (res.data?.actions) {
+          saveResourcesFromActions(res.data.actions);
+        }
+
         let prevMsgs = useChatStore.getState().mainMessages[oldSessionId] || [];
         const newVideoAction = aiMsg.actions?.find(
           (a: any) => a.type === 'video_pending' || a.type === 'video',

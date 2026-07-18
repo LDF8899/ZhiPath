@@ -9,6 +9,7 @@ import {
   IconWallet,
   IconRefresh,
   IconStar,
+  IconLink,
 } from '../../components/icons';
 import type { Job } from '../../types';
 
@@ -96,7 +97,7 @@ function parseSalaryMax(s: string): number {
 
 export default function Jobs() {
   const navigate = useNavigate();
-  const { el: msgEl, show: showMsg } = useHdMessage();
+  const { el: msgEl } = useHdMessage();
 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,17 +105,27 @@ export default function Jobs() {
   const [keyword, setKeyword] = useState('');
   const [sortBy, setSortBy] = useState<'match' | 'salary'>('match');
   const [levelFilter, setLevelFilter] = useState<string>('');
+  const [searchMode, setSearchMode] = useState<'hybrid' | 'local' | 'online'>('hybrid');
+  const [searchMeta, setSearchMeta] = useState<Record<string, any> | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 20;
 
-  const fetchJobs = async (p = 1, kw?: string, lv?: string) => {
+  const fetchJobs = async (p = 1, kw?: string, lv?: string, mode = searchMode) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await getJobs({ page: p, pageSize, keyword: kw || undefined, level: lv || undefined });
+      const res = await getJobs({
+        page: p,
+        pageSize,
+        keyword: kw || undefined,
+        level: lv || undefined,
+        searchMode: mode,
+        includeOnline: mode !== 'local' && Boolean(kw?.trim()),
+      });
       const items = res.data || [];
       setTotal(res.total || 0);
+      setSearchMeta(res.meta || null);
       if (p === 1) {
         setJobs(items);
       } else {
@@ -133,16 +144,30 @@ export default function Jobs() {
   }, []);
 
   const handleSearch = () => {
-    fetchJobs(1, keyword, levelFilter);
+    fetchJobs(1, keyword, levelFilter, searchMode);
   };
 
   const handleLevelChange = (lv: string) => {
     setLevelFilter(lv);
-    fetchJobs(1, keyword, lv);
+    fetchJobs(1, keyword, lv, searchMode);
   };
 
   const handleLoadMore = () => {
-    fetchJobs(page + 1, keyword, levelFilter);
+    fetchJobs(page + 1, keyword, levelFilter, searchMode);
+  };
+
+  const handleSearchModeChange = (mode: 'hybrid' | 'local' | 'online') => {
+    setSearchMode(mode);
+    fetchJobs(1, keyword, levelFilter, mode);
+  };
+
+  const handleJobClick = (job: Job) => {
+    const isOnline = (typeof job.id === 'number' && job.id < 0) || job.source === 'online';
+    if (isOnline && job.url) {
+      window.open(job.url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    navigate(`/user/jobs/${job.id}`);
   };
 
   /* Sort */
@@ -153,6 +178,9 @@ export default function Jobs() {
   });
 
   const hasMore = jobs.length < total;
+  const localCount = Number(searchMeta?.localCount || 0);
+  const onlineCount = Number(searchMeta?.onlineCount || 0);
+  const hasSearchMeta = Boolean(searchMeta && (searchMeta.keyword || localCount || onlineCount));
 
   /* ── Loading state ── */
   if (loading && jobs.length === 0) {
@@ -226,6 +254,29 @@ export default function Jobs() {
         </div>
 
         {/* ── Sort toggles + level filter ── */}
+        <div className="hd-flex-between" style={{ marginTop: -10, marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+          <div className="hd-toggle" title="选择岗位搜索范围">
+            {([
+              ['hybrid', '混合'],
+              ['local', '本地'],
+              ['online', '联网'],
+            ] as const).map(([mode, label]) => (
+              <button
+                key={mode}
+                className={`hd-toggle-tag ${searchMode === mode ? 'active' : ''}`}
+                onClick={() => handleSearchModeChange(mode)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {hasSearchMeta && (
+            <span className="hd-pill">
+              本地 {localCount} · 联网 {onlineCount}
+            </span>
+          )}
+        </div>
+
         <div className="hd-flex-between" style={{ marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
           <div className="hd-toggle">
             <button
@@ -280,7 +331,7 @@ export default function Jobs() {
                   key={job.id}
                   job={job}
                   tilt={`hd-tilt-${(idx % 4) + 1}`}
-                  onClick={() => navigate(`/user/jobs/${job.id}`)}
+                  onClick={() => handleJobClick(job)}
                 />
               ))}
             </div>
@@ -336,6 +387,8 @@ function JobCardItem({
   onClick: () => void;
 }) {
   const score = job.matchScore || 0;
+  const isOnline = (typeof job.id === 'number' && job.id < 0) || job.source === 'online';
+  const matchedFields = job.searchMeta?.matchedFields || [];
 
   /* Match level badge */
   const matchBadge =
@@ -368,6 +421,11 @@ function JobCardItem({
             }}
           >
             {job.title}
+            {isOnline && (
+              <span className="hd-badge accent" style={{ marginLeft: 8, fontSize: 10, verticalAlign: 'middle' }}>
+                联网
+              </span>
+            )}
           </div>
           <div className="hd-flex" style={{ gap: 8, flexWrap: 'wrap' }}>
             <span
@@ -384,6 +442,15 @@ function JobCardItem({
               >
                 <IconMapPin size={14} />
                 {job.location}
+              </span>
+            )}
+            {isOnline && job.host && (
+              <span
+                className="hd-flex"
+                style={{ font: '13px/1 var(--hand)', color: 'var(--pencil)', gap: 4 }}
+              >
+                <IconLink size={14} />
+                {job.host}
               </span>
             )}
           </div>
@@ -404,7 +471,28 @@ function JobCardItem({
             {job.salaryRange}
           </span>
         )}
+        {!isOnline && matchedFields.length > 0 && (
+          <span className="hd-badge">
+            命中 {matchedFields.length}
+          </span>
+        )}
       </div>
+
+      {isOnline && job.snippet && (
+        <div
+          style={{
+            font: '13px/1.5 var(--hand)',
+            color: 'var(--pencil)',
+            marginBottom: 10,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          {job.snippet}
+        </div>
+      )}
 
       {/* Skills tags */}
       {job.requiredSkills && job.requiredSkills.length > 0 && (

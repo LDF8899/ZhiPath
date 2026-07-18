@@ -4,10 +4,17 @@ import { Student } from '../../entities/student.entity';
 import { JobPosition, JobApplication } from '../../entities/job.entity';
 import { LearningPlan } from '../../entities/learning.entity';
 import { ExamRecord } from '../../entities/exam.entity';
+import { AgentProfile } from '../../entities/agent-profile.entity';
+import { AgentTask } from '../../entities/agent-task.entity';
+import { GeneratedResource } from '../../entities/generated-resource.entity';
 import { LlmService } from '../../services/llm.service';
 import { ChatHistoryService } from '../../services/chat-history.service';
 import { ProfileService } from '../../services/profile.service';
 import { JobSearchService } from '../../services/job-search.service';
+import { AgentProfileService } from '../../services/agent-profile.service';
+import { AgentTaskService } from '../../services/agent-task.service';
+import { AgentOfficeBridgeService } from '../../services/agent-office-bridge.service';
+import { GeneratedResourceService } from '../../services/generated-resource.service';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { IntentRouterService } from './intent-router.service';
@@ -32,7 +39,7 @@ import { EventsModule } from '../events/events.module';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Student, JobPosition, JobApplication, LearningPlan, ExamRecord]),
+    TypeOrmModule.forFeature([Student, JobPosition, JobApplication, LearningPlan, ExamRecord, AgentProfile, AgentTask, GeneratedResource]),
     SkillModule,
     MatchModule,
     PlannerModule,
@@ -46,6 +53,10 @@ import { EventsModule } from '../events/events.module';
     ChatHistoryService,
     ProfileService,
     JobSearchService,
+    AgentProfileService,
+    AgentTaskService,
+    AgentOfficeBridgeService,
+    GeneratedResourceService,
     IntentRouterService,
     ActionExecutorService,
     TutorPromptService,

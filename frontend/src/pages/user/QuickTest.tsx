@@ -377,6 +377,18 @@ export default function QuickTest() {
               </div>
             )}
 
+            {result?.commit && (
+              <div className="hd-flex" style={{ justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+                <span className="hd-badge">commit #{result.commit.id}</span>
+                {result?.gitDelta?.metricsChange && (
+                  <span className="hd-badge">匹配 {signed(result.gitDelta.metricsChange.matchScore)}</span>
+                )}
+                {result?.evaluation?.result && (
+                  <span className="hd-badge">置信度 {Math.round(Number(result.evaluation.result.confidence || 0) * 100)}%</span>
+                )}
+              </div>
+            )}
+
             <div className="hd-divider" />
 
             <div className="hd-flex" style={{ justifyContent: 'center', gap: 10, marginTop: 16 }}>
@@ -433,4 +445,9 @@ export default function QuickTest() {
       </div>
     </div>
   );
+}
+
+function signed(value: number) {
+  const rounded = Math.round(Number(value || 0) * 100) / 100;
+  return `${rounded > 0 ? '+' : ''}${rounded}`;
 }

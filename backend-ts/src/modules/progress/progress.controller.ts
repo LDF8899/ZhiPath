@@ -9,6 +9,8 @@ import { ExamRecord } from '../../entities/exam.entity';
 import { SkillService } from '../../services/skill.service';
 import { NotificationService } from '../../services/notification.service';
 import { LearningProgressService } from '../../services/learning-progress.service';
+import { LearningCommitService } from '../../services/learning-commit.service';
+import { EvaluationService, EvaluationDimensionInput } from '../../services/evaluation.service';
 
 /**
  * 学习进度控制器 — 对齐 Python api/user/progress.py
@@ -28,6 +30,8 @@ export class ProgressController {
     private readonly skillService: SkillService,
     private readonly notificationService: NotificationService,
     private readonly progressStore: LearningProgressService,
+    private readonly learningCommitService: LearningCommitService,
+    private readonly evaluationService: EvaluationService,
   ) {}
 
   /**
@@ -63,18 +67,45 @@ export class ProgressController {
 
     // 联动更新技能掌握度：+30%
     const delta = ProgressController.MASTERY_WEIGHTS.lecture;
-    await this.skillService.updateMastery(userId, body.skill, delta);
+    const git = await this.learningCommitService.commitSkill(userId, undefined, {
+      type: 'lecture_read',
+      skillName: body.skill,
+      delta,
+      message: `lecture read: ${body.skill}`,
+      payload: { pathId: path.id },
+    });
 
     // 获取当前掌握度
     const skills = await this.skillService.getEffectiveSkills(userId);
     const current = skills.find(s => s.name === body.skill);
     const masteryPct = current?.masteryPct ?? delta;
+    const evaluation = await this.evaluationService.record({
+      userId,
+      attemptType: 'progress_read',
+      sourceType: 'progress_commit',
+      sourceId: git.commit.id,
+      skillName: body.skill,
+      score: 100,
+      passed: true,
+      confidence: 0.65,
+      summary: `Lecture read completed for ${body.skill}.`,
+      evidence: { pathId: path.id, action: 'read', lecturePosition: 100 },
+      commitOutcome: git,
+      dimensions: this.dimensionsFromGit(git, body.skill, 100),
+      nextActions: [{ type: 'quiz', label: 'Take quiz', skillName: body.skill }],
+    });
 
     return success({
       skill: body.skill,
       status: 'lecture_done',
       masteryPct,
       delta,
+      commit: git.commit,
+      snapshot: git.snapshot,
+      gitDelta: git.delta,
+      branch: git.branch,
+      matchSummary: git.matchSummary,
+      evaluation,
       message: `讲义已读完，掌握度 +${delta}% → ${masteryPct}%`,
     });
   }
@@ -120,18 +151,34 @@ export class ProgressController {
 
     let masteryPct = 0;
     let delta = 0;
+    let git: any = null;
 
     if (passed) {
       delta = ProgressController.MASTERY_WEIGHTS.quiz;
-      await this.skillService.updateMastery(userId, body.skill, delta);
+      git = await this.learningCommitService.commitSkill(userId, undefined, {
+        type: 'quiz_passed',
+        skillName: body.skill,
+        delta,
+        message: `quiz passed: ${body.skill}`,
+        payload: { pathId: path.id, total: body.total, correct: body.correct, score },
+      });
       const skills = await this.skillService.getEffectiveSkills(userId);
       const current = skills.find(s => s.name === body.skill);
       masteryPct = current?.masteryPct ?? 0;
+    } else {
+      git = await this.learningCommitService.commitSkill(userId, undefined, {
+        type: 'quiz_failed',
+        skillName: body.skill,
+        delta: 0,
+        message: `quiz failed: ${body.skill}`,
+        payload: { pathId: path.id, total: body.total, correct: body.correct, score },
+      });
     }
 
     // 同步创建考试记录（供错题本使用）
+    let examRecord: ExamRecord | null = null;
     try {
-      await this.examRepo.save({
+      examRecord = await this.examRepo.save({
         userId,
         examType: 1,  // 技能考试
         skillName: body.skill,
@@ -160,6 +207,25 @@ export class ProgressController {
     } catch (e: any) {
       console.warn('[Progress] Failed to create exam record for quiz:', e.message);
     }
+    const evaluation = await this.evaluationService.record({
+      userId,
+      attemptType: 'progress_quiz',
+      sourceType: 'exam_record',
+      sourceId: examRecord?.id || git?.commit?.id,
+      skillName: body.skill,
+      score,
+      passed,
+      confidence: passed ? 0.82 : 0.72,
+      summary: passed
+        ? `Quiz passed for ${body.skill}: ${body.correct}/${body.total}.`
+        : `Quiz failed for ${body.skill}: ${body.correct}/${body.total}.`,
+      evidence: { pathId: path.id, total: body.total, correct: body.correct, score, passed },
+      commitOutcome: git,
+      dimensions: this.dimensionsFromGit(git, body.skill, score),
+      nextActions: passed
+        ? [{ type: 'code', label: 'Practice with code', skillName: body.skill }]
+        : [{ type: 'review', label: 'Review weak points', skillName: body.skill }],
+    });
 
     return success({
       skill: body.skill,
@@ -167,6 +233,12 @@ export class ProgressController {
       passed,
       masteryPct,
       delta: passed ? delta : 0,
+      commit: git?.commit,
+      snapshot: git?.snapshot,
+      gitDelta: git?.delta,
+      branch: git?.branch,
+      matchSummary: git?.matchSummary,
+      evaluation,
       message: passed ? `习题通过！掌握度 +${delta}% → ${masteryPct}%` : '未通过（需 ≥70%），建议复习后重试',
     });
   }
@@ -184,17 +256,44 @@ export class ProgressController {
     await this.pathRepo.save(path);
 
     const delta = ProgressController.MASTERY_WEIGHTS.code;
-    await this.skillService.updateMastery(userId, body.skill, delta);
+    const git = await this.learningCommitService.commitSkill(userId, undefined, {
+      type: 'code_done',
+      skillName: body.skill,
+      delta,
+      message: `code done: ${body.skill}`,
+      payload: { pathId: path.id },
+    });
 
     const skills = await this.skillService.getEffectiveSkills(userId);
     const current = skills.find(s => s.name === body.skill);
     const masteryPct = current?.masteryPct ?? 0;
+    const evaluation = await this.evaluationService.record({
+      userId,
+      attemptType: 'progress_code',
+      sourceType: 'progress_commit',
+      sourceId: git.commit.id,
+      skillName: body.skill,
+      score: 100,
+      passed: true,
+      confidence: 0.78,
+      summary: `Code practice completed for ${body.skill}.`,
+      evidence: { pathId: path.id, action: 'code_done' },
+      commitOutcome: git,
+      dimensions: this.dimensionsFromGit(git, body.skill, 100),
+      nextActions: [{ type: 'complete', label: 'Confirm skill completion', skillName: body.skill }],
+    });
 
     return success({
       skill: body.skill,
       status: 'code_done',
       masteryPct,
       delta,
+      commit: git.commit,
+      snapshot: git.snapshot,
+      gitDelta: git.delta,
+      branch: git.branch,
+      matchSummary: git.matchSummary,
+      evaluation,
       message: `编程题通过！掌握度 +${delta}% → ${masteryPct}%`,
     });
   }
@@ -216,22 +315,59 @@ export class ProgressController {
     const skills = await this.skillService.getEffectiveSkills(userId);
     const current = skills.find(s => s.name === body.skill);
     const masteryPct = current?.masteryPct ?? 0;
+    let git: any = null;
 
     // 如果掌握度不足100%，补足到100%（用户手动确认完成）
     if (masteryPct < 100) {
-      await this.skillService.setMastery(userId, body.skill, 100);
+      git = await this.learningCommitService.commitSkill(userId, undefined, {
+        type: 'skill_complete',
+        skillName: body.skill,
+        masteryPct: 100,
+        message: `skill complete: ${body.skill}`,
+        payload: { pathId: path.id, phaseDone },
+      });
+    }
+    if (!git) {
+      git = await this.learningCommitService.commitSkill(userId, undefined, {
+        type: 'skill_complete',
+        skillName: body.skill,
+        masteryPct: 100,
+        message: `skill complete: ${body.skill}`,
+        payload: { pathId: path.id, phaseDone },
+      });
     }
 
     await this.notificationService.notifyProgress(userId, body.skill, 100);
 
     // §17 热层：归档今日进度到 MongoDB 温层（技能完成是会话里程碑）
     await this.progressStore.archiveToWarm(userId, path.id);
+    const evaluation = await this.evaluationService.record({
+      userId,
+      attemptType: 'skill_complete',
+      sourceType: 'progress_commit',
+      sourceId: git.commit.id,
+      skillName: body.skill,
+      score: 100,
+      passed: true,
+      confidence: 0.75,
+      summary: `Skill completion confirmed for ${body.skill}.`,
+      evidence: { pathId: path.id, phaseDone, action: 'skill_complete' },
+      commitOutcome: git,
+      dimensions: this.dimensionsFromGit(git, body.skill, 100),
+      nextActions: phaseDone ? [{ type: 'exam', label: 'Take phase exam', skillName: body.skill }] : [],
+    });
 
     return success({
       skill: body.skill,
       status: 'done',
       masteryPct: 100,
       phase_completed: phaseDone,
+      commit: git.commit,
+      snapshot: git.snapshot,
+      gitDelta: git.delta,
+      branch: git.branch,
+      matchSummary: git.matchSummary,
+      evaluation,
       message: phaseDone ? '阶段完成！可以参加阶段考试了' : '技能已掌握',
     });
   }
@@ -400,5 +536,21 @@ export class ProgressController {
     }
 
     return allDone;
+  }
+
+  private dimensionsFromGit(git: any, fallbackSkill?: string, fallbackScore?: number): EvaluationDimensionInput[] {
+    const changes = git?.delta?.radarChanges || [];
+    if (Array.isArray(changes) && changes.length > 0) {
+      return changes.map((change: any) => ({
+        name: change.dimension,
+        score: Number.isFinite(Number(change.after)) ? Number(change.after) : fallbackScore ?? 0,
+        maxScore: 100,
+        trend: Number(change.delta || 0) > 0 ? 'up' : Number(change.delta || 0) < 0 ? 'down' : 'stable',
+        detail: `Radar ${change.dimension}: ${change.before ?? 0} -> ${change.after ?? 0}`,
+      }));
+    }
+    return fallbackSkill
+      ? [{ name: fallbackSkill, score: fallbackScore ?? 100, maxScore: 100, trend: 'stable' }]
+      : [];
   }
 }

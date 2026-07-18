@@ -5,6 +5,7 @@ import { LearningPlan } from '../entities/learning.entity';
 import { LearningTask } from '../entities/learning-tasks.entity';
 import { Student } from '../entities/student.entity';
 import { SkillService } from './skill.service';
+import { LearningCommitService } from './learning-commit.service';
 
 /**
  * TaskScheduler — 学习任务调度服务
@@ -33,6 +34,7 @@ export class TaskSchedulerService {
     @InjectRepository(LearningTask) private taskRepo: Repository<LearningTask>,
     @InjectRepository(Student) private studentRepo: Repository<Student>,
     private skillService: SkillService,
+    private learningCommitService: LearningCommitService,
   ) {}
 
   /**
@@ -140,7 +142,13 @@ export class TaskSchedulerService {
 
       // 如果完成，更新技能掌握度
       if (newStatus === 'done') {
-        await this.skillService.updateMastery(userId, task.skillName, 10);
+        await this.learningCommitService.commitSkill(userId, undefined, {
+          type: 'task_done',
+          skillName: task.skillName,
+          delta: 10,
+          message: `task done: ${task.skillName}`,
+          payload: { taskId: task.id, planId: task.planId },
+        });
       }
     }
 

@@ -3,9 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ExamQuestion, ExamRecord } from '../../entities/exam.entity';
 import { Student } from '../../entities/student.entity';
-import { SkillService } from '../../services/skill.service';
 import { LlmService } from '../../services/llm.service';
 import { extractJson } from '../../common/json-repair';
+import { LearningCommitService } from '../../services/learning-commit.service';
+import { EvaluationService } from '../../services/evaluation.service';
 
 /**
  * 5分钟速测服务
@@ -21,8 +22,9 @@ export class QuickTestService {
     @InjectRepository(ExamQuestion) private questionRepo: Repository<ExamQuestion>,
     @InjectRepository(ExamRecord) private examRepo: Repository<ExamRecord>,
     @InjectRepository(Student) private studentRepo: Repository<Student>,
-    private skillService: SkillService,
     private llmService: LlmService,
+    private learningCommitService: LearningCommitService,
+    private evaluationService: EvaluationService,
   ) {}
 
   /**
@@ -74,6 +76,12 @@ export class QuickTestService {
     correctCount: number;
     totalCount: number;
     results: Array<{ questionId: string; correct: boolean; explanation: string }>;
+    commit?: any;
+    snapshot?: any;
+    gitDelta?: any;
+    branch?: any;
+    matchSummary?: any;
+    evaluation?: any;
   }> {
     const now = Date.now();
     let correctCount = 0;
@@ -95,10 +103,10 @@ export class QuickTestService {
 
     const totalCount = questions.length;
     const score = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
-    const passed = score >= 60;
+    const passed = score >= 70;
 
     // 保存考试记录
-    await this.examRepo.save({
+    const examRecord = await this.examRepo.save({
       userId,
       examType: 3, // 速测
       skillName,
@@ -111,15 +119,56 @@ export class QuickTestService {
       status: 1,
     });
 
-    // 更新技能掌握度（source=exam, trustWeight=1.0）
-    if (passed) {
-      await this.skillService.addSkill(userId, skillName, 'exam', 1.0, score);
-    } else {
-      // 未通过也更新，但掌握度较低
-      await this.skillService.addSkill(userId, skillName, 'exam', 0.8, score * 0.5);
-    }
+    const masteryPct = passed ? score : Math.round(score * 0.5);
+    const git = await this.learningCommitService.commitSkill(userId, undefined, {
+      type: passed ? 'quiz_passed' : 'quiz_failed',
+      skillName,
+      masteryPct,
+      source: 'exam',
+      trustWeight: passed ? 1.0 : 0.8,
+      message: `quick test ${passed ? 'passed' : 'failed'}: ${skillName}`,
+      payload: {
+        examRecordId: examRecord.id,
+        source: 'quick_test',
+        score,
+        correctCount,
+        totalCount,
+        passScore: 70,
+      },
+    });
+    const evaluation = await this.evaluationService.record({
+      userId,
+      attemptType: 'quick_test',
+      sourceType: 'exam_record',
+      sourceId: examRecord.id,
+      skillName,
+      score,
+      passed,
+      confidence: passed ? 0.88 : 0.76,
+      evaluatorType: 'objective',
+      evaluatorName: 'quick_test_objective_grader',
+      summary: `Quick test ${passed ? 'passed' : 'failed'} for ${skillName}: ${correctCount}/${totalCount}.`,
+      evidence: { questions, answers, results, score, correctCount, totalCount, passScore: 70 },
+      commitOutcome: git,
+      dimensions: this.dimensionsFromGit(git, skillName, score),
+      nextActions: passed
+        ? [{ type: 'learning_path', label: 'Continue learning path', skillName }]
+        : [{ type: 'review', label: 'Review quick test misses', skillName }],
+    });
 
-    return { score, passed, correctCount, totalCount, results };
+    return {
+      score,
+      passed,
+      correctCount,
+      totalCount,
+      results,
+      commit: git.commit,
+      snapshot: git.snapshot,
+      gitDelta: git.delta,
+      branch: git.branch,
+      matchSummary: git.matchSummary,
+      evaluation,
+    };
   }
 
   // ── 内部方法 ──────────────────────────────────
@@ -138,6 +187,20 @@ export class QuickTestService {
       default:
         return false;
     }
+  }
+
+  private dimensionsFromGit(git: any, fallbackSkill: string, fallbackScore: number) {
+    const changes = git?.delta?.radarChanges || [];
+    if (Array.isArray(changes) && changes.length > 0) {
+      return changes.map((change: any) => ({
+        name: change.dimension,
+        score: Number.isFinite(Number(change.after)) ? Number(change.after) : fallbackScore,
+        maxScore: 100,
+        trend: Number(change.delta || 0) > 0 ? 'up' : Number(change.delta || 0) < 0 ? 'down' : 'stable',
+        detail: `Radar ${change.dimension}: ${change.before ?? 0} -> ${change.after ?? 0}`,
+      }));
+    }
+    return [{ name: fallbackSkill, score: fallbackScore, maxScore: 100, trend: 'stable' }];
   }
 
   /**

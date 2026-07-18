@@ -18,8 +18,17 @@ export class NewsController {
   /** 获取资讯列表 */
   @Get('news')
   async getNews(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('type') type?: string) {
-    const result = await this.newsService.getNews(page ? Number(page) : 1, pageSize ? Number(pageSize) : 20, type);
-    return pageSuccess(result.list, result.total, result.page, result.pageSize);
+    const pageNo = page ? Number(page) : 1;
+    const size = pageSize ? Number(pageSize) : 20;
+    let result = await this.newsService.getNews(pageNo, size, type);
+    let refreshStats: any = null;
+
+    if (pageNo === 1 && !type && result.total === 0) {
+      refreshStats = await this.newsCrawl.crawl(undefined, 2);
+      result = await this.newsService.getNews(pageNo, size, type);
+    }
+
+    return { ...pageSuccess(result.list, result.total, result.page, result.pageSize), meta: { autoRefreshed: !!refreshStats, refreshStats } };
   }
 
   /** 个性化推荐资讯（静态路由须在 :newsId 之前） */

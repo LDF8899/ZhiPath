@@ -10,8 +10,16 @@ import type {
   NewsItem,
   ChatReply,
   ChatSession,
+  GeneratedResource,
   ProgressSummary,
   UserProfile,
+  LearningBranch,
+  LearningCommit,
+  SkillSnapshot,
+  RadarComparison,
+  AbilityMetrics,
+  RadarDimension,
+  EvaluationListItem,
 } from '../types';
 
 /** 登录 */
@@ -79,12 +87,27 @@ export const getDashboard = () =>
 export const getProfile = () =>
   client.get('/user/profile') as Promise<ApiResponse<UserProfile>>;
 
+export const getProfileRadar = () =>
+  client.get('/user/profile/radar') as Promise<ApiResponse<{ radarDimensions: RadarDimension[]; latestSnapshot: SkillSnapshot | null; activeBranch: LearningBranch | null }>>;
+
+export const getProfileAbilityMetrics = () =>
+  client.get('/user/profile/ability-metrics') as Promise<ApiResponse<{ abilityMetrics: AbilityMetrics | null; latestSnapshot: SkillSnapshot | null; activeBranch: LearningBranch | null }>>;
+
 /** 更新画像 */
 export const updateProfile = (data: Partial<UserProfile>) =>
   client.put('/user/profile', data) as Promise<ApiResponse<any>>;
 
 /** 岗位列表 */
-export const getJobs = (params?: { page?: number; pageSize?: number; keyword?: string; level?: string }) =>
+export const getJobs = (params?: {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  company?: string;
+  location?: string;
+  level?: string;
+  searchMode?: 'local' | 'hybrid' | 'online';
+  includeOnline?: boolean;
+}) =>
   client.get('/user/jobs', { params }) as Promise<PaginatedResponse<Job>>;
 
 /** 岗位详情 */
@@ -139,6 +162,42 @@ export const getMasteryBreakdown = (skill: string) =>
 export const getProgressSummary = () =>
   client.get('/user/progress/summary') as Promise<ApiResponse<ProgressSummary>>;
 
+export const getGitBranches = () =>
+  client.get('/user/git/branches') as Promise<ApiResponse<LearningBranch[]>>;
+
+export const createGitBranch = (data: { branchName?: string; branchType?: 'main' | 'side' | 'experiment'; sourceBranchId?: number }) =>
+  client.post('/user/git/branches', data) as Promise<ApiResponse<LearningBranch>>;
+
+export const getGitBranchLog = (branchId: number, limit?: number) =>
+  client.get(`/user/git/branches/${branchId}/log`, { params: limit ? { limit } : {} }) as Promise<ApiResponse<LearningCommit[]>>;
+
+export const commitGitBranch = (branchId: number, data: any) =>
+  client.post(`/user/git/branches/${branchId}/commit`, data) as Promise<ApiResponse<any>>;
+
+export const getGitCommit = (commitId: number) =>
+  client.get(`/user/git/commits/${commitId}`) as Promise<ApiResponse<{ commit: LearningCommit; snapshot: SkillSnapshot | null }>>;
+
+export const rollbackGitCommit = (commitId: number) =>
+  client.post(`/user/git/commits/${commitId}/rollback`) as Promise<ApiResponse<any>>;
+
+export const getGitSnapshots = (params?: { branchId?: number; limit?: number }) =>
+  client.get('/user/git/snapshots', { params }) as Promise<ApiResponse<SkillSnapshot[]>>;
+
+export const compareGitSnapshots = (snapshotA: number, snapshotB: number) =>
+  client.get('/user/git/snapshots/compare', { params: { snapshotA, snapshotB } }) as Promise<ApiResponse<RadarComparison | null>>;
+
+export const compareGitBranches = (source: number, target: number) =>
+  client.get('/user/git/branches/compare', { params: { source, target } }) as Promise<ApiResponse<any>>;
+
+export const mergeGitBranch = (branchId: number, targetBranchId?: number) =>
+  client.post(`/user/git/branches/${branchId}/merge`, { targetBranchId }) as Promise<ApiResponse<any>>;
+
+export const getEvaluations = (limit?: number) =>
+  client.get('/user/evaluations', { params: limit ? { limit } : {} }) as Promise<ApiResponse<EvaluationListItem[]>>;
+
+export const getEvaluationDetail = (attemptId: number) =>
+  client.get(`/user/evaluations/${attemptId}`) as Promise<ApiResponse<any>>;
+
 /** 考试列表 */
 export const getExams = (params?: { page?: number; pageSize?: number; exam_type?: number }) =>
   client.get('/user/exams', { params }) as Promise<PaginatedResponse<ExamRecord>>;
@@ -176,6 +235,10 @@ export const getWrongAnswers = (skillName?: string) =>
 export const getNews = (params?: { page?: number; pageSize?: number; type?: string }) =>
   client.get('/user/news', { params }) as Promise<PaginatedResponse<NewsItem>>;
 
+/** 刷新 AI 资讯 */
+export const refreshNews = (keywords?: string) =>
+  client.post('/user/news/refresh', undefined, { params: keywords ? { keywords } : {} }) as Promise<ApiResponse<any>>;
+
 /** 资讯详情 */
 export const getNewsDetail = (id: number) =>
   client.get(`/user/news/${id}`) as Promise<ApiResponse<NewsItem>>;
@@ -209,6 +272,29 @@ export const getChatSession = async (sessionId: string) => {
 /** 删除对话 */
 export const deleteChatSession = (sessionId: string) =>
   client.delete(`/user/chat-sessions/${sessionId}`);
+
+export const getGeneratedResources = (params?: {
+  chatSessionId?: string;
+  source?: string;
+  resourceType?: string;
+  status?: string;
+  limit?: number;
+}) => client.get('/user/generated-resources', { params })
+  .then((res: ApiResponse<any[]>) => ({
+    ...res,
+    data: (res.data || []).map(normalizeGeneratedResource),
+  })) as Promise<ApiResponse<GeneratedResource[]>>;
+
+function normalizeGeneratedResource(raw: any): GeneratedResource {
+  const normalized = snakeToCamel<any>(raw || {});
+  return {
+    ...normalized,
+    payload: raw?.payload ?? normalized.payload,
+    rawRequest: raw?.raw_request ?? raw?.rawRequest ?? normalized.rawRequest,
+    rawResponse: raw?.raw_response ?? raw?.rawResponse ?? normalized.rawResponse,
+    previewMeta: raw?.preview_meta ? snakeToCamel(raw.preview_meta) : normalized.previewMeta,
+  } as GeneratedResource;
+}
 
 /** 保存项目经历 */
 export const saveProject = (data: any) =>
@@ -330,7 +416,7 @@ export const generateLearningPath = (data: { goal: string; currentLevel?: string
   client.post('/user/agents/path', data) as Promise<ApiResponse<any>>;
 
 /** 评估学习效果 */
-export const assessLearning = (data: { learningData: string; goal?: string; currentProgress?: string }) =>
+export const assessLearning = (data: { learningData: string; goal?: string; currentProgress?: string; skillName?: string }) =>
   client.post('/user/agents/assess', data) as Promise<ApiResponse<any>>;
 
 // ── 多模态智能体 API (T5) ──────────────────────────────────

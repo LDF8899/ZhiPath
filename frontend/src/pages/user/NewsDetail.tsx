@@ -111,6 +111,32 @@ export default function NewsDetail() {
 
           <div className="hd-divider" />
 
+          {news.summary && (
+            <div
+              className="hd-card"
+              style={{
+                marginTop: 20,
+                marginBottom: 18,
+                background: 'rgba(72, 123, 167, 0.06)',
+              }}
+            >
+              <div style={{ font: '700 14px/1 var(--hand-bold)', color: 'var(--ink)', marginBottom: 8 }}>
+                AI 摘要
+              </div>
+              <div style={{ font: '15px/1.7 var(--hand)', color: 'var(--pencil)' }}>
+                {news.summary}
+              </div>
+            </div>
+          )}
+
+          {news.tags && news.tags.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 16 }}>
+              {news.tags.slice(0, 6).map((tag) => (
+                <span key={tag} className="hd-tag">{tag}</span>
+              ))}
+            </div>
+          )}
+
           {/* Content */}
           <div style={{ font: '16px/1.8 var(--hand)', color: 'var(--ink)', marginTop: 20 }}>
             {news.content || '资讯内容加载中...'}

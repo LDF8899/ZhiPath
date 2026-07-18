@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Brackets } from 'typeorm';
 import { JobPosition, JobApplication } from '../../entities/job.entity';
 import { Student } from '../../entities/student.entity';
 import { Enterprise } from '../../entities/enterprise.entity';
 import { LearningPlan } from '../../entities/learning.entity';
 import { MatchAgentService } from '../../services/match-agent.service';
+import { JobSearchService } from '../../services/job-search.service';
+import { SkillService } from '../../services/skill.service';
 
 /**
  * Jobs 服务 — 岗位列表/详情/匹配/投递/技能导入
@@ -21,6 +23,8 @@ export class JobsService {
     @InjectRepository(Enterprise) private enterpriseRepo: Repository<Enterprise>,
     @InjectRepository(LearningPlan) private planRepo: Repository<LearningPlan>,
     private matchAgent: MatchAgentService,
+    private jobSearch: JobSearchService,
+    private skillService: SkillService,
   ) {}
 
   /** 岗位列表（按匹配度排序） — GET /api/user/jobs */
@@ -89,6 +93,73 @@ export class JobsService {
     list.sort((a, b) => b.matchScore - a.matchScore);
 
     return { list, total, page, pageSize };
+  }
+
+  /** Search v2: local multi-field search + online fallback + match ordering. */
+  async searchJobs(userId: number, options: {
+    page?: number;
+    pageSize?: number;
+    keyword?: string;
+    company?: string;
+    location?: string;
+    level?: string;
+    searchMode?: 'local' | 'hybrid' | 'online';
+    includeOnline?: boolean;
+  }) {
+    const { page = 1, pageSize = 20, company, location, level } = options;
+    const keyword = (options.keyword || '').trim();
+    const mode = options.searchMode || 'hybrid';
+    const includeOnline = mode === 'online' || options.includeOnline || (mode === 'hybrid' && keyword.length > 0);
+    const skip = (page - 1) * pageSize;
+
+    const localItems = mode === 'online'
+      ? []
+      : await this.searchLocalJobs({ keyword, company, location, level });
+
+    const matchMap = new Map<number, number>();
+    try {
+      const matchResults = await this.matchAgent.calculateForAllJobs(userId, keyword ? 'job_search' : undefined);
+      for (const m of matchResults) matchMap.set(m.jobId, m.matchScore);
+    } catch (e) {
+      console.warn('[JobsService] match calculation fallback:', (e as Error).message);
+    }
+
+    const enterpriseIds = [...new Set(localItems.map((j) => j.enterpriseId).filter(Boolean))];
+    const enterpriseMap = new Map<number, { name: string; industry: string }>();
+    if (enterpriseIds.length > 0) {
+      const enterprises = await this.enterpriseRepo.find({ where: { id: In(enterpriseIds) } });
+      for (const e of enterprises) {
+        enterpriseMap.set(Number(e.id), { name: e.name, industry: e.industry || '' });
+      }
+    }
+
+    const localList = localItems.map((j) => this.toJobCard(j, enterpriseMap, matchMap.get(Number(j.id)) || 0, keyword));
+    let onlineList: any[] = [];
+    if (includeOnline && keyword) {
+      onlineList = await this.searchOnlineJobs(userId, keyword);
+    }
+
+    const merged = this.dedupeJobs([...localList, ...onlineList]);
+    merged.sort((a, b) => {
+      const scoreDiff = Number(b.matchScore || 0) - Number(a.matchScore || 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      const sourceDiff = (a.source === 'online' ? 1 : 0) - (b.source === 'online' ? 1 : 0);
+      if (sourceDiff !== 0) return sourceDiff;
+      return Number(b.id || 0) - Number(a.id || 0);
+    });
+
+    return {
+      list: merged.slice(skip, skip + pageSize),
+      total: merged.length,
+      page,
+      pageSize,
+      meta: {
+        keyword,
+        searchMode: mode,
+        localCount: localList.length,
+        onlineCount: onlineList.length,
+      },
+    };
   }
 
   /** 岗位详情 — GET /api/user/jobs/:jobId */
@@ -260,5 +331,163 @@ export class JobsService {
       skills: allMissing.filter(s => !existingSkills.has(s.toLowerCase())),
       message: `已将 ${imported} 个技能加入「${plan.planName}」`,
     };
+  }
+
+  private async searchLocalJobs(filters: { keyword?: string; company?: string; location?: string; level?: string }) {
+    const qb = this.jobRepo.createQueryBuilder('j').where('j.status = 1');
+    if (filters.company) qb.andWhere('j.company LIKE :co', { co: `%${filters.company}%` });
+    if (filters.location) qb.andWhere('j.location LIKE :lo', { lo: `%${filters.location}%` });
+    if (filters.level) qb.andWhere('j.level = :lv', { lv: filters.level });
+
+    const tokens = this.tokenize(filters.keyword || '');
+    if (tokens.length) {
+      qb.andWhere(new Brackets((where) => {
+        tokens.forEach((token, i) => {
+          const param = `kw${i}`;
+          const expression = [
+            `LOWER(j.title) LIKE :${param}`,
+            `LOWER(COALESCE(j.company, '')) LIKE :${param}`,
+            `LOWER(COALESCE(j.location, '')) LIKE :${param}`,
+            `LOWER(COALESCE(j.salary_range, '')) LIKE :${param}`,
+            `LOWER(COALESCE(j.jd_text, '')) LIKE :${param}`,
+            `LOWER(CAST(j.required_skills AS CHAR)) LIKE :${param}`,
+            `LOWER(CAST(j.preferred_skills AS CHAR)) LIKE :${param}`,
+          ].join(' OR ');
+          const params = { [param]: `%${token}%` };
+          if (i === 0) where.where(expression, params);
+          else where.orWhere(expression, params);
+        });
+      }));
+    }
+
+    const jobs = await qb.orderBy('j.createTime', 'DESC').take(tokens.length ? 500 : 300).getMany();
+    if (!tokens.length) return jobs;
+
+    return jobs
+      .map((job) => ({ job, rank: this.localSearchRank(job, tokens) }))
+      .filter((item) => item.rank > 0)
+      .sort((a, b) => b.rank - a.rank)
+      .map((item) => item.job);
+  }
+
+  private async searchOnlineJobs(userId: number, keyword: string) {
+    try {
+      const userSkills = await this.skillService.getEffectiveSkills(userId);
+      const skillNames = userSkills.map((s) => s.name).filter(Boolean);
+      const onlineCards = await this.jobSearch.search(keyword, skillNames);
+      return onlineCards.map((card) => ({
+        id: card.id,
+        title: card.title,
+        company: card.company || '',
+        location: card.location || '',
+        salaryRange: card.salaryRange || '',
+        level: 'junior',
+        requiredSkills: (card.requiredSkills || []).map((name) => ({ name })),
+        preferredSkills: [],
+        jdText: card.snippet || '',
+        deliveryThreshold: 60,
+        source: 'online',
+        url: card.url,
+        host: card.host,
+        snippet: card.snippet,
+        enterpriseName: card.company || '',
+        enterpriseIndustry: '',
+        matchScore: card.matchScore || 0,
+        searchMeta: { source: 'online', matchedFields: ['online'] },
+      }));
+    } catch (e) {
+      console.warn('[JobsService] online job search failed:', (e as Error).message);
+      return [];
+    }
+  }
+
+  private toJobCard(
+    job: JobPosition,
+    enterpriseMap: Map<number, { name: string; industry: string }>,
+    matchScore: number,
+    keyword: string,
+  ) {
+    const enterprise = job.enterpriseId ? enterpriseMap.get(Number(job.enterpriseId)) : null;
+    return {
+      id: job.id,
+      title: job.title,
+      company: job.company || '',
+      location: job.location || '',
+      salaryRange: job.salaryRange || '',
+      level: job.level || 'junior',
+      requiredSkills: job.requiredSkills || [],
+      preferredSkills: job.preferredSkills || [],
+      jdText: job.jdText || '',
+      deliveryThreshold: job.deliveryThreshold || 60,
+      source: job.source === 'online' ? 'online' : 'local',
+      enterpriseId: job.enterpriseId || null,
+      enterpriseName: enterprise?.name || job.company || '',
+      enterpriseIndustry: enterprise?.industry || '',
+      matchScore,
+      searchMeta: { source: 'local', matchedFields: this.getMatchedFields(job, keyword) },
+    };
+  }
+
+  private dedupeJobs(jobs: any[]) {
+    const seen = new Set<string>();
+    const result: any[] = [];
+    for (const job of jobs) {
+      const key = `${this.norm(job.company || job.enterpriseName)}|${this.norm(job.title)}|${this.norm(job.location)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(job);
+    }
+    return result;
+  }
+
+  private getMatchedFields(job: JobPosition, keyword: string) {
+    const tokens = this.tokenize(keyword);
+    if (!tokens.length) return [];
+    const fields: Array<[string, string]> = [
+      ['title', job.title || ''],
+      ['company', job.company || ''],
+      ['location', job.location || ''],
+      ['salary', job.salaryRange || ''],
+      ['jd', job.jdText || ''],
+      ['requiredSkills', this.skillText(job.requiredSkills || [])],
+      ['preferredSkills', this.skillText(job.preferredSkills || [])],
+    ];
+    return fields
+      .filter(([, value]) => tokens.some((token) => this.norm(value).includes(token)))
+      .map(([name]) => name);
+  }
+
+  private localSearchRank(job: JobPosition, tokens: string[]) {
+    const weightedFields: Array<[string, number]> = [
+      [job.title || '', 8],
+      [job.company || '', 5],
+      [this.skillText(job.requiredSkills || []), 7],
+      [this.skillText(job.preferredSkills || []), 4],
+      [job.location || '', 3],
+      [job.salaryRange || '', 2],
+      [job.jdText || '', 1],
+    ];
+    let score = 0;
+    for (const token of tokens) {
+      for (const [value, weight] of weightedFields) {
+        if (this.norm(value).includes(token)) score += weight;
+      }
+    }
+    return score;
+  }
+
+  private skillText(skills: Array<{ name?: string } | string>) {
+    return skills.map((skill: any) => typeof skill === 'string' ? skill : skill?.name || '').join(' ');
+  }
+
+  private tokenize(input: string) {
+    return this.norm(input)
+      .split(/[\s,，/|+;；、-]+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0);
+  }
+
+  private norm(input: string) {
+    return String(input || '').trim().toLowerCase();
   }
 }

@@ -53,7 +53,6 @@ export class EventsController {
     req.on('close', () => {
       subscription.unsubscribe();
       heartbeat.unsubscribe();
-      this.eventsService.closeStream(userId);
     });
   }
 

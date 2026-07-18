@@ -5,6 +5,7 @@ import { success, pageSuccess, error } from '../../common/api-response';
 import { ChatService } from './chat.service';
 import { ChatHistoryService } from '../../services/chat-history.service';
 import { ActionExecutorService } from './action-executor.service';
+import { GeneratedResourceService } from '../../services/generated-resource.service';
 import { Inject } from '@nestjs/common';
 import Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../database/redis.module';
@@ -24,6 +25,7 @@ export class ChatController {
     private chatService: ChatService,
     private chatHistory: ChatHistoryService,
     private actionExecutor: ActionExecutorService,
+    private generatedResources: GeneratedResourceService,
     @Inject(REDIS_CLIENT) private redis: Redis,
   ) {}
 
@@ -109,6 +111,33 @@ export class ChatController {
   }
 
   /** GET /api/user/video-task/:taskId — 视频生成进度查询 */
+  /** GET /api/user/generated-resources */
+  @Get('generated-resources')
+  async listGeneratedResources(
+    @CurrentUser('sub') userId: number,
+    @Query('chatSessionId') chatSessionId?: string,
+    @Query('source') source?: string,
+    @Query('resourceType') resourceType?: string,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const resources = await this.generatedResources.listForUser(userId, {
+      chatSessionId,
+      source: source as any,
+      resourceType,
+      status: status as any,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+    return success(resources);
+  }
+
+  /** GET /api/user/generated-resources/:id */
+  @Get('generated-resources/:id')
+  async getGeneratedResource(@CurrentUser('sub') userId: number, @Param('id') id: string) {
+    const resource = await this.generatedResources.getById(userId, parseInt(id, 10));
+    return success(resource);
+  }
+
   @Get('video-task/:taskId')
   async getVideoTask(@Param('taskId') taskId: string) {
     const task = await ActionExecutorService.getVideoTaskStatic(this.redis, taskId);
@@ -126,12 +155,13 @@ export class ChatController {
   /** POST /api/user/video-task — 直接触发视频生成（跳过 IntentRouter） */
   @Post('video-task')
   async createVideoTask(
-    @CurrentUser('sub') _userId: number,
+    @CurrentUser('sub') userId: number,
     @Body() body: { skillName: string; difficulty?: string },
   ) {
     const result = await this.actionExecutor.generateVideoDirect(
       body.skillName,
       body.difficulty || 'beginner',
+      userId,
     );
     return success(result);
   }

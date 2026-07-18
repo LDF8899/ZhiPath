@@ -13,7 +13,6 @@ import {
   markComplete,
   markCodeComplete,
   getMasteryBreakdown,
-  updateSkillMastery,
   generateCode,
   generateReading,
   assessLearning,
@@ -317,6 +316,13 @@ export default function KnowledgeDetail() {
     setTimeout(() => setMsg(null), 2500);
   };
 
+  const commitHint = (payload: any) => {
+    const commitId = payload?.commit?.id;
+    const matchDelta = Number(payload?.gitDelta?.metricsChange?.matchScore || 0);
+    if (!commitId) return '';
+    return ` · commit #${commitId}${matchDelta ? ` · 匹配度 ${matchDelta > 0 ? '+' : ''}${matchDelta}` : ''}`;
+  };
+
   /* ── Fetch knowledge ── */
   const fetchKnowledge = useCallback(async (isPoll = false) => {
     if (!skill) return;
@@ -396,15 +402,15 @@ export default function KnowledgeDetail() {
     try {
       const res = await markRead(decodeURIComponent(skill!), 0);
       if (res.code === 200 && res.data?.masteryPct !== undefined) {
-        showToast(`讲义已读完，掌握度 +${res.data.delta}% → ${res.data.masteryPct}%`);
+        showToast(`讲义已读完，掌握度 +${res.data.delta}% → ${res.data.masteryPct}%${commitHint(res.data)}`);
         recordProgress(0, decodeURIComponent(skill!), masteryBefore, res.data.masteryPct);
         // 工作区事件：讲义阅读完成触发技能完成
         try {
           useWorkspaceStore.getState().emit({
             type: 'skill_completed',
             skillName: decodeURIComponent(skill!),
-            newMatchScore: res.data.newMatchScore,
-            delta: res.data?.delta,
+            newMatchScore: res.data.matchSummary?.best?.matchScore,
+            delta: res.data?.gitDelta,
             snapshot: res.data?.snapshot,
           } as any);
         } catch { /* optional */ }
@@ -427,8 +433,10 @@ export default function KnowledgeDetail() {
       if (res.code === 200) {
         setQuizResult({ score: res.data.score, passed: res.data.passed });
         if (res.data.passed && res.data.masteryPct !== undefined) {
-          showToast(`习题通过！掌握度 +${res.data.delta}% → ${res.data.masteryPct}%`);
+          showToast(`习题通过！掌握度 +${res.data.delta}% → ${res.data.masteryPct}%${commitHint(res.data)}`);
           recordProgress(0, decodeURIComponent(skill!), masteryBefore, res.data.masteryPct);
+        } else {
+          showToast(`测验已提交${commitHint(res.data)}`);
         }
         // 工作区事件：考试完成
         try {
@@ -481,15 +489,15 @@ export default function KnowledgeDetail() {
     try {
       const res = await markCodeComplete(decodeURIComponent(skill!), 0);
       if (res.code === 200 && res.data?.masteryPct !== undefined) {
-        showToast(`编程实战完成！掌握度 +${res.data.delta}% → ${res.data.masteryPct}%`);
+        showToast(`编程实战完成！掌握度 +${res.data.delta}% → ${res.data.masteryPct}%${commitHint(res.data)}`);
         recordProgress(0, decodeURIComponent(skill!), masteryBefore, res.data.masteryPct);
         // 工作区事件：编程完成也是技能完成
         try {
           useWorkspaceStore.getState().emit({
             type: 'skill_completed',
             skillName: decodeURIComponent(skill!),
-            newMatchScore: res.data.newMatchScore,
-            delta: res.data?.delta,
+            newMatchScore: res.data.matchSummary?.best?.matchScore,
+            delta: res.data?.gitDelta,
             snapshot: res.data?.snapshot,
           } as any);
         } catch { /* optional */ }
@@ -542,12 +550,14 @@ export default function KnowledgeDetail() {
       const learningData = `技能: ${skillName}, 已读: ${readDone}, 测验分数: ${quizResult?.score ?? '未完成'}`;
       const res = await assessLearning({
         learningData,
+        skillName,
         goal: `掌握 ${skillName}`,
         currentProgress: `讲义${readDone ? '已' : '未'}读, 测验${quizSubmitted ? '已' : '未'}提交`,
       });
       if (res.code === 200 && res.data) {
         setAssessData(res.data);
         setAssessDone(true);
+        showToast(`评估已记录${commitHint(res.data)}`);
       }
     } catch { showToast('加载评估失败', 'error'); }
     setAssessLoading(false);
@@ -1642,9 +1652,8 @@ export default function KnowledgeDetail() {
               onClick={async () => {
                 const skillName = decodeURIComponent(skill!);
                 try {
-                  await markComplete(skillName, 0).catch(() => {});
-                  await updateSkillMastery(skillName, { masteryPct: 80 }).catch(() => {});
-                  showToast('技能已标记为完成！匹配度即将更新...');
+                  const res: any = await markComplete(skillName, 0).catch(() => null);
+                  showToast(`技能已标记为完成${commitHint(res?.data)}`);
                 } catch {
                   showToast('技能已标记为完成！');
                 }

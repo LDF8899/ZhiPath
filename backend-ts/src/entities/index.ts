@@ -53,3 +53,9 @@ export { CourseChapter } from './course-chapter.entity';
 
 // 课程能力项
 export { CourseAbility } from './course-ability.entity';
+export { EvaluationRubric } from './evaluation-rubric.entity';
+export { EvaluationAttempt } from './evaluation-attempt.entity';
+export { EvaluationEvidence } from './evaluation-evidence.entity';
+export { EvaluationResult } from './evaluation-result.entity';
+export { EvaluationDimensionScore } from './evaluation-dimension-score.entity';
+export { EvaluationImpact } from './evaluation-impact.entity';

@@ -8,6 +8,9 @@ import {
 } from '../../services/agents';
 import { KnowledgeBaseService } from '../../services/knowledge-base.service';
 import { AgentTaskService } from '../../services/agent-task.service';
+import { GeneratedResourceService } from '../../services/generated-resource.service';
+import { EvaluationService } from '../../services/evaluation.service';
+import { LearningCommitService } from '../../services/learning-commit.service';
 import { AuthGuard } from '../../common/auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { success, error } from '../../common/api-response';
@@ -28,12 +31,21 @@ export class AgentsController {
     private readonly assessAgent: AssessAgentService,
     private readonly knowledgeBase: KnowledgeBaseService,
     private readonly taskService: AgentTaskService,
+    private readonly generatedResources: GeneratedResourceService,
+    private readonly evaluationService: EvaluationService,
+    private readonly learningCommitService: LearningCommitService,
   ) {}
 
   /** 异步注册任务到办公室（不阻塞响应） */
   private registerOfficeTask(userId: number, agentType: string, title: string, result: any, params?: Record<string, any>) {
     this.taskService.createTask(userId, agentType as any, title, params)
-      .then(task => this.taskService.updateStatus(task.id, 'success', result))
+      .then(async (task) => {
+        await this.generatedResources.upsertFromTask(userId, task).catch(() => {});
+        const completedTask = await this.taskService.updateStatus(task.id, 'success', result);
+        if (completedTask) {
+          await this.generatedResources.upsertFromTask(userId, completedTask, result).catch(() => {});
+        }
+      })
       .catch(() => {});
   }
 
@@ -155,7 +167,7 @@ export class AgentsController {
   @Post('assess')
   async assessLearning(
     @CurrentUser('sub') userId: number,
-    @Body() body: { learningData: string; goal?: string; currentProgress?: string },
+    @Body() body: { learningData: string; goal?: string; currentProgress?: string; skillName?: string },
   ) {
     if (!body.learningData?.trim()) {
       return error(400, '请提供学习数据');
@@ -167,10 +179,80 @@ export class AgentsController {
         body.goal || '掌握技术栈',
         body.currentProgress || '学习中',
       );
-      this.registerOfficeTask(userId, 'assess', `学习评估`, result);
-      return success(result);
+      const skillName = body.skillName?.trim() || this.extractSkillName(body.learningData);
+      const git = await this.learningCommitService.commitSkill(userId, undefined, {
+        type: 'manual',
+        skillName,
+        delta: 0,
+        source: 'conversation',
+        trustWeight: 0.5,
+        message: skillName ? `assessment: ${skillName}` : 'assessment',
+        payload: {
+          source: 'ai_assessment',
+          goal: body.goal,
+          currentProgress: body.currentProgress,
+          overallScore: result.overallScore,
+        },
+      });
+      const evaluation = await this.evaluationService.record({
+        userId,
+        attemptType: 'ai_assessment',
+        sourceType: 'agent_assess',
+        sourceId: git.commit.id,
+        skillName,
+        goal: body.goal || null,
+        score: result.overallScore || 0,
+        passed: result.overallScore >= 70,
+        confidence: 0.62,
+        evaluatorType: 'llm',
+        evaluatorName: 'AssessAgentService',
+        level: result.level,
+        summary: result.summary || null,
+        feedback: {
+          weakPoints: result.weakPoints,
+          improvements: result.improvements,
+          planAdjustment: result.planAdjustment,
+          encouragement: result.encouragement,
+        },
+        rawResult: result as any,
+        evidence: {
+          learningData: body.learningData,
+          goal: body.goal,
+          currentProgress: body.currentProgress,
+        },
+        commitOutcome: git,
+        dimensions: (result.dimensions || []).map((dimension: any) => ({
+          name: dimension.dimension,
+          score: dimension.score,
+          maxScore: dimension.maxScore || 100,
+          trend: dimension.trend || 'stable',
+          detail: dimension.detail,
+        })),
+        nextActions: (result.improvements || []).slice(0, 3).map((item: any) => ({
+          type: 'improvement',
+          label: item.action || item.area,
+          priority: item.priority,
+          skillName: item.area || skillName,
+        })),
+      });
+      const enriched = {
+        ...result,
+        commit: git.commit,
+        snapshot: git.snapshot,
+        gitDelta: git.delta,
+        branch: git.branch,
+        matchSummary: git.matchSummary,
+        evaluation,
+      };
+      this.registerOfficeTask(userId, 'assess', `学习评估`, enriched);
+      return success(enriched);
     } catch (e: any) {
       return error(500, `学习评估失败：${e.message}`);
     }
+  }
+
+  private extractSkillName(learningData: string): string | undefined {
+    const match = String(learningData || '').match(/技能[:：]\s*([^,，\n]+)/);
+    return match?.[1]?.trim() || undefined;
   }
 }

@@ -8,6 +8,7 @@ import { KnowledgeBaseService } from '../../services/knowledge-base.service';
 import { LectureAgentService, CodeAgentService, ReadingAgentService } from '../../services/agents';
 import { AgentTaskService } from '../../services/agent-task.service';
 import { AgentProfileService } from '../../services/agent-profile.service';
+import { GeneratedResourceService } from '../../services/generated-resource.service';
 
 /**
  * Learning Paths 服务 — 对齐 Python api/user/learning_paths.py
@@ -26,6 +27,7 @@ export class LearningPathsService {
     private readingAgent: ReadingAgentService,
     private taskService: AgentTaskService,
     private profileService: AgentProfileService,
+    private generatedResources: GeneratedResourceService,
   ) {}
 
   /** 学习路径列表 — 对齐 GET /api/user/learning-paths */
@@ -114,6 +116,19 @@ export class LearningPathsService {
   }
 
   /** 异步并行生成所有知识内容并保存到 MongoDB */
+  private async syncGeneratedResource(userId: number | undefined, task: any, result?: any, failedMessage?: string): Promise<void> {
+    if (!userId || !task) return;
+    if (failedMessage) {
+      await this.generatedResources.failFromTask(userId, task, failedMessage).catch((e) =>
+        console.warn('[LearningPaths] generated resource failure upsert failed:', e.message),
+      );
+      return;
+    }
+    await this.generatedResources.upsertFromTask(userId, task, result).catch((e) =>
+      console.warn('[LearningPaths] generated resource upsert failed:', e.message),
+    );
+  }
+
   private async generateAllContent(skill: string, userId?: number): Promise<void> {
     console.log(`[LearningPaths] generateAllContent START for: ${skill}, userId: ${userId}, hasProfileService: ${!!this.profileService}`);
 
@@ -129,12 +144,18 @@ export class LearningPathsService {
         taskIds.lecture = lt.id;
         taskIds.code = ct.id;
         taskIds.reading = rt.id;
-        // 标记为运行中 + 员工上岗
         await Promise.all([
+          this.syncGeneratedResource(userId, lt),
+          this.syncGeneratedResource(userId, ct),
+          this.syncGeneratedResource(userId, rt),
+        ]);
+        // 标记为运行中 + 员工上岗
+        const runningTasks = await Promise.all([
           this.taskService.updateStatus(lt.id, 'running'),
           this.taskService.updateStatus(ct.id, 'running'),
           this.taskService.updateStatus(rt.id, 'running'),
         ]);
+        await Promise.all(runningTasks.map((task) => this.syncGeneratedResource(userId, task)));
         // 员工上岗：busy + 直接分配工位（不依赖 updateStatus 内部逻辑）
         const profiles = await this.profileService.getProfiles(userId);
         for (const agentType of ['lecture', 'code', 'reading'] as const) {
@@ -170,18 +191,26 @@ export class LearningPathsService {
 
     // 更新办公室任务状态 + 员工下岗
     if (userId) {
-      const update = (id: number | undefined, status: 'success' | 'failed', result?: any, error?: string) => {
-        if (id) this.taskService.updateStatus(id, status, result, error).catch(() => {});
+      const update = async (id: number | undefined, status: 'success' | 'failed', result?: any, error?: string) => {
+        if (!id) return;
+        const task = await this.taskService.updateStatus(id, status, result, error).catch(() => null);
+        if (status === 'failed') {
+          await this.syncGeneratedResource(userId, task, undefined, error || 'Content generation failed');
+        } else {
+          await this.syncGeneratedResource(userId, task, result);
+        }
       };
-      update(taskIds.lecture, lectureResult.status === 'fulfilled' ? 'success' : 'failed',
-        lectureResult.status === 'fulfilled' ? lectureResult.value : undefined,
-        lectureResult.status === 'rejected' ? lectureResult.reason?.message : undefined);
-      update(taskIds.code, codeResult.status === 'fulfilled' ? 'success' : 'failed',
-        codeResult.status === 'fulfilled' ? codeResult.value : undefined,
-        codeResult.status === 'rejected' ? codeResult.reason?.message : undefined);
-      update(taskIds.reading, readingResult.status === 'fulfilled' ? 'success' : 'failed',
-        readingResult.status === 'fulfilled' ? readingResult.value : undefined,
-        readingResult.status === 'rejected' ? readingResult.reason?.message : undefined);
+      await Promise.all([
+        update(taskIds.lecture, lectureResult.status === 'fulfilled' ? 'success' : 'failed',
+          lectureResult.status === 'fulfilled' ? lectureResult.value : undefined,
+          lectureResult.status === 'rejected' ? lectureResult.reason?.message : undefined),
+        update(taskIds.code, codeResult.status === 'fulfilled' ? 'success' : 'failed',
+          codeResult.status === 'fulfilled' ? codeResult.value : undefined,
+          codeResult.status === 'rejected' ? codeResult.reason?.message : undefined),
+        update(taskIds.reading, readingResult.status === 'fulfilled' ? 'success' : 'failed',
+          readingResult.status === 'fulfilled' ? readingResult.value : undefined,
+          readingResult.status === 'rejected' ? readingResult.reason?.message : undefined),
+      ]);
       // 员工下岗
       this.profileService.updateStatus(userId, 'lecture', 'idle').catch(() => {});
       this.profileService.updateStatus(userId, 'code', 'idle').catch(() => {});

@@ -85,6 +85,47 @@ CREATE TABLE `agent_tasks_v3` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `generated_resources_v3`
+--
+
+DROP TABLE IF EXISTS `generated_resources_v3`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `generated_resources_v3` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'primary key',
+  `user_id` bigint NOT NULL,
+  `resource_type` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `title` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `skill_name` varchar(120) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `source` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'manual',
+  `source_task_id` bigint DEFAULT NULL,
+  `external_id` varchar(160) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `chat_session_id` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `chat_message_id` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `agent_type` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `resource_status` enum('pending','running','success','failed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `payload` json DEFAULT NULL,
+  `preview_meta` json DEFAULT NULL,
+  `provider` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `raw_request` json DEFAULT NULL,
+  `raw_response` json DEFAULT NULL,
+  `cost_tokens` int NOT NULL DEFAULT '0',
+  `cost_credits` decimal(10,4) NOT NULL DEFAULT '0.0000',
+  `duration_ms` int DEFAULT NULL,
+  `error_message` text COLLATE utf8mb4_unicode_ci,
+  `status` tinyint NOT NULL DEFAULT '1',
+  `create_time` bigint DEFAULT NULL,
+  `update_time` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_generated_external_id` (`external_id`),
+  KEY `idx_generated_user_time` (`user_id`,`update_time`),
+  KEY `idx_generated_user_session` (`user_id`,`chat_session_id`),
+  KEY `idx_generated_source_task` (`source_task_id`),
+  KEY `idx_generated_type_status` (`resource_type`,`resource_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Generated resources and AI artifacts';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `course_abilities_v3`
 --
 

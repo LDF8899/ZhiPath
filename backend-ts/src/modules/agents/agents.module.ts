@@ -28,10 +28,14 @@ import { TtsService } from '../../services/tts.service';
 import { VideoRenderService } from '../../services/video-render.service';
 import { AgentTaskService } from '../../services/agent-task.service';
 import { AgentTask } from '../../entities/agent-task.entity';
+import { GeneratedResource } from '../../entities/generated-resource.entity';
+import { GeneratedResourceService } from '../../services/generated-resource.service';
 import { ExamQuestion } from '../../entities/exam.entity';
 import { AgentsController } from './agents.controller';
 import { AgentsTestController } from './agents-test.controller';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
+import { EvaluationModule } from '../evaluation/evaluation.module';
+import { GitLearningModule } from '../git-learning/git-learning.module';
 
 /**
  * Agents 模块 — 13 个智能体
@@ -55,7 +59,7 @@ import { KnowledgeModule } from '../knowledge/knowledge.module';
  * 14. OrchestratorAgentService — 中控智能体（意图识别 + 任务编排）
  */
 @Module({
-  imports: [KnowledgeModule, TypeOrmModule.forFeature([AgentTask, ExamQuestion])],
+  imports: [KnowledgeModule, EvaluationModule, GitLearningModule, TypeOrmModule.forFeature([AgentTask, GeneratedResource, ExamQuestion])],
   controllers: [AgentsController, AgentsTestController],
   providers: [
     // 基础服务
@@ -63,6 +67,7 @@ import { KnowledgeModule } from '../knowledge/knowledge.module';
     AgentCacheService,
     TokenTrackerService,
     AgentTaskService,
+    GeneratedResourceService,
     // 原有
     LectureAgentService,
     ReadingAgentService,

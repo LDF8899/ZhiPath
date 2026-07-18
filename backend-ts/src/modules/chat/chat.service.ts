@@ -13,6 +13,7 @@ import { ActionExecutorService } from './action-executor.service';
 import { AgentEngineService } from './agent-engine.service';
 import { LangGraphEngineService } from './langgraph-engine.service';
 import { EventsService } from '../events/events.service';
+import { AgentOfficeBridgeService } from '../../services/agent-office-bridge.service';
 import { extractJson } from '../../common/json-repair';
 
 const AGENT_INFO_MAP: Record<string, { name: string; animal: string; color: string }> = {
@@ -50,6 +51,7 @@ export class ChatService {
     private agentEngine: AgentEngineService,
     private langGraphEngine: LangGraphEngineService,
     private eventsService: EventsService,
+    private officeBridge: AgentOfficeBridgeService,
   ) {
     this.useLangGraph = this.config.get('USE_LANGGRAPH', 'false') === 'true';
     console.log(`[ChatService] Engine: ${this.useLangGraph ? 'LangGraph' : 'Simple'}`);
@@ -83,7 +85,7 @@ export class ChatService {
       const streamTimeout = 15000; // 15s 超时（给 fallback 留时间，前端 axios 超时 30s）
       try {
         const streamPromise = (async () => {
-          for await (const chunk of this.langGraphEngine.streamExecute(userId, messages, pageContext)) {
+          for await (const chunk of this.langGraphEngine.streamExecute(userId, messages, pageContext, sessionId)) {
             lastResult = chunk;
             // 累积每个节点产生的 actions，避免只取最后节点的 partial state
             const nodeActions = (chunk.state as any)?.actions;
@@ -112,7 +114,7 @@ export class ChatService {
         console.warn('[Chat] LangGraph stream produced no reply, falling back to invoke');
         this.eventsService.emit(userId, { type: 'chat_thinking', data: { message: '正在重新处理...' } });
         try {
-          const fallback = await this.langGraphEngine.execute(userId, messages, pageContext);
+          const fallback = await this.langGraphEngine.execute(userId, messages, pageContext, sessionId);
           reply = fallback.reply;
           // 如果 invoke 有新 actions 则用，否则保留 stream 累积的
           if (fallback.actions?.length > 0) {
@@ -129,7 +131,7 @@ export class ChatService {
         console.warn('[Chat] LangGraph invoke also empty, falling back to Simple engine');
         this.eventsService.emit(userId, { type: 'chat_thinking', data: { message: '切换到备用模式...' } });
         try {
-          const result = await this.agentEngine.chatNode(userId, messages, pageContext);
+          const result = await this.agentEngine.chatNode(userId, messages, pageContext, sessionId);
           reply = result.reply;
           // Simple 引擎产生的 actions 如果有则用，否则保留之前的
           if (result.actions?.length > 0) {
@@ -159,9 +161,10 @@ export class ChatService {
       // 执行动作
       if (intent) {
         console.log(`[Chat] Executing intent: ${intent.name}`);
-        const executed = await this.executeIntent(intent, userId);
+        const executed = await this.executeIntent(intent, userId, sessionId);
         actionResults = executed.actions;
         reply = executed.reply;
+        agent = this.officeBridge.getAgentForAction(intent.name) || intent.name || 'chat';
         console.log(`[Chat] Actions count: ${actionResults.length}, reply len: ${reply.length}`);
 
         // AI 用自然语言总结动作结果
@@ -174,7 +177,7 @@ export class ChatService {
       // 没有命中意图 → 走 AgentEngine 普通聊天
       if (!reply) {
         console.log(`[Chat] No reply from intent, falling back to AgentEngine`);
-        const result = await this.agentEngine.chatNode(userId, messages, pageContext);
+        const result = await this.agentEngine.chatNode(userId, messages, pageContext, sessionId);
         reply = result.reply;
         actionResults = result.actions;
         agent = result.agent;
@@ -184,7 +187,7 @@ export class ChatService {
 
     // 4. 保存回复
     if (reply) {
-      await this.chatHistory.saveMessage(userId, sessionId, 'assistant', reply, { agent });
+      await this.chatHistory.saveMessage(userId, sessionId, 'assistant', reply, { agent, actions: actionResults });
     }
 
     // 5. 通知前端处理完成
@@ -217,6 +220,7 @@ export class ChatService {
   private async executeIntent(
     intent: { name: string; filters: Record<string, any> },
     userId: number,
+    sessionId: string,
   ): Promise<{ actions: any[]; reply: string }> {
     const { name, filters } = intent;
 
@@ -270,7 +274,10 @@ export class ChatService {
     }
 
     try {
-      const results = await this.actionExecutor.executeActions([action], userId);
+      const results = await this.actionExecutor.executeActions([action], userId, {
+        source: 'chat',
+        chatSessionId: sessionId,
+      });
       return { actions: results, reply: '' };
     } catch (e) {
       console.error('[Chat] Action execution failed:', e.message);

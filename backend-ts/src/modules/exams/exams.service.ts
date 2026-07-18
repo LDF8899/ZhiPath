@@ -6,6 +6,8 @@ import { LearningTask } from '../../entities/learning-tasks.entity';
 import { ReviewerAgentService } from '../../services/agents';
 import { LlmService } from '../../services/llm.service';
 import { extractJson } from '../../common/json-repair';
+import { LearningCommitService } from '../../services/learning-commit.service';
+import { EvaluationService } from '../../services/evaluation.service';
 
 /**
  * Exams 服务 — 对齐 Python api/user/exams.py
@@ -18,6 +20,8 @@ export class ExamsService {
     @InjectRepository(LearningTask) private learningTaskRepo: Repository<LearningTask>,
     private readonly reviewerAgent: ReviewerAgentService,
     private readonly llmService: LlmService,
+    private readonly learningCommitService: LearningCommitService,
+    private readonly evaluationService: EvaluationService,
   ) {}
 
   /** 考试列表 — 对齐 GET /api/user/exams */
@@ -146,7 +150,7 @@ export class ExamsService {
 
     const accuracy = totalQuestions > 0 ? correctCount / totalQuestions : 0;
     const score = Math.round(accuracy * 100);
-    const passed = accuracy >= 0.6 ? 1 : 0;
+    const passed = score >= 70 ? 1 : 0;
 
     let wrongAnalysis: Record<string, any> | null = null;
     if (passed === 0 && wrongQuestions.length > 0) {
@@ -168,9 +172,12 @@ export class ExamsService {
       this.updatePassRate(q.id).catch(() => {});
     }
 
+    const evaluationPackage = await this.commitAndEvaluateExam(userId, exam, totalQuestions, correctCount, data.answers, questions, wrongAnalysis);
+
     return {
       ...exam,
       summary: { totalQuestions, correctCount, wrongCount: totalQuestions - correctCount },
+      ...evaluationPackage,
       wrongAnalysis: wrongAnalysis ? {
         wrongQuestions: wrongAnalysis.weakPoints || [],
         weakPoints: wrongAnalysis.weakPoints || [],
@@ -215,7 +222,7 @@ export class ExamsService {
     const totalQuestions = served.length;
     const accuracy = totalQuestions > 0 ? correctCount / totalQuestions : 0;
     const score = Math.round(accuracy * 100);
-    const passed = accuracy >= 0.6 ? 1 : 0;
+    const passed = score >= 70 ? 1 : 0;
 
     // §24.1 全对且总用时极短 → 标记可疑
     const totalTime = Object.values(timings).reduce((s, v) => s + (Number(v) || 0), 0);
@@ -250,16 +257,108 @@ export class ExamsService {
       console.warn(`[ExamsService] 考试 ${record.id} 异常行为:`, anomalies.join('; '));
     }
 
+    const evaluationPackage = await this.commitAndEvaluateExam(userId, record, totalQuestions, correctCount, userAnswers, served, wrongAnalysis);
+
     return {
       ...record,
       summary: { totalQuestions, correctCount, wrongCount: totalQuestions - correctCount },
       anomalyFlagged: anomalies.length > 0,
+      ...evaluationPackage,
       wrongAnalysis: wrongAnalysis ? {
         wrongQuestions: wrongAnalysis.weakPoints || [],
         weakPoints: wrongAnalysis.weakPoints || [],
         reinforcementPlan: wrongAnalysis.reinforcementPlan || {},
       } : undefined,
     };
+  }
+
+  private async commitAndEvaluateExam(
+    userId: number,
+    exam: ExamRecord,
+    totalQuestions: number,
+    correctCount: number,
+    userAnswers: any,
+    questions: any[],
+    wrongAnalysis: Record<string, any> | null,
+  ) {
+    const score = Number(exam.score || 0);
+    const passed = Number(exam.passed || 0) === 1;
+    const skillName = exam.skillName || undefined;
+    const masteryPct = passed ? score : Math.round(score * 0.5);
+    const git = await this.learningCommitService.commitSkill(userId, undefined, {
+      type: passed ? 'quiz_passed' : 'quiz_failed',
+      skillName,
+      masteryPct,
+      source: 'exam',
+      trustWeight: passed ? 1.0 : 0.8,
+      message: `exam ${passed ? 'passed' : 'failed'}: ${skillName || exam.id}`,
+      payload: {
+        source: 'exam',
+        examRecordId: exam.id,
+        examType: exam.examType,
+        score,
+        correctCount,
+        totalQuestions,
+        passScore: 70,
+      },
+    });
+    const evaluation = await this.evaluationService.record({
+      userId,
+      attemptType: 'exam',
+      sourceType: 'exam_record',
+      sourceId: exam.id,
+      skillName,
+      score,
+      passed,
+      confidence: passed ? 0.9 : 0.78,
+      evaluatorType: 'hybrid',
+      evaluatorName: 'ExamsService',
+      summary: `Exam ${passed ? 'passed' : 'failed'}: ${correctCount}/${totalQuestions}.`,
+      evidence: {
+        examRecordId: exam.id,
+        examType: exam.examType,
+        userAnswers,
+        questions: questions.map((q: any) => ({
+          id: q.id,
+          type: q.questionType,
+          skillName: q.skillName,
+          difficulty: q.difficulty,
+        })),
+        score,
+        correctCount,
+        totalQuestions,
+        passScore: 70,
+      },
+      feedback: wrongAnalysis || null,
+      rawResult: { wrongAnalysis },
+      commitOutcome: git,
+      dimensions: this.dimensionsFromGit(git, skillName || 'exam', score),
+      nextActions: passed
+        ? [{ type: 'next_skill', label: 'Move to next skill', skillName }]
+        : [{ type: 'retry_exam', label: 'Schedule retry', skillName }],
+    });
+    return {
+      commit: git.commit,
+      snapshot: git.snapshot,
+      gitDelta: git.delta,
+      branch: git.branch,
+      matchSummary: git.matchSummary,
+      evaluation,
+    };
+  }
+
+  private dimensionsFromGit(git: any, fallbackSkill: string, fallbackScore: number) {
+    const changes = git?.delta?.radarChanges || [];
+    if (Array.isArray(changes) && changes.length > 0) {
+      return changes.map((change: any) => ({
+        name: change.dimension,
+        score: Number.isFinite(Number(change.after)) ? Number(change.after) : fallbackScore,
+        maxScore: 100,
+        trend: Number(change.delta || 0) > 0 ? 'up' : Number(change.delta || 0) < 0 ? 'down' : 'stable',
+        detail: `Radar ${change.dimension}: ${change.before ?? 0} -> ${change.after ?? 0}`,
+      }));
+    }
+    return [{ name: fallbackSkill, score: fallbackScore, maxScore: 100, trend: 'stable' }];
   }
 
   // ── §24.1 防作弊辅助方法 ──────────────────────────────

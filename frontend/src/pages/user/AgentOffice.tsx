@@ -321,6 +321,7 @@ export default function AgentOffice() {
           profiles={office.profiles}
           activeTasks={office.activeTasks}
           completedOutputs={office.completedOutputs}
+          generatedOutputs={office.generatedOutputs}
           failedTasks={office.failedTasks}
           busyCount={office.busyCount}
           idleCount={office.idleCount}

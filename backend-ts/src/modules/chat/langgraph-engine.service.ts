@@ -17,9 +17,9 @@ import { IntentRouterService } from './intent-router.service';
 import { MatchAgentService } from '../../services/match-agent.service';
 import { PlannerAgentService } from '../../services/planner-agent.service';
 import { MultimodalService } from '../../services/multimodal.service';
-import { VideoAgentService } from '../../services/agents/video-agent.service';
 import { EventsService } from '../events/events.service';
 import { JobSearchService } from '../../services/job-search.service';
+import { AgentOfficeBridgeService } from '../../services/agent-office-bridge.service';
 import { extractJson } from '../../common/json-repair';
 
 // ── State 定义 ──────────────────────────────────
@@ -30,6 +30,7 @@ const ChatState = Annotation.Root({
   message: Annotation<string>,
   messages: Annotation<Array<{ role: string; content: string }>>,
   pageContext: Annotation<string>,
+  chatSessionId: Annotation<string>,
 
   // 中间状态
   intent: Annotation<{ name: string; filters: Record<string, any> } | null>,
@@ -105,11 +106,31 @@ export class LangGraphEngineService {
     private matchAgent: MatchAgentService,
     private plannerAgent: PlannerAgentService,
     private multimodal: MultimodalService,
-    private videoAgent: VideoAgentService,
     private eventsService: EventsService,
     private jobSearch: JobSearchService,
+    private officeBridge: AgentOfficeBridgeService,
   ) {
     this.buildGraph();
+  }
+
+  private trackOfficeNode<T>(
+    state: ChatStateType,
+    action: any,
+    execute: () => Promise<T>,
+  ): Promise<T> {
+    return this.officeBridge.runTrackedAction(
+      state.userId,
+      this.withChatContext(state, action),
+      execute,
+    );
+  }
+
+  private withChatContext(state: ChatStateType, action: any): any {
+    return {
+      ...action,
+      _source: action?._source || 'chat',
+      _chatSessionId: action?._chatSessionId || state.chatSessionId,
+    };
   }
 
   /** 构建 LangGraph 状态图 */
@@ -193,12 +214,14 @@ export class LangGraphEngineService {
     userId: number,
     messages: Array<{ role: string; content: string }>,
     pageContext: string = 'general',
+    chatSessionId = '',
   ): Promise<{ reply: string; actions: any[]; agent: string }> {
     const state = await this.graph.invoke({
       userId,
       message: messages[messages.length - 1]?.content || '',
       messages,
       pageContext,
+      chatSessionId,
       intent: null,
       intentPhase: 'none',
       profile: null,
@@ -232,12 +255,14 @@ export class LangGraphEngineService {
     userId: number,
     messages: Array<{ role: string; content: string }>,
     pageContext: string = 'general',
+    chatSessionId = '',
   ): AsyncGenerator<{ node: string; agent: string; label: string; state: Partial<ChatStateType> }> {
     const initialState = {
       userId,
       message: messages[messages.length - 1]?.content || '',
       messages,
       pageContext,
+      chatSessionId,
       intent: null as any,
       intentPhase: 'none',
       profile: null as any,
@@ -390,7 +415,7 @@ export class LangGraphEngineService {
     console.log(`[LangGraph] Executing intent: ${state.intent.name}`);
 
     try {
-      const executed = await this.executeIntent(state.intent, state.userId);
+      const executed = await this.executeIntent(state.intent, state.userId, state.chatSessionId);
       return {
         actions: executed.actions,
         reply: executed.reply,
@@ -499,7 +524,10 @@ export class LangGraphEngineService {
       try {
         const actions = this.actionExecutor.extractActions(reply);
         if (actions.length > 0) {
-          const results = await this.actionExecutor.executeActions(actions, state.userId);
+          const results = await this.actionExecutor.executeActions(actions, state.userId, {
+            source: 'chat',
+            chatSessionId: state.chatSessionId,
+          });
           actionResults.push(...results);
         }
       } catch (e) {
@@ -526,7 +554,8 @@ export class LangGraphEngineService {
   private async recommendJobsNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
     const filters = state.intent?.filters || {};
     const keyword = filters.keyword || '';
-    try {
+    return this.trackOfficeNode(state, { type: 'recommend_jobs', filters }, async () => {
+      try {
       const qb = this.jobRepo.createQueryBuilder('j').where('j.status = 1');
       if (keyword) qb.andWhere('j.title LIKE :kw', { kw: `%${keyword}%` });
       const jobs = await qb.orderBy('j.createTime', 'DESC').limit(5).getMany();
@@ -561,17 +590,19 @@ export class LangGraphEngineService {
       }
 
       return { jobResults: jobCards, actions: [{ type: 'jobs', data: jobCards }] };
-    } catch (e) {
+      } catch (e) {
       console.error('[LangGraph] recommendJobs failed:', e.message);
       return { jobResults: [], actions: [] };
-    }
+      }
+    });
   }
 
   /** 节点: 设置目标岗位 */
   private async setTargetJobNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
     const jobId = state.intent?.filters?.jobId;
     if (!jobId) return { actions: [] };
-    try {
+    return this.trackOfficeNode(state, { type: 'set_target_job', jobId }, async () => {
+      try {
       const student = await this.studentRepo.findOne({ where: { userId: state.userId, status: 1 } });
       if (student) { student.targetJobId = jobId; await this.studentRepo.save(student); }
       const job = await this.jobRepo.findOne({ where: { id: jobId, status: 1 } });
@@ -579,23 +610,26 @@ export class LangGraphEngineService {
       const collection = this.mongoConnection.db!.collection('user_profiles');
       await collection.updateOne({ user_id: String(state.userId) }, { $set: { 'goals.target_job_id': jobId, 'goals.target_job_title': jobTitle, updated_at: Date.now() } }, { upsert: true });
       return { actions: [{ type: 'target_set', data: { jobId, jobTitle } }] };
-    } catch (e) {
+      } catch (e) {
       console.error('[LangGraph] setTargetJob failed:', e.message);
       return { actions: [] };
-    }
+      }
+    });
   }
 
   /** 节点: 生成动画 */
   private async generateAnimationNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
     const skillName = state.intent?.filters?.skillName;
     if (!skillName) return { actions: [] };
-    try {
+    return this.trackOfficeNode(state, { type: 'generate_animation', skillName }, async () => {
+      try {
       const result = await this.multimodal.generateAnimation(skillName);
       return { animationResult: result, actions: [result] };
-    } catch (e) {
+      } catch (e) {
       console.error('[LangGraph] generateAnimation failed:', e.message);
       return { animationResult: null, actions: [] };
-    }
+      }
+    });
   }
 
   /** 节点: 生成图解 */
@@ -603,13 +637,15 @@ export class LangGraphEngineService {
     const skillName = state.intent?.filters?.skillName;
     const diagramType = state.intent?.filters?.diagramType || 'flowchart';
     if (!skillName) return { actions: [] };
-    try {
+    return this.trackOfficeNode(state, { type: 'generate_diagram', skillName, diagramType }, async () => {
+      try {
       const result = await this.multimodal.generateDiagram(skillName, diagramType);
       return { diagramResult: result, actions: [result] };
-    } catch (e) {
+      } catch (e) {
       console.error('[LangGraph] generateDiagram failed:', e.message);
       return { diagramResult: null, actions: [] };
-    }
+      }
+    });
   }
 
   /** 节点: 生成视频 */
@@ -617,23 +653,17 @@ export class LangGraphEngineService {
     const skillName = state.intent?.filters?.skillName;
     const difficulty = state.intent?.filters?.difficulty || 'beginner';
     if (!skillName) return { actions: [] };
-    const taskId = `langgraph_video_${Date.now()}`;
     try {
-      ActionExecutorService.videoTasks.set(taskId, { status: 'pending', progress: 0, message: '正在准备生成视频...', startTime: Date.now() });
-      this.videoAgent.generate(
-        { task_id: taskId, skill_name: skillName, knowledge_content: `# ${skillName}\n\n用户通过聊天请求生成教学视频。`, difficulty: difficulty as any },
-        (stage: string, progress: number, message: string) => {
-          const task = ActionExecutorService.videoTasks.get(taskId);
-          if (task) { task.status = stage as any; task.progress = Math.min(progress, 99); task.message = message; }
-        },
-      ).then((result) => {
-        const task = ActionExecutorService.videoTasks.get(taskId);
-        if (!task) return;
-        if (result.status === 'completed' && result.result) { task.status = 'completed'; task.progress = 100; task.message = '视频生成完成'; task.result = result.result; }
-        else { task.status = 'failed'; task.error = result.error || '视频生成失败'; }
-      }).catch((e: any) => { const task = ActionExecutorService.videoTasks.get(taskId); if (task) { task.status = 'failed'; task.error = e.message; } });
-      setTimeout(() => ActionExecutorService.videoTasks.delete(taskId), 600000);
-      return { videoResult: { taskId, skillName, difficulty }, actions: [{ type: 'video_pending', data: { taskId, skillName, difficulty, message: `正在为你生成「${skillName}」的教学视频，预计需要 2-4 分钟...` } }] };
+      const actions = await this.actionExecutor.executeActions(
+        [this.withChatContext(state, { type: 'generate_video', skillName, difficulty })],
+        state.userId,
+        { source: 'chat', chatSessionId: state.chatSessionId },
+      );
+      const pending = actions.find((action) => action?.type === 'video_pending');
+      return {
+        videoResult: pending?.data || { skillName, difficulty },
+        actions,
+      };
     } catch (e) {
       console.error('[LangGraph] generateVideo failed:', e.message);
       return { videoResult: null, actions: [] };
@@ -644,18 +674,21 @@ export class LangGraphEngineService {
   private async generateAvatarNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
     const skillName = state.intent?.filters?.skillName;
     if (!skillName) return { actions: [] };
-    try {
+    return this.trackOfficeNode(state, { type: 'generate_avatar', skillName }, async () => {
+      try {
       const result = await this.multimodal.generateAvatar(skillName);
       return { avatarResult: result, actions: [result] };
-    } catch (e) {
+      } catch (e) {
       console.error('[LangGraph] generateAvatar failed:', e.message);
       return { avatarResult: null, actions: [] };
-    }
+      }
+    });
   }
 
   /** 节点: 推荐资源 */
   private async recommendResourcesNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
     const skills: string[] = state.intent?.filters?.skills || [];
+    return this.trackOfficeNode(state, { type: 'recommend_resources', skills }, async () => {
     const RESOURCE_DB: Record<string, Array<{ title: string; url: string; type: string }>> = {
       javascript: [{ title: 'MDN JavaScript 指南', url: 'https://developer.mozilla.org/zh-CN/docs/Web/JavaScript', type: '文档' }, { title: 'JavaScript.info', url: 'https://javascript.info/', type: '教程' }],
       react: [{ title: 'React 官方文档', url: 'https://react.dev/', type: '文档' }, { title: 'React 中文文档', url: 'https://react.dev/learn', type: '教程' }],
@@ -667,12 +700,14 @@ export class LangGraphEngineService {
       if (RESOURCE_DB[key]) resources.push(...RESOURCE_DB[key]);
     }
     return { resourcesResult: resources, actions: [{ type: 'resources', data: resources }] };
+    });
   }
 
   /** 节点: 生成学习路径 */
   private async generatePathNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
     const jobId = state.intent?.filters?.targetJobId || state.student?.targetJobId;
-    try {
+    return this.trackOfficeNode(state, { type: 'generate_path', targetJobId: jobId }, async () => {
+      try {
       const result = await this.plannerAgent.generatePath(state.userId, jobId || undefined);
       return {
         pathResult: result,
@@ -686,10 +721,11 @@ export class LangGraphEngineService {
           },
         }],
       };
-    } catch (e) {
+      } catch (e) {
       console.error('[LangGraph] generatePath failed:', e.message);
       return { pathResult: null, actions: [] };
-    }
+      }
+    });
   }
 
   /** 节点: 生成考试 */
@@ -697,6 +733,7 @@ export class LangGraphEngineService {
     const skillName = state.intent?.filters?.skillName || 'JavaScript';
     const count = state.intent?.filters?.question_count || 5;
     const qType = state.intent?.filters?.question_type || 'mixed';
+    return this.trackOfficeNode(state, { type: 'generate_exam', skillName, question_count: count, question_type: qType }, async () => {
     const typeDesc = qType === 'mixed' ? '选择题和编程题混合' : qType === 'choice' ? '选择题' : '编程题';
     const prompt = `请为技能「${skillName}」生成 ${count} 道练习题。\n题型要求：${typeDesc}\n\n输出严格JSON格式：\n{\n  "skill": "${skillName}",\n  "questions": [\n    {"type": "choice", "question": "题目描述", "options": ["A", "B", "C", "D"], "answer": 0, "explanation": "解析"}\n  ]\n}\n只输出JSON，不要其他文字。`;
     try {
@@ -714,10 +751,12 @@ export class LangGraphEngineService {
       console.error('[LangGraph] generateExam failed:', e.message);
       return { examResult: null, actions: [] };
     }
+    });
   }
 
   /** 节点: 查看学习进度 */
   private async showProgressNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
+    return this.trackOfficeNode(state, { type: 'show_progress' }, async () => {
     try {
       const paths = await this.pathRepo.find({ where: { userId: state.userId, status: 1 }, order: { createTime: 'DESC' }, take: 1 });
       if (!paths.length) {
@@ -740,10 +779,12 @@ export class LangGraphEngineService {
       console.error('[LangGraph] showProgress failed:', e.message);
       return { progressResult: null, actions: [] };
     }
+    });
   }
 
   /** 节点: 查看今日任务 */
   private async showTodayTasksNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
+    return this.trackOfficeNode(state, { type: 'show_today_tasks' }, async () => {
     try {
       const paths = await this.pathRepo.find({ where: { userId: state.userId, status: 1 }, order: { createTime: 'DESC' }, take: 1 });
       if (!paths.length) {
@@ -768,12 +809,14 @@ export class LangGraphEngineService {
       console.error('[LangGraph] showTodayTasks failed:', e.message);
       return { dailyTasksResult: null, actions: [] };
     }
+    });
   }
 
   // ── 复合意图节点 & Orchestrator 兜底 ──────────────────────────────────
 
   /** 节点: 分析技能差距 */
   private async analyzeSkillGapNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
+    return this.trackOfficeNode(state, { type: 'match_analysis' }, async () => {
     try {
       const userSkills = state.profile?.skills || [];
       const targetJobId = state.student?.targetJobId;
@@ -802,6 +845,7 @@ export class LangGraphEngineService {
       console.error('[LangGraph] analyzeSkillGap failed:', e.message);
       return { skillGapResult: null, actions: [] };
     }
+    });
   }
 
   /** 节点: 面试准备（复合意图 - 并行执行） */
@@ -929,6 +973,7 @@ export class LangGraphEngineService {
   private async executeIntent(
     intent: { name: string; filters: Record<string, any> },
     userId: number,
+    chatSessionId = '',
   ): Promise<{ actions: any[]; reply: string }> {
     const { name, filters } = intent;
 
@@ -983,7 +1028,10 @@ export class LangGraphEngineService {
     }
 
     try {
-      const results = await this.actionExecutor.executeActions([action], userId);
+      const results = await this.actionExecutor.executeActions([action], userId, {
+        source: 'chat',
+        chatSessionId,
+      });
       return { actions: results, reply: '' };
     } catch (e) {
       console.error('[LangGraph] Action execution failed:', e.message);

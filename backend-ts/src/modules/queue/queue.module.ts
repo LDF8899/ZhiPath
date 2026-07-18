@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { AgentProcessor } from './agent.processor';
 import { ResourceProcessor } from './resource.processor';
 import { QueueService } from './queue.service';
+import { GeneratedResource } from '../../entities/generated-resource.entity';
+import { GeneratedResourceService } from '../../services/generated-resource.service';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { AgentsModule } from '../agents/agents.module';
 import { EventsModule } from '../events/events.module';
@@ -32,11 +35,12 @@ import { EventsModule } from '../events/events.module';
       { name: 'agent-tasks', prefix: 'zhipath' },
       { name: 'resource-tasks', prefix: 'zhipath' },
     ),
+    TypeOrmModule.forFeature([GeneratedResource]),
     KnowledgeModule,
     AgentsModule,
     EventsModule,
   ],
-  providers: [AgentProcessor, ResourceProcessor, QueueService],
+  providers: [AgentProcessor, ResourceProcessor, QueueService, GeneratedResourceService],
   exports: [QueueService],
 })
 export class QueueModule {}

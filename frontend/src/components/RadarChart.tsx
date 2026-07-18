@@ -1,25 +1,43 @@
 import '../styles/hand-draw.css';
 
-/**
- * 雷达图组件（SVG 实现，手绘风格）
- */
+type RadarPoint = {
+  label?: string;
+  name?: string;
+  value?: number;
+  score?: number;
+  max?: number;
+  trend?: 'up' | 'down' | 'stable';
+};
+
 interface RadarChartProps {
-  data: Array<{ label: string; value: number; max?: number }>;
+  data: RadarPoint[];
+  compareData?: RadarPoint[];
   size?: number;
   color?: string;
+  compareColor?: string;
   bgColor?: string;
+  showTrend?: boolean;
+  animated?: boolean;
+  onDimensionClick?: (item: RadarPoint, index: number) => void;
 }
 
 export default function RadarChart({
   data,
+  compareData,
   size = 200,
   color = 'var(--accent)',
+  compareColor = 'var(--data-blue)',
   bgColor = 'var(--paper-tint)',
+  showTrend = false,
+  animated = false,
+  onDimensionClick,
 }: RadarChartProps) {
+  const normalized = data.map(normalizePoint);
+  const compare = compareData?.map(normalizePoint);
   const center = size / 2;
-  const radius = size / 2 - 30;
+  const radius = size / 2 - 34;
   const levels = 5;
-  const count = data.length;
+  const count = normalized.length;
 
   if (count < 3) return null;
 
@@ -27,7 +45,7 @@ export default function RadarChart({
 
   const getPoint = (index: number, value: number, max: number = 100) => {
     const angle = (Math.PI * 2 * index) / count - Math.PI / 2;
-    const r = (value / max) * radius;
+    const r = (Math.max(0, Math.min(value, max)) / max) * radius;
     return {
       x: jitter(center + r * Math.cos(angle), index),
       y: jitter(center + r * Math.sin(angle), index + 0.5),
@@ -45,7 +63,7 @@ export default function RadarChart({
     return points.join(' ');
   };
 
-  const dataPath = data
+  const polygon = (items: ReturnType<typeof normalizePoint>[]) => items
     .map((d, i) => {
       const { x, y } = getPoint(i, d.value, d.max || 100);
       return `${x},${y}`;
@@ -53,8 +71,7 @@ export default function RadarChart({
     .join(' ');
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {/* 背景网格 */}
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ background: bgColor, borderRadius: 8 }}>
       {Array.from({ length: levels }, (_, i) => (
         <polygon
           key={i}
@@ -68,8 +85,7 @@ export default function RadarChart({
         />
       ))}
 
-      {/* 轴线 */}
-      {data.map((_, i) => {
+      {normalized.map((_, i) => {
         const { x, y } = getPoint(i, 100, 100);
         return (
           <line
@@ -86,36 +102,43 @@ export default function RadarChart({
         );
       })}
 
-      {/* 数据区域 */}
+      {compare && compare.length === count && (
+        <polygon
+          points={polygon(compare)}
+          fill={compareColor}
+          fillOpacity={0.08}
+          stroke={compareColor}
+          strokeWidth={2}
+          strokeDasharray="5 4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+
       <polygon
-        points={dataPath}
+        points={polygon(normalized)}
         fill={color}
         fillOpacity={0.15}
         stroke={color}
         strokeWidth={2.5}
         strokeLinecap="round"
         strokeLinejoin="round"
+        style={animated ? { transition: 'all 180ms ease' } : undefined}
       />
 
-      {/* 数据点 */}
-      {data.map((d, i) => {
+      {normalized.map((d, i) => {
         const { x, y } = getPoint(i, d.value, d.max || 100);
+        const clickable = Boolean(onDimensionClick);
         return (
-          <circle
-            key={i}
-            cx={x}
-            cy={y}
-            r={4}
-            fill={color}
-            stroke="var(--paper)"
-            strokeWidth={2}
-          />
+          <g key={i} onClick={() => onDimensionClick?.(data[i], i)} style={{ cursor: clickable ? 'pointer' : 'default' }}>
+            <circle cx={x} cy={y} r={4} fill={color} stroke="var(--paper)" strokeWidth={2} />
+            <title>{`${d.label}: ${Math.round(d.value)}`}</title>
+          </g>
         );
       })}
 
-      {/* 标签 */}
-      {data.map((d, i) => {
-        const { x, y } = getPoint(i, 115, 100);
+      {normalized.map((d, i) => {
+        const { x, y } = getPoint(i, 116, 100);
         return (
           <text
             key={i}
@@ -128,9 +151,20 @@ export default function RadarChart({
             fontFamily="'Patrick Hand', cursive"
           >
             {d.label}
+            {showTrend && d.trend === 'up' ? ' ↑' : ''}
+            {showTrend && d.trend === 'down' ? ' ↓' : ''}
           </text>
         );
       })}
     </svg>
   );
+}
+
+function normalizePoint(point: RadarPoint) {
+  return {
+    label: point.label || point.name || '',
+    value: Number(point.value ?? point.score ?? 0),
+    max: Number(point.max || 100),
+    trend: point.trend || 'stable',
+  };
 }
