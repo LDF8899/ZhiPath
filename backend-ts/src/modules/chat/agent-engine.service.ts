@@ -77,9 +77,13 @@ export class AgentEngineService {
     try {
       const actions = this.actionExecutor.extractActions(reply);
       if (actions.length > 0) {
+        const latestUserMessage = [...messages].reverse().find((message) => message.role === 'user')?.content || '';
         const results = await this.actionExecutor.executeActions(actions, userId, {
           source: 'chat',
           chatSessionId,
+          userMessage: latestUserMessage,
+          recentMessages: messages.slice(-8),
+          pageContext,
         });
         actionResults.push(...results);
       }

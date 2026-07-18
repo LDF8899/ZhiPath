@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
+import { createHash } from 'crypto';
 import { LlmService } from '../llm.service';
 import { TtsService } from '../tts.service';
 import { VideoRenderService } from '../video-render.service';
@@ -58,9 +59,14 @@ export class VideoAgentService {
     }
 
     // 尝试缓存
+    const contentHash = createHash('sha256')
+      .update(knowledge_content || '')
+      .digest('hex')
+      .slice(0, 16);
     const cacheKey = this.cacheService.generateKey('VideoAgent', 'generate', {
       skill: skill_name.trim(),
       difficulty,
+      contentHash,
     });
     const cached = await this.cacheService.get<any>(cacheKey);
     if (cached) {

@@ -63,6 +63,10 @@ const RESOURCE_DB: Record<string, Array<{ title: string; url: string; type: stri
 interface ActionExecutionContext {
   source?: string;
   chatSessionId?: string;
+  userMessage?: string;
+  recentMessages?: Array<{ role: string; content: string }>;
+  pageContext?: string;
+  userContext?: string;
 }
 
 interface VideoTaskProgress {
@@ -168,12 +172,56 @@ export class ActionExecutorService {
   }
 
   private withExecutionContext(action: any, context: ActionExecutionContext): any {
-    if (!context.source && !context.chatSessionId) return action;
+    if (!context.source && !context.chatSessionId && !context.userMessage && !context.recentMessages && !context.pageContext && !context.userContext) return action;
     return {
       ...action,
       _source: action?._source || context.source,
       _chatSessionId: action?._chatSessionId || context.chatSessionId,
+      _userMessage: action?._userMessage || context.userMessage,
+      _recentMessages: action?._recentMessages || context.recentMessages,
+      _pageContext: action?._pageContext || context.pageContext,
+      _userContext: action?._userContext || context.userContext,
     };
+  }
+
+  private compactContextText(value: any, maxLen = 1200): string {
+    if (value === undefined || value === null) return '';
+    const text = String(value).replace(/\s+/g, ' ').trim();
+    return text.length > maxLen ? `${text.slice(0, maxLen)}...` : text;
+  }
+
+  private buildRecentChatContext(messages: any[], maxMessages = 8): string {
+    if (!Array.isArray(messages) || messages.length === 0) return '';
+    return messages
+      .slice(-maxMessages)
+      .map((message) => {
+        const role = message?.role === 'assistant' ? 'assistant' : message?.role === 'system' ? 'system' : 'user';
+        const content = this.compactContextText(message?.content, 700);
+        return content ? `${role}: ${content}` : '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  private buildVideoKnowledgeContent(action: any, skillName: string): string {
+    const providedContent = action.knowledgeContent || action.knowledge_content || action.content || action.prompt || '';
+    const userMessage = this.compactContextText(action._userMessage || action.userMessage || action.message, 1200);
+    const pageContext = this.compactContextText(action._pageContext || action.pageContext, 500);
+    const userContext = this.compactContextText(action._userContext || action.userContext, 1200);
+    const recentChat = this.buildRecentChatContext(action._recentMessages || action.recentMessages);
+
+    const sections = [`# ${skillName || 'Video topic'}`];
+    if (userMessage) sections.push(`## Current user request\n${userMessage}`);
+    if (recentChat) sections.push(`## Recent chat context\n${recentChat}`);
+    if (pageContext) sections.push(`## Page context\n${pageContext}`);
+    if (userContext) sections.push(`## User profile context\n${userContext}`);
+    if (providedContent) sections.push(`## Reference content\n${this.compactContextText(providedContent, 2500)}`);
+
+    if (sections.length === 1) {
+      sections.push('## Generation objective\nCreate a teaching video aligned to the user request. No richer chat context was provided.');
+    }
+
+    return sections.join('\n\n').slice(0, 6000);
   }
 
   /** 执行单个动作 — 对齐 Python execute_single() */
@@ -526,10 +574,12 @@ export class ActionExecutorService {
     const skillName = action.skillName || action.skill_name || '';
     const difficulty = action.difficulty || 'beginner';
     const taskId = `chat_video_${Date.now()}`;
+    const knowledgeContent = this.buildVideoKnowledgeContent(action, skillName);
+    const contextSummary = this.compactContextText(action._userMessage || action.userMessage || action.message || skillName, 160);
     const officeTask = userId
       ? await this.officeBridge.startActionTask(
         userId,
-        { ...action, type: 'generate_video', skillName },
+        { ...action, type: 'generate_video', skillName, contextSummary },
         {
           externalId: taskId,
           title: skillName ? `生成教学视频: ${skillName}` : '生成教学视频',
@@ -551,7 +601,7 @@ export class ActionExecutorService {
       {
         task_id: taskId,
         skill_name: skillName,
-        knowledge_content: `# ${skillName}\n\n用户通过聊天请求生成教学视频。`,
+        knowledge_content: knowledgeContent,
         difficulty: difficulty as any,
       },
       // 进度回调：更新内存 + 同步 Redis
@@ -587,6 +637,7 @@ export class ActionExecutorService {
           duration_sec: result.result.duration_sec,
           segments_count: result.result.segments_count,
           skill_name: skillName,
+          context_summary: contextSummary,
         };
         if (userId && officeTask) {
           await this.officeBridge.completeTask(userId, officeTask.id, officeTask.agentType, task.result)
@@ -625,6 +676,7 @@ export class ActionExecutorService {
         taskId,
         skillName,
         difficulty,
+        contextSummary,
         message: `正在为你生成「${skillName}」的教学视频，预计需要 2-4 分钟...`,
       },
     };

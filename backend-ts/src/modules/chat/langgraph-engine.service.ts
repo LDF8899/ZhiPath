@@ -130,6 +130,21 @@ export class LangGraphEngineService {
       ...action,
       _source: action?._source || 'chat',
       _chatSessionId: action?._chatSessionId || state.chatSessionId,
+      _userMessage: action?._userMessage || state.message,
+      _recentMessages: action?._recentMessages || state.messages?.slice(-8),
+      _pageContext: action?._pageContext || state.pageContext,
+      _userContext: action?._userContext || state.userContext,
+    };
+  }
+
+  private actionContextFromState(state: ChatStateType) {
+    return {
+      source: 'chat',
+      chatSessionId: state.chatSessionId,
+      userMessage: state.message,
+      recentMessages: state.messages?.slice(-8),
+      pageContext: state.pageContext,
+      userContext: state.userContext,
     };
   }
 
@@ -415,7 +430,7 @@ export class LangGraphEngineService {
     console.log(`[LangGraph] Executing intent: ${state.intent.name}`);
 
     try {
-      const executed = await this.executeIntent(state.intent, state.userId, state.chatSessionId);
+      const executed = await this.executeIntent(state.intent, state.userId, state.chatSessionId, state);
       return {
         actions: executed.actions,
         reply: executed.reply,
@@ -524,10 +539,7 @@ export class LangGraphEngineService {
       try {
         const actions = this.actionExecutor.extractActions(reply);
         if (actions.length > 0) {
-          const results = await this.actionExecutor.executeActions(actions, state.userId, {
-            source: 'chat',
-            chatSessionId: state.chatSessionId,
-          });
+          const results = await this.actionExecutor.executeActions(actions, state.userId, this.actionContextFromState(state));
           actionResults.push(...results);
         }
       } catch (e) {
@@ -657,7 +669,7 @@ export class LangGraphEngineService {
       const actions = await this.actionExecutor.executeActions(
         [this.withChatContext(state, { type: 'generate_video', skillName, difficulty })],
         state.userId,
-        { source: 'chat', chatSessionId: state.chatSessionId },
+        this.actionContextFromState(state),
       );
       const pending = actions.find((action) => action?.type === 'video_pending');
       return {
@@ -974,6 +986,7 @@ export class LangGraphEngineService {
     intent: { name: string; filters: Record<string, any> },
     userId: number,
     chatSessionId = '',
+    state?: ChatStateType,
   ): Promise<{ actions: any[]; reply: string }> {
     const { name, filters } = intent;
 
@@ -1028,10 +1041,11 @@ export class LangGraphEngineService {
     }
 
     try {
-      const results = await this.actionExecutor.executeActions([action], userId, {
-        source: 'chat',
-        chatSessionId,
-      });
+      const results = await this.actionExecutor.executeActions(
+        [action],
+        userId,
+        state ? this.actionContextFromState(state) : { source: 'chat', chatSessionId },
+      );
       return { actions: results, reply: '' };
     } catch (e) {
       console.error('[LangGraph] Action execution failed:', e.message);

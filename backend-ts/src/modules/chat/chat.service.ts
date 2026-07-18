@@ -161,7 +161,7 @@ export class ChatService {
       // 执行动作
       if (intent) {
         console.log(`[Chat] Executing intent: ${intent.name}`);
-        const executed = await this.executeIntent(intent, userId, sessionId);
+        const executed = await this.executeIntent(intent, userId, sessionId, body.message, messages, pageContext);
         actionResults = executed.actions;
         reply = executed.reply;
         agent = this.officeBridge.getAgentForAction(intent.name) || intent.name || 'chat';
@@ -221,6 +221,9 @@ export class ChatService {
     intent: { name: string; filters: Record<string, any> },
     userId: number,
     sessionId: string,
+    userMessage = '',
+    messages: Array<{ role: string; content: string }> = [],
+    pageContext = 'general',
   ): Promise<{ actions: any[]; reply: string }> {
     const { name, filters } = intent;
 
@@ -277,6 +280,9 @@ export class ChatService {
       const results = await this.actionExecutor.executeActions([action], userId, {
         source: 'chat',
         chatSessionId: sessionId,
+        userMessage,
+        recentMessages: messages.slice(-8),
+        pageContext,
       });
       return { actions: results, reply: '' };
     } catch (e) {
