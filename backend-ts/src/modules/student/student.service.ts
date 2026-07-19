@@ -4,12 +4,10 @@ import { Repository } from 'typeorm';
 import { Student } from '../../entities/student.entity';
 import { UserSkill } from '../../entities/user-skills.entity';
 import { LearningPlan } from '../../entities/learning.entity';
-import { LearningTask } from '../../entities/learning-tasks.entity';
 import { JobPosition } from '../../entities/job.entity';
 import { ProfileService } from '../../services/profile.service';
 import { SkillService } from '../../services/skill.service';
 import { PlannerAgentService } from '../../services/planner-agent.service';
-import { QueueService } from '../queue/queue.service';
 import { getPlanTemplate } from './plan-templates';
 import { BranchService } from '../../services/branch.service';
 import { SkillSnapshotService } from '../../services/skill-snapshot.service';
@@ -23,12 +21,10 @@ export class StudentService {
     @InjectRepository(Student) private studentRepo: Repository<Student>,
     @InjectRepository(UserSkill) private userSkillRepo: Repository<UserSkill>,
     @InjectRepository(LearningPlan) private planRepo: Repository<LearningPlan>,
-    @InjectRepository(LearningTask) private taskRepo: Repository<LearningTask>,
     @InjectRepository(JobPosition) private jobRepo: Repository<JobPosition>,
     private profileService: ProfileService,
     private skillService: SkillService,
     private plannerAgent: PlannerAgentService,
-    private queueService: QueueService,
     private branchService: BranchService,
     private snapshotService: SkillSnapshotService,
   ) {}
@@ -48,8 +44,8 @@ export class StudentService {
       userId,
       username: '',
       realName: student?.name || '',
-      phone: '',
-      email: '',
+      phone: student?.phone || '',
+      email: student?.email || '',
       avatar: '',
       studentId: student?.id,
       name: student?.name || '',
@@ -113,9 +109,12 @@ export class StudentService {
 
     // 更新 MySQL 字段
     const updateData: Partial<Student> = {};
-    if (data.realName) updateData.name = data.realName;
+    if (data.name || data.realName) updateData.name = data.name || data.realName;
+    if (data.school) updateData.school = data.school;
     if (data.major) updateData.major = data.major;
     if (data.grade) updateData.grade = data.grade;
+    if (data.phone) updateData.phone = data.phone;
+    if (data.email) updateData.email = data.email;
     if (data.skills) updateData.skills = data.skills;
     if (data.targetJobId) updateData.targetJobId = data.targetJobId;
 
@@ -197,156 +196,103 @@ export class StudentService {
     return { completed: true };
   }
 
-  /** 创建学习计划 — 使用 PlannerAgent 生成 */
-  async createPlan(userId: number, data: { direction: string; dailyHours?: number; importFromPlanId?: number }) {
+  /** 创建计划：岗位主线绑定岗位，自选计划只绑定用户目标。 */
+  async createPlan(userId: number, data: {
+    planType?: 'main' | 'side';
+    direction?: string;
+    planName?: string;
+    skills?: string[];
+    targetJobId?: number;
+    dailyHours?: number;
+    importFromPlanId?: number;
+  }) {
     const now = Date.now();
     const student = await this.getByUserId(userId);
     if (!student) throw new Error('请先完成个人信息填写');
 
-    const direction = data.direction || 'frontend';
-    const template = getPlanTemplate(direction);
-    const dailyHours = data.dailyHours || student.dailyHours || 2;
+    const planType = data.planType || 'main';
+    const direction = data.direction || student.interests?.[0] || 'frontend';
+    const dailyHours = Math.max(0.5, Math.min(8, Number(data.dailyHours || student.dailyHours || 2)));
+    let targetJob: JobPosition | null = null;
+    let customSkills: string[] | undefined;
 
-    // 查找目标岗位
-    const targetJob = await this.jobRepo.findOne({
-      where: { title: template.targetJobTitle, status: 1 },
-      order: { id: 'ASC' },
-    });
-
-    // 更新学生的 targetJobId 和 interests
-    await this.studentRepo.update(student.id, {
-      targetJobId: targetJob?.id || student.targetJobId,
-      interests: [direction],
-      dailyHours,
-      updateTime: now,
-    });
-
-    // 使用 PlannerAgent 生成路径（如果岗位有技能数据则智能生成，否则用模板）
-    let plan: any;
-    let tasks: any[] = [];
-    let gapSkills: string[] = [];
-
-    if (targetJob?.requiredSkills?.length) {
-      // 智能生成
-      const result = await this.plannerAgent.generatePath(userId, targetJob.id, dailyHours);
-      plan = result.plan;
-      tasks = result.tasks;
-      gapSkills = result.gapSkills;
-    } else {
-      // 使用模板生成（向后兼容）
-      const totalDays = template.estimatedDays;
-      const estimatedDate = new Date(now + totalDays * 86400000).toISOString().slice(0, 10);
-
-      const pathData = {
-        direction,
-        phases: template.phases.map((phase, idx) => ({
-          name: phase.name,
-          index: idx,
-          skills: phase.skills.map((sk) => ({
-            name: sk.name,
-            estimatedMin: sk.estimatedMin,
-            priority: sk.priority,
-            status: 'pending',
-          })),
-        })),
-      };
-
-      // 如果要从旧计划导入技能进度
-      if (data.importFromPlanId) {
-        const oldPlan = await this.planRepo.findOne({ where: { id: data.importFromPlanId, userId, status: 1 } });
-        if (oldPlan?.pathData?.phases) {
-          const oldSkillsDone = new Set<string>();
-          for (const phase of oldPlan.pathData.phases) {
-            for (const skill of phase.skills || []) {
-              if (skill.status === 'done') oldSkillsDone.add(skill.name);
-            }
-          }
-          for (const phase of pathData.phases) {
-            for (const skill of phase.skills) {
-              if (oldSkillsDone.has(skill.name)) {
-                skill.status = 'done';
-              }
-            }
-          }
-        }
-      }
-
-      plan = await this.planRepo.save({
-        userId,
-        planName: template.planName,
-        planType: 'main',
-        targetJobId: targetJob?.id || null,
-        pathData,
-        currentPhase: 0,
-        dailyHours,
-        mainRatio: 80,
-        matchScore: 0,
-        estimatedDate,
-        createTime: now,
-        updateTime: now,
-        status: 1,
-      });
-
-      // 生成第一天的学习任务
-      const availableMinutes = dailyHours * 60 * 0.8;
-      const firstPhase = template.phases[0];
-      const taskEntities: Partial<LearningTask>[] = [];
-      let usedMinutes = 0;
-
-      for (let i = 0; i < firstPhase.skills.length; i++) {
-        const sk = firstPhase.skills[i];
-        if (usedMinutes + sk.estimatedMin > availableMinutes && taskEntities.length > 0) break;
-        taskEntities.push({
-          userId,
-          planId: plan.id,
-          skillName: sk.name,
-          taskType: 'main',
-          taskStatus: 'pending',
-          estimatedMin: sk.estimatedMin,
-          priority: sk.priority,
-          sortOrder: i,
-          planDate: new Date().toISOString().slice(0, 10),
-          isActive: 1,
-          status: 1,
-          createTime: now,
-          updateTime: now,
+    if (planType === 'main') {
+      if (data.targetJobId) {
+        targetJob = await this.jobRepo.findOne({ where: { id: data.targetJobId, status: 1 } });
+      } else {
+        const template = getPlanTemplate(direction);
+        targetJob = await this.jobRepo.findOne({
+          where: { title: template.targetJobTitle, status: 1 },
+          order: { id: 'ASC' },
         });
-        usedMinutes += sk.estimatedMin;
       }
-
-      if (taskEntities.length > 0) {
-        tasks = await this.taskRepo.save(taskEntities);
-      }
-
-      // §5.2 计划创建后异步提交资源生成任务（队列故障不阻塞 onboarding）
-      try {
-        await this.queueService.addResourceTask(userId, 'path_resources', { pathData });
-      } catch (e: any) {
-        console.warn('[Student] enqueue path_resources failed (resources will lazy-generate):', e.message);
+      if (!targetJob) throw new Error('岗位驱动计划必须选择一个有效岗位');
+    } else {
+      customSkills = Array.from(new Set((data.skills || [])
+        .map((skill) => String(skill).trim())
+        .filter(Boolean)));
+      if (customSkills.length === 0) {
+        const fallback = data.planName?.trim() || direction.trim();
+        if (!fallback) throw new Error('自选计划至少需要一个学习主题');
+        customSkills = [fallback];
       }
     }
 
-    // 同步目标到 MongoDB
-    await this.profileService.mergeProfileDelta(userId, {
-      goals_to_update: {
-        target_direction: direction,
-        target_job_id: targetJob?.id,
-        target_job_title: template.targetJobTitle,
-        daily_hours: dailyHours,
-        estimated_date: plan.estimatedDate,
-      },
-    }, 'plan_create');
+    const result = await this.plannerAgent.generatePath(
+      userId,
+      targetJob?.id,
+      dailyHours,
+      customSkills,
+      data.planName?.trim() || undefined,
+      planType,
+    );
 
+    if (data.importFromPlanId) {
+      const oldPlan = await this.planRepo.findOne({ where: { id: data.importFromPlanId, userId, status: 1 } });
+      const completed = new Set<string>();
+      for (const phase of oldPlan?.pathData?.phases || []) {
+        for (const skill of phase.skills || []) if (skill.status === 'done') completed.add(skill.name);
+      }
+      if (completed.size > 0 && result.plan.pathData?.phases) {
+        for (const phase of result.plan.pathData.phases) {
+          for (const skill of phase.skills || []) if (completed.has(skill.name)) skill.status = 'done';
+        }
+        result.plan.updateTime = now;
+        await this.planRepo.save(result.plan);
+      }
+    }
+
+    if (planType === 'main' && targetJob) {
+      await this.studentRepo.update(student.id, {
+        targetJobId: targetJob.id,
+        interests: [direction],
+        dailyHours,
+        updateTime: now,
+      });
+      await this.profileService.mergeProfileDelta(userId, {
+        goals_to_update: {
+          target_direction: direction,
+          target_job_id: targetJob.id,
+          target_job_title: targetJob.title,
+          daily_hours: dailyHours,
+          estimated_date: result.plan.estimatedDate,
+        },
+      }, 'main_plan_create');
+    }
+
+    const branch = await this.branchService.ensurePlanBranch(userId, result.plan);
     return {
-      id: plan.id,
-      planName: plan.planName,
-      estimatedDate: plan.estimatedDate,
-      totalSkills: (plan.pathData?.phases || []).reduce((sum: number, p: any) => sum + (p.skills?.length || 0), 0),
-      gapSkills,
-      todayTasks: tasks.map((t) => ({
-        skillName: t.skillName,
-        estimatedMin: t.estimatedMin,
-        taskType: t.taskType,
+      id: result.plan.id,
+      planName: result.plan.planName,
+      planType: result.plan.planType,
+      branchId: branch.id,
+      estimatedDate: result.plan.estimatedDate,
+      totalSkills: (result.plan.pathData?.phases || []).reduce((sum: number, phase: any) => sum + (phase.skills?.length || 0), 0),
+      gapSkills: result.gapSkills,
+      todayTasks: result.tasks.map((task) => ({
+        skillName: task.skillName,
+        estimatedMin: task.estimatedMin,
+        taskType: task.taskType,
       })),
     };
   }
@@ -368,6 +314,8 @@ export class StudentService {
         id: p.id,
         planName: p.planName,
         planType: p.planType,
+        planStatus: p.planStatus,
+        scheduleEnabled: p.scheduleEnabled === 1,
         targetJobId: p.targetJobId,
         currentPhase: p.currentPhase,
         dailyHours: Number(p.dailyHours) || 0,

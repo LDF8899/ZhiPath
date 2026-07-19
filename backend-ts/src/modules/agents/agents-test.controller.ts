@@ -303,7 +303,7 @@ export class AgentsTestController {
         output: result,
         stats: {
           timeMs: Date.now() - start,
-          sectionCount: result.sections.length,
+          sectionCount: result.templateData.skills.length + result.templateData.projects.length,
           highlightCount: result.highlights.length,
           htmlLength: result.html.length,
         },

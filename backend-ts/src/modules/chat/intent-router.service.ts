@@ -85,7 +85,7 @@ const TOOLS = [
   {
     type: 'function',
     function: {
-      name: 'generate_learning_path',
+      name: 'generate_path',
       description: '为用户生成分阶段的学习路径。触发词：学习计划、学习路径、怎么学、帮我规划、制定计划、学习方案、学XX要多久、入门XX怎么学。当用户提到想学什么、制定计划、规划学习时调用。',
       parameters: {
         type: 'object',
@@ -93,6 +93,12 @@ const TOOLS = [
           target_job_id: { type: 'integer', description: '目标岗位ID，如果用户没有指定则传 0' },
           direction: { type: 'string', description: "学习方向，如'前端开发'、'Python后端'" },
           duration_months: { type: 'integer', description: '计划时长（月），默认3' },
+          skills: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '用户想学的核心技能/技术/主题列表，从用户消息中提取。如用户说"学记忆工程"则传["记忆工程","LangChain","向量数据库"]',
+          },
+          plan_name: { type: 'string', description: '从用户消息中提取的学习计划名称。如用户说"记忆工程学习计划"则传此值' },
         },
         required: [],
       },
@@ -168,7 +174,13 @@ const TOOLS = [
     function: {
       name: 'match_analysis',
       description: '分析用户技能与目标岗位的匹配度和差距。触发词：匹配度、差距分析、还差什么、技能差距、我够不够格、能不能投。',
-      parameters: { type: 'object', properties: {}, required: [] },
+      parameters: {
+        type: 'object',
+        properties: {
+          job_id: { type: 'integer', description: '要分析的岗位ID，可选。如果不传，默认分析用户已设置的目标岗位' },
+        },
+        required: [],
+      },
     },
   },
   {

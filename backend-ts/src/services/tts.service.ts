@@ -32,7 +32,8 @@ export interface TtsOptions {
   model?: string;
   voice?: string;
   output_dir?: string;
-  style?: string;       // 自然语言风格指令
+  style?: string;       // 自然语言风格指令（仅 MiMo）
+  provider?: 'mimo' | 'edge';
 }
 
 @Injectable()
@@ -42,6 +43,9 @@ export class TtsService {
   private defaultModel: string;
   private defaultVoice: string;
   private outputDir: string;
+  private ttsProvider: 'mimo' | 'edge';
+  private edgeVoice: string;
+  private edgePythonCmd: string;
 
   /** 默认风格指令：教学场景女声 */
   private static readonly DEFAULT_STYLE =
@@ -57,9 +61,13 @@ export class TtsService {
     this.defaultModel = this.config.get('MIMO_TTS_MODEL', 'mimo-v2.5-tts');
     this.defaultVoice = this.config.get('MIMO_TTS_VOICE', '冰糖');
     this.outputDir = this.config.get('TTS_OUTPUT_DIR', '/tmp/zhipath/tts');
+    this.ttsProvider = this.config.get<'mimo' | 'edge'>('TTS_PROVIDER', 'mimo');
+    this.edgeVoice = this.config.get('EDGE_TTS_VOICE', 'zh-CN-XiaoxiaoNeural');
+    this.edgePythonCmd = this.config.get('EDGE_TTS_PYTHON', 'python');
 
-    console.log(`[TTS] Init: baseUrl=${this.baseUrl}, model=${this.defaultModel}, voice=${this.defaultVoice}`);
-    console.log(`[TTS] API key loaded: ${this.apiKey ? this.apiKey.substring(0, 10) + '...' + this.apiKey.slice(-4) : 'EMPTY'}`);
+    console.log(`[TTS] Init: provider=${this.ttsProvider}, mimo model=${this.defaultModel}, voice=${this.defaultVoice}`);
+    console.log(`[TTS] Edge: voice=${this.edgeVoice}, python=${this.edgePythonCmd}`);
+    console.log(`[TTS] MiMo API key loaded: ${this.apiKey ? this.apiKey.substring(0, 10) + '...' + this.apiKey.slice(-4) : 'EMPTY'}`);
 
     fs.mkdirSync(this.outputDir, { recursive: true });
   }
@@ -70,24 +78,30 @@ export class TtsService {
   async synthesize(text: string, options: TtsOptions = {}): Promise<TtsResult> {
     if (!text?.trim()) throw new Error('TTS 文本不能为空');
 
-    const model = options.model || this.defaultModel;
-    const voice = options.voice || this.defaultVoice;
+    const provider = options.provider || this.ttsProvider;
+    const voice = options.voice || (provider === 'edge' ? this.edgeVoice : this.defaultVoice);
     const outDir = options.output_dir || this.outputDir;
-    const style = options.style || TtsService.DEFAULT_STYLE;
 
     const timestamp = Date.now();
     const hash = this.simpleHash(text);
     const filePath = path.join(outDir, `tts_${timestamp}_${hash}.wav`);
 
     try {
-      const result = await this.callTTSApi(text, voice, model, style);
+      if (provider === 'edge') {
+        return await this.synthesizeEdge(text, voice, filePath);
+      }
 
+      // MiMo provider
+      const model = options.model || this.defaultModel;
+      const style = options.style || TtsService.DEFAULT_STYLE;
+
+      const result = await this.callMiMoApi(text, voice, model, style);
       const audioBuffer = Buffer.from(result.audioData, 'base64');
       fs.writeFileSync(filePath, audioBuffer);
 
       const durationSec = this.getAudioDuration(filePath);
 
-      console.log(`[TTS] 合成完成: ${text.substring(0, 30)}... → ${filePath} (${durationSec.toFixed(2)}s)`);
+      console.log(`[TTS] MiMo 合成完成: ${text.substring(0, 30)}... → ${filePath} (${durationSec.toFixed(2)}s)`);
 
       return {
         file_path: filePath,
@@ -96,7 +110,7 @@ export class TtsService {
         characters: text.length,
       };
     } catch (e: any) {
-      console.warn(`[TTS] API 调用失败，降级为时长估算: ${e.message}`);
+      console.warn(`[TTS] ${provider} 合成失败，降级为时长估算: ${e.message}`);
       return {
         file_path: '',
         duration_sec: this.estimateDuration(text),
@@ -115,7 +129,54 @@ export class TtsService {
    *   audio.voice       → 预置音色名
    *   audio.format      → wav
    */
-  private async callTTSApi(
+  /**
+   * Edge TTS 合成 — 调用 Python edge-tts 命令行
+   */
+  private async synthesizeEdge(
+    text: string,
+    voice: string,
+    outputPath: string,
+  ): Promise<TtsResult> {
+    const python = this.edgePythonCmd;
+
+    // 写入临时文本文件（避免命令行参数编码问题）
+    const tmpFile = outputPath + '.txt';
+    fs.writeFileSync(tmpFile, text, 'utf-8');
+
+    try {
+      execSync(
+        `"${python}" -m edge_tts -f "${tmpFile}" --voice "${voice}" --write-media "${outputPath}"`,
+        {
+          encoding: 'utf-8',
+          timeout: 30000,
+          stdio: 'pipe',
+        },
+      );
+
+      // edge-tts 输出的是 mp3 格式，但为了一致性我们判断实际格式
+      let actualPath = outputPath;
+      if (!fs.existsSync(outputPath)) {
+        // edge-tts 可能输出 .mp3
+        actualPath = outputPath.replace(/\.wav$/, '.mp3');
+      }
+
+      const durationSec = this.getAudioDuration(actualPath);
+
+      console.log(`[TTS] Edge 合成完成: ${text.substring(0, 30)}... → ${actualPath} (${durationSec.toFixed(2)}s)`);
+
+      return {
+        file_path: actualPath,
+        duration_sec: durationSec,
+        sample_rate: 24000,
+        characters: text.length,
+      };
+    } finally {
+      // 清理临时文件
+      try { fs.unlinkSync(tmpFile); } catch {}
+    }
+  }
+
+  private async callMiMoApi(
     text: string,
     voice: string,
     model: string,

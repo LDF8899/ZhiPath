@@ -39,6 +39,7 @@ export interface Student {
   grade: string;
   targetJobId: number | null;
   dailyHours: number;
+  mainRatio?: number;
   interests: string[];
   skills: Skill[];
   projects: Project[];
@@ -82,6 +83,7 @@ export interface Job {
   snippet?: string;
   searchMeta?: {
     source: 'local' | 'online';
+    origin?: 'web' | 'ai_generated';
     matchedFields: string[];
   };
   enterpriseId?: number;
@@ -94,14 +96,18 @@ export interface LearningPath {
   id: number;
   userId: number;
   planName: string;
-  targetJobId: number;
+  planType: 'main' | 'side';
+  targetJobId: number | null;
+  planStatus: 'active' | 'paused' | 'archived';
+  scheduleEnabled: number;
+  branchId?: number;
   currentPhase: number;
   matchScore: number;
   estimatedDate: string;
   dailyHours: number;
   pathData: {
     phases: Phase[];
-  };
+  } | null;
   status: number;
   createTime: number;
 }
@@ -127,7 +133,8 @@ export interface Phase {
 export interface SkillNode {
   name: string;
   status: 'pending' | 'done';
-  duration: string;
+  duration?: string;
+  estimatedMin?: number;
   readAt?: number;
   lecture_done?: boolean;
   quizScore?: number;

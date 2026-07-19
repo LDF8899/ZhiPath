@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getProfile, getSkills, updateProfile } from '../../api/user';
 import RadarChart from '../../components/RadarChart';
 import SkillGraph3D from '../../components/SkillGraph3D';
+import AbilityMap3D from '../../components/AbilityMap3D';
 import { useWorkspaceStore } from '../../stores/workspace';
 import {
   IconUser,
@@ -379,6 +380,19 @@ export default function Profile() {
                   </div>
                 </div>
               )}
+
+              {/* ── Ability visualization from the skill list ── */}
+              {p.skills?.length > 0 && (
+                <div className="hd-card-accent" style={{ paddingBottom: 16, overflow: 'hidden' }}>
+                  <div className="hd-section-label" style={{ padding: '0 2px' }}>
+                    <IconChart size={18} />
+                    <h3>能力可视化</h3>
+                    <span className="hd-badge accent" style={{ marginLeft: 'auto' }}>3D</span>
+                  </div>
+                  <AbilityMap3D profileSkills={p.skills} effectiveSkills={skills} />
+                </div>
+              )}
+
             </div>
 
             {/* ═══════════════════════════════════════════
@@ -539,6 +553,31 @@ export default function Profile() {
                     暂无项目经历，可通过 GitHub 导入或手动添加
                   </p>
                 )}
+              </div>
+
+              {/* ── 我的简历 ── */}
+              <div
+                className="hd-card-accent"
+                style={{ cursor: 'pointer' }}
+                onClick={() => navigate('/user/resume')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') navigate('/user/resume'); }}
+              >
+                <div className="hd-section-label">
+                  <IconBriefcase size={18} />
+                  <h3>我的简历</h3>
+                </div>
+                <div className="hd-flex-col" style={{ gap: 8 }}>
+                  <p style={{ font: "14px/1.5 var(--hand)", color: 'var(--pencil)', margin: 0 }}>
+                    查看和导出已生成的简历，支持 HTML 编辑和 PDF 导出
+                  </p>
+                  <div className="hd-flex" style={{ justifyContent: 'flex-end' }}>
+                    <span className="hd-tag" style={{ background: 'var(--accent)', color: '#fff' }}>
+                      前往 →
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* ── 3D 知识图谱 ── */}

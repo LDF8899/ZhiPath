@@ -52,7 +52,7 @@ export class VideoAgentService {
     onProgress?: (stage: string, progress: number, message: string) => void,
   ): Promise<VideoAgentOutput> {
     const startTime = Date.now();
-    const { skill_name, difficulty, knowledge_content, task_id } = input;
+    const { skill_name, difficulty, knowledge_content, task_id, tts_provider } = input;
 
     if (!skill_name?.trim()) {
       return this.fail(task_id, '请提供技能名称');
@@ -123,10 +123,13 @@ export class VideoAgentService {
         text: s.narration,
       }));
 
+      const ttsOptions: any = {};
+      if (tts_provider) ttsOptions.provider = tts_provider;
+
       let doneChars = 0;
       const ttsResults = await this.ttsService.synthesizeBatch(
         ttsSegments,
-        {},
+        ttsOptions,
         (done, total, currentId) => {
           const seg = script.segments.find(s => s.id === currentId);
           if (seg) doneChars += seg.narration.length;

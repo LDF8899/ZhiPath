@@ -188,7 +188,7 @@ export default function UserLayout() {
 
   return (
     <div className="hd-page">
-      <div className="hd-layout">
+      <div className={`hd-layout${currentPath.startsWith('/user/chat') ? ' is-chat' : ''}`}>
         {/* ── Desktop sidebar ── */}
         <aside className="hd-sidebar">
           <div className="hd-sidebar-brand">智途 ZhiPath</div>
@@ -224,15 +224,7 @@ export default function UserLayout() {
           </div>
 
           {/* Page content — Chat page needs full-bleed, no padding */}
-          <div style={{
-            flex: 1,
-            overflowY: currentPath.startsWith('/user/chat') ? 'hidden' : 'auto',
-            overflowX: 'hidden',
-            padding: currentPath.startsWith('/user/chat') ? 0 : '24px 32px',
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: 0,
-          }}>
+          <div className={`hd-main-scroll${currentPath.startsWith('/user/chat') ? ' is-chat' : ''}`}>
             <Outlet />
           </div>
         </div>

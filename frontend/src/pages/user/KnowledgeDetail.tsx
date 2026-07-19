@@ -18,18 +18,14 @@ import {
   assessLearning,
   createAgentOfficeTask,
   getAgentOfficeTask,
-  generateAnimation,
   generateDiagram,
   generateVideo,
-  generateAvatar,
   getMultimodal,
 } from '../../api/user';
 import { useSessionProgress } from '../../hooks/useSession';
 import { useWorkspaceStore } from '../../stores/workspace';
-import AnimationCard from '../../components/AnimationCard';
 import DiagramCard from '../../components/DiagramCard';
 import VideoCard from '../../components/VideoCard';
-import AvatarCard from '../../components/AvatarCard';
 import '../../styles/hand-draw.css';
 import {
   IconArrowLeft,
@@ -293,7 +289,7 @@ export default function KnowledgeDetail() {
   const [assessDone, setAssessDone] = useState(false);
 
   /* Multimodal tab state */
-  const [mmData, setMmData] = useState<{ animation: any; diagram: any; video: any; avatar: any } | null>(null);
+  const [mmData, setMmData] = useState<{ diagram: any; video: any } | null>(null);
   const [mmLoading, setMmLoading] = useState(false);
   const [mmGenerating, setMmGenerating] = useState<Record<string, boolean>>({});
 
@@ -571,10 +567,8 @@ export default function KnowledgeDetail() {
       const res = await getMultimodal(decodeURIComponent(skill));
       if (res.code === 200 && res.data) {
         setMmData({
-          animation: res.data.animation,
           diagram: res.data.diagram,
           video: res.data.video,
-          avatar: res.data.avatar,
         });
       }
     } catch { /* ignore */ }
@@ -582,15 +576,13 @@ export default function KnowledgeDetail() {
   }, [skill]);
 
   /* ── Multimodal: generate one modality ── */
-  const handleGenerateMm = async (kind: 'animation' | 'diagram' | 'video' | 'avatar') => {
+  const handleGenerateMm = async (kind: 'diagram' | 'video') => {
     const skillName = decodeURIComponent(skill!);
     setMmGenerating((p) => ({ ...p, [kind]: true }));
     try {
       let res: any;
-      if (kind === 'animation') res = await generateAnimation({ skillName });
-      else if (kind === 'diagram') res = await generateDiagram({ skillName, diagramType: 'flowchart' });
-      else if (kind === 'video') res = await generateVideo({ skillName });
-      else res = await generateAvatar({ skillName });
+      if (kind === 'diagram') res = await generateDiagram({ skillName, diagramType: 'flowchart' });
+      else res = await generateVideo({ skillName });
 
       // 后端返回 { code, data: { type, data } }（多模态 action 信封）
       const payload = res?.data?.data ?? res?.data;
@@ -598,7 +590,7 @@ export default function KnowledgeDetail() {
         if (res.data?.type === 'error') {
           showToast(res.data.message || '生成失败', 'error');
         } else {
-          setMmData((prev) => ({ ...(prev || { animation: null, diagram: null, video: null, avatar: null }), [kind]: payload }));
+          setMmData((prev) => ({ ...(prev || { diagram: null, video: null }), [kind]: payload }));
         }
       } else {
         showToast('生成失败', 'error');
@@ -1594,17 +1586,6 @@ export default function KnowledgeDetail() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                {/* 动画演示 */}
-                <MmSection
-                  label="HTML 动画演示"
-                  hint="可视化演示概念的执行过程"
-                  has={!!mmData?.animation}
-                  generating={!!mmGenerating.animation}
-                  onGenerate={() => handleGenerateMm('animation')}
-                >
-                  {mmData?.animation && <AnimationCard data={mmData.animation} />}
-                </MmSection>
-
                 {/* 图表 */}
                 <MmSection
                   label="Mermaid 图解"
@@ -1619,23 +1600,12 @@ export default function KnowledgeDetail() {
                 {/* 短视频 */}
                 <MmSection
                   label="教学短视频"
-                  hint="智谱 AI 生成 5 秒可视化视频"
+                  hint="AI 生成教学讲解视频"
                   has={!!mmData?.video}
                   generating={!!mmGenerating.video}
                   onGenerate={() => handleGenerateMm('video')}
                 >
                   {mmData?.video && <VideoCard data={mmData.video} />}
-                </MmSection>
-
-                {/* 数字人 */}
-                <MmSection
-                  label="数字人讲解"
-                  hint="讯飞虚拟教师讲解"
-                  has={!!mmData?.avatar}
-                  generating={!!mmGenerating.avatar}
-                  onGenerate={() => handleGenerateMm('avatar')}
-                >
-                  {mmData?.avatar && <AvatarCard data={mmData.avatar} />}
                 </MmSection>
               </div>
             )}

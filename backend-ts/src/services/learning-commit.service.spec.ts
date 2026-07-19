@@ -39,6 +39,7 @@ describe('LearningCommitService', () => {
         metricsChange: { overallScore: 30, matchScore: 12, depthScore: 30, breadthScore: 17 },
         radarChanges: [{ dimension: '工程化', before: 0, after: 30, delta: 30 }],
       }),
+      normalizeSkills: jest.fn((skills) => skills || []),
     };
     const matchAgentService = {
       calculateForAllJobs: jest.fn().mockResolvedValue([{ jobId: 1, jobTitle: 'FE', matchScore: 12, canApply: false }]),
@@ -80,5 +81,23 @@ describe('LearningCommitService', () => {
     expect(branchRepo.save).toHaveBeenCalledWith(expect.objectContaining({ headCommitId: result.commit.id }));
     expect(eventsService.emit).toHaveBeenCalledWith(1, expect.objectContaining({ type: 'commit_created' }));
     expect(eventsService.emit).toHaveBeenCalledWith(1, expect.objectContaining({ type: 'radar_updated' }));
+  });
+
+  it('keeps plan branch changes isolated from the canonical skill store', async () => {
+    const { service, branchRepo, skillService, snapshotService, matchAgentService, eventsService, branch } = setup();
+    branch.branchType = 'plan';
+    await service.commitSkill(1, 7, {
+      type: 'quiz_passed',
+      skillName: 'Git',
+      delta: 25,
+      source: 'exam',
+      trustWeight: 1,
+    });
+
+    expect(skillService.addSkill).not.toHaveBeenCalled();
+    expect(skillService.updateMastery).not.toHaveBeenCalled();
+    expect(matchAgentService.calculateForAllJobs).not.toHaveBeenCalled();
+    expect(branchRepo.save).toHaveBeenCalled();
+    expect(eventsService.emit).not.toHaveBeenCalledWith(1, expect.objectContaining({ type: 'radar_updated' }));
   });
 });

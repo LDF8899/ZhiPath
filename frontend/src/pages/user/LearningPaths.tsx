@@ -1,674 +1,328 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getLearningPaths, getTodayTasks } from '../../api/user';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  getLearningPaths,
+  getTodayTasks,
+  mergeLearningPath,
+  setLearningPathStatus,
+} from '../../api/user';
 import { useSession } from '../../hooks/useSession';
 import { useWorkspaceStore } from '../../stores/workspace';
 import AddCourseModal from '../../components/AddCourseModal';
-import type { LearningPath } from '../../types';
+import type { LearningPath, SkillNode } from '../../types';
 import '../../styles/hand-draw.css';
+import './learning-paths.css';
 import {
   IconBook,
   IconBriefcase,
   IconCalendar,
   IconCheck,
-  IconChevronDown,
   IconClock,
-  IconGradCap,
+  IconGraph,
+  IconPlus,
   IconRefresh,
   IconTarget,
 } from '../../components/icons';
 
+type LearningTab = 'job' | 'self';
+type PlanStatus = 'active' | 'paused' | 'archived';
+
+const STATUS_TEXT: Record<PlanStatus, string> = {
+  active: '执行中',
+  paused: '已暂停',
+  archived: '已归档',
+};
+
+function progressOf(plan: LearningPath) {
+  const skills = (plan.pathData?.phases || []).flatMap((phase) => phase.skills || []);
+  const done = skills.filter((skill) => skill.status === 'done').length;
+  return { total: skills.length, done, percent: skills.length ? Math.round(done / skills.length * 100) : 0 };
+}
+
+function TaskRow({ task, planName, onOpen }: { task: any; planName: string; onOpen: () => void }) {
+  const done = task.taskStatus === 'done' || task.taskStatus === 'skipped';
+  return (
+    <button className={`lp-task-row${done ? ' done' : ''}`} onClick={onOpen}>
+      <span className="lp-task-check">{done ? <IconCheck size={14} /> : <IconClock size={14} />}</span>
+      <span className="lp-task-copy">
+        <strong>{task.skillName}</strong>
+        <small>{planName}</small>
+      </span>
+      <span className={`lp-type-badge ${task.taskType}`}>{task.taskType === 'main' ? '主线' : '自选'}</span>
+      <span className="lp-task-time">{task.estimatedMin || 0} min</span>
+    </button>
+  );
+}
+
 export default function LearningPaths() {
   const navigate = useNavigate();
+  const { pathId } = useParams();
+  const [searchParams] = useSearchParams();
   const [paths, setPaths] = useState<LearningPath[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'job' | 'self'>('job');
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [activeTab, setActiveTab] = useState<LearningTab>(searchParams.get('type') === 'side' ? 'self' : 'job');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [todayTasks, setTodayTasks] = useState<any>(null);
-  const [selectedIdx, setSelectedIdx] = useState(0);
   const [showAddCourse, setShowAddCourse] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
 
-  // 学习会话生命周期 — 进入页面自动开始，退出自动保存
-  const currentPlanId = paths[selectedIdx]?.id;
-  useSession(currentPlanId);
+  useSession(selectedId || undefined);
 
-  const fetchPaths = async () => {
-    setLoading(true);
-    setError(null);
+  const fetchPaths = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
+    setError('');
     try {
-      const res = await getLearningPaths();
-      setPaths(res.data || []);
+      const response = await getLearningPaths({ pageSize: 100 });
+      setPaths(response.data || []);
     } catch (err: any) {
-      setError(err?.message || '加载失败');
+      setError(err?.response?.data?.message || err?.message || '学习计划加载失败');
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchPaths();
   }, []);
 
+  useEffect(() => { fetchPaths(); }, [fetchPaths]);
   useEffect(() => {
-    if (paths.length === 0) return;
-    const planId = paths[selectedIdx]?.id;
-    if (!planId) return;
-    getTodayTasks(planId)
-      .then((res) => setTodayTasks(res.data))
-      .catch(() => {});
-  }, [paths, selectedIdx]);
+    getTodayTasks().then((response) => setTodayTasks(response.data)).catch(() => setTodayTasks(null));
+  }, [paths]);
+  useEffect(() => useWorkspaceStore.subscribe(
+    (state) => state.lastEvent,
+    (event) => {
+      if (event?.type === 'path_generated' || event?.type === 'today_tasks_refresh') fetchPaths(true);
+    },
+  ), [fetchPaths]);
 
-  // 订阅工作区事件：路径生成或任务刷新时自动刷新数据
+  const mainPlans = useMemo(() => paths.filter((plan) => plan.planType === 'main'), [paths]);
+  const sidePlans = useMemo(() => paths.filter((plan) => plan.planType === 'side'), [paths]);
+  const visiblePlans = activeTab === 'job' ? mainPlans : sidePlans;
+  const selectedPlan = paths.find((plan) => plan.id === selectedId) || null;
+
   useEffect(() => {
-    return useWorkspaceStore.subscribe(
-      (state) => state.lastEvent,
-      (event) => {
-        if (!event) return;
-        if (event.type === 'path_generated' || event.type === 'today_tasks_refresh') {
-          fetchPaths();
-        }
-      },
-    );
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const requestedId = Number(pathId || searchParams.get('planId'));
+    const requested = visiblePlans.find((plan) => plan.id === requestedId);
+    if (requested) {
+      setSelectedId(requested.id);
+      return;
+    }
+    if (!visiblePlans.some((plan) => plan.id === selectedId)) {
+      setSelectedId(visiblePlans.find((plan) => plan.planStatus !== 'archived')?.id || visiblePlans[0]?.id || null);
+    }
+  }, [activeTab, pathId, searchParams, selectedId, visiblePlans]);
 
-  /* ── Loading ─────────────────────────────────────────────── */
+  const switchTab = (tab: LearningTab) => {
+    setActiveTab(tab);
+    setNotice('');
+  };
+
+  const changeStatus = async (planStatus: PlanStatus) => {
+    if (!selectedPlan) return;
+    setActionBusy(true);
+    try {
+      await setLearningPathStatus(selectedPlan.id, planStatus);
+      setNotice(`计划已${planStatus === 'active' ? '恢复' : planStatus === 'paused' ? '暂停' : '归档'}`);
+      await fetchPaths(true);
+    } catch (err: any) {
+      setNotice(err?.response?.data?.message || '操作失败');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const mergeAbility = async () => {
+    if (!selectedPlan) return;
+    setActionBusy(true);
+    try {
+      await mergeLearningPath(selectedPlan.id);
+      setNotice('已将验证过的能力变化更新到个人能力档案');
+    } catch (err: any) {
+      setNotice(err?.response?.data?.message || '当前没有可更新的能力变化');
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   if (loading) {
-    return (
-      <div className="hd-page">
-        <div className="hd-page-wrap">
-          <div className="hd-canvas">
-            <div className="hd-loading">
-              <IconBook size={32} style={{ marginBottom: 8 }} />
-              <div>正在加载学习路径...</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <div className="hd-page"><div className="hd-page-wrap"><div className="hd-loading"><IconBook size={30} /> 正在整理学习组合...</div></div></div>;
   }
 
-  /* ── Error ───────────────────────────────────────────────── */
-  if (error) {
-    return (
-      <div className="hd-page">
-        <div className="hd-page-wrap">
-          <div className="hd-canvas">
-            <div className="hd-empty">
-              <div style={{ marginBottom: 12 }}>{error}</div>
-              <button className="hd-btn small" onClick={fetchPaths}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <IconRefresh size={16} /> 重试
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const phases = selectedPlan?.pathData?.phases || [];
+  const progress = selectedPlan ? progressOf(selectedPlan) : { total: 0, done: 0, percent: 0 };
+  const activeMain = mainPlans.find((plan) => plan.planStatus === 'active');
+  const activeSides = sidePlans.filter((plan) => plan.planStatus === 'active');
+  const allTodayTasks = [...(todayTasks?.mainTasks || []), ...(todayTasks?.sideTasks || [])];
+  const mainTaskMinutes = (todayTasks?.mainTasks || []).reduce((sum: number, task: any) => sum + Number(task.estimatedMin || 0), 0);
+  const sideTaskMinutes = (todayTasks?.sideTasks || []).reduce((sum: number, task: any) => sum + Number(task.estimatedMin || 0), 0);
+  const currentPhase = selectedPlan ? phases[selectedPlan.currentPhase] : null;
+  const pendingSkills = Math.max(0, progress.total - progress.done);
 
-  const path = paths[selectedIdx] as (typeof paths)[number] & { planType?: 'main' | 'side' };
-
-  /* ── Empty ───────────────────────────────────────────────── */
-  if (!path) {
-    return (
-      <div className="hd-page">
-        <div className="hd-page-wrap">
-          <div className="hd-canvas">
-            <div className="hd-empty">
-              <IconGradCap size={48} style={{ marginBottom: 12, color: 'var(--pencil)' }} />
-              <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 6 }}>
-                还没有学习路径
-              </div>
-              <div style={{ marginBottom: 20 }}>
-                在 AI 助教对话中设定目标岗位后，系统会自动生成学习路径
-              </div>
-              <button
-                className="hd-btn"
-                onClick={() => navigate('/user/chat')}
-              >
-                去设定目标 &rarr;
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* ── Data computations ───────────────────────────────────── */
-  const totalSkills = path.pathData.phases.reduce((sum, p) => sum + p.skills.length, 0);
-  const doneSkills = path.pathData.phases.reduce(
-    (sum, p) => sum + p.skills.filter((s) => s.status === 'done').length,
-    0,
-  );
-  const percent = totalSkills > 0 ? Math.round((doneSkills / totalSkills) * 100) : 0;
-  const currentPhaseName = path.pathData.phases[path.currentPhase]?.name || '未开始';
-
-  /* ── Main render ─────────────────────────────────────────── */
   return (
-    <div className="hd-page">
+    <div className="hd-page lp-page">
       <div className="hd-page-wrap">
-        <div className="hd-canvas">
-          {/* Header */}
-          <div className="hd-header">
-            <h1>学习路径</h1>
-            <div className="hd-flex" style={{ gap: 10 }}>
-              <span className="hd-pill">
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <IconTarget size={14} /> 匹配度 {path.matchScore || 0}%
-                </span>
-              </span>
-              <button
-                className="hd-btn small"
-                onClick={() => setShowAddCourse(true)}
-              >
-                + 添加课程
-              </button>
-              <button
-                className="hd-btn small"
-                onClick={() => navigate('/plan/create')}
-              >
-                创建计划
-              </button>
-            </div>
+        <header className="hd-header lp-header">
+          <div>
+            <h1>学习组合</h1>
+            <p>能力主干持续记录，计划按目标独立推进</p>
           </div>
+          <button className="hd-btn" onClick={() => navigate(`/plan/create?type=${activeTab === 'job' ? 'main' : 'side'}`)}>
+            <IconPlus size={16} /> 新建{activeTab === 'job' ? '岗位主线' : '自选计划'}
+          </button>
+        </header>
 
-          {/* Tab switcher */}
-          <div className="hd-tabs">
-            <button
-              className={`hd-tab${activeTab === 'job' ? ' active' : ''}`}
-              onClick={() => setActiveTab('job')}
-            >
-              <IconBriefcase size={16} />
-              岗位驱动
+        {error && <div className="lp-alert">{error}<button onClick={() => fetchPaths()}><IconRefresh size={15} />重试</button></div>}
+        {notice && <div className="lp-notice" role="status">{notice}</div>}
+
+        <section className="lp-spine" aria-label="学习组合概览">
+          <div className="lp-spine-node canonical"><IconGraph size={18} /><span><strong>个人能力主干</strong><small>已验证能力</small></span></div>
+          <span className="lp-spine-line" />
+          <div className="lp-spine-node"><IconBriefcase size={18} /><span><strong>{activeMain ? '1 条岗位主线' : '暂无岗位主线'}</strong><small>{activeMain?.planName || '等待创建'}</small></span></div>
+          <span className="lp-spine-line" />
+          <div className="lp-spine-node"><IconBook size={18} /><span><strong>{activeSides.length} 条自选计划</strong><small>{activeSides.length ? '共享支线时间预算' : '暂未排期'}</small></span></div>
+        </section>
+
+        <div className="hd-tabs lp-tabs">
+          <button className={`hd-tab${activeTab === 'job' ? ' active' : ''}`} onClick={() => switchTab('job')}>
+            <IconBriefcase size={16} /> 岗位驱动 <span>{mainPlans.length}</span>
+          </button>
+          <button className={`hd-tab${activeTab === 'self' ? ' active' : ''}`} onClick={() => switchTab('self')}>
+            <IconBook size={16} /> 自选学习 <span>{sidePlans.length}</span>
+          </button>
+        </div>
+
+        {visiblePlans.length === 0 ? (
+          <section className="lp-empty">
+            {activeTab === 'job' ? <IconTarget size={42} /> : <IconBook size={42} />}
+            <h2>{activeTab === 'job' ? '还没有岗位主线' : '还没有自选计划'}</h2>
+            <button className="hd-btn" onClick={() => navigate(`/plan/create?type=${activeTab === 'job' ? 'main' : 'side'}`)}>
+              创建{activeTab === 'job' ? '岗位主线' : '自选计划'}
             </button>
-            <button
-              className={`hd-tab${activeTab === 'self' ? ' active' : ''}`}
-              onClick={() => setActiveTab('self')}
-            >
-              <IconBook size={16} />
-              自选学习
-            </button>
-          </div>
-
-          {/* Multi-plan switcher */}
-          {paths.length > 1 && (
-            <div style={{ position: 'relative', marginBottom: 14 }}>
-              <select
-                className="hd-select"
-                value={selectedIdx}
-                onChange={(e) => setSelectedIdx(Number(e.target.value))}
-                style={{
-                  width: '100%',
-                  maxWidth: 420,
-                  font: '15px/1 var(--hand-bold)',
-                  paddingLeft: 14,
-                  paddingRight: 36,
-                }}
-              >
-                {paths.map((p, idx) => {
-                  const pType = (p as any).planType || 'main';
-                  return (
-                    <option key={p.id} value={idx}>
-                      {p.planName} ({pType === 'main' ? '主线' : '支线'})
-                    </option>
-                  );
-                })}
-              </select>
-              <IconChevronDown
-                size={16}
-                style={{
-                  position: 'absolute',
-                  right: 14,
-                  top: '50%',
-                  marginTop: -8,
-                  pointerEvents: 'none',
-                  color: 'var(--pencil)',
-                }}
-              />
-            </div>
-          )}
-
-          {/* Plan info card */}
-          <div className="hd-card" style={{ marginBottom: 16 }}>
-            <div className="hd-flex-between">
-              <div>
-                <div style={{ font: '13px/1 var(--mono)', color: 'var(--pencil)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>
-                  当前计划
-                </div>
-                <div style={{ font: '800 22px/1.2 var(--serif)' }}>
-                  {path.planName || currentPhaseName}
-                </div>
-                {/* 绑定的智能体标识 */}
-                {(path as any).boundAgentType && (
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4, padding: '2px 8px', borderRadius: 4, background: 'var(--note-blue, #e8f0fe)', border: '1px solid #a0c4ff', font: '12px/1 var(--hand)', color: '#1a56db' }}>
-                    <span style={{ fontSize: 14 }}>🤖</span>
-                    <span>{(path as any).boundAgentType}</span>
-                  </div>
-                )}
-              </div>
-              <div className="hd-flex" style={{ gap: 16 }}>
-                <div style={{ textAlign: 'right' }}>
-                  <div className="hd-kpi-label">每日学习</div>
-                  <div style={{ font: '700 18px/1 var(--hand-bold)', color: 'var(--ink)', marginTop: 4 }}>
-                    {path.dailyHours || 2}h
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div className="hd-kpi-label">预计完成</div>
-                  <div style={{ font: '700 18px/1 var(--hand-bold)', color: 'var(--ink)', marginTop: 4 }}>
-                    {path.estimatedDate || '--'}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Progress overview */}
-          <div className="hd-card" style={{ marginBottom: 20 }}>
-            <div className="hd-flex-between" style={{ marginBottom: 10 }}>
-              <div className="hd-flex" style={{ gap: 8 }}>
-                <IconGradCap size={18} style={{ color: 'var(--accent)' }} />
-                <span style={{ font: '700 16px/1 var(--hand-bold)' }}>
-                  总体进度
-                </span>
-              </div>
-              <span className="hd-badge accent">{doneSkills}/{totalSkills} 技能</span>
-            </div>
-            <div className="hd-progress">
-              <div
-                className="hd-progress-bar"
-                style={{ width: `${percent}%` }}
-              />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-              <span style={{ font: '12px/1 var(--mono)', color: 'var(--pencil)' }}>
-                当前阶段：{currentPhaseName}
-              </span>
-              <span style={{ font: '800 14px/1 var(--hand-bold)', color: 'var(--accent)' }}>
-                {percent}%
-              </span>
-            </div>
-          </div>
-
-          {/* Today's tasks card */}
-          {todayTasks && (todayTasks.mainTasks?.length > 0 || todayTasks.sideTasks?.length > 0) && (
-            <div className="hd-card" style={{ marginBottom: 20 }}>
-              <div className="hd-flex-between" style={{ marginBottom: 12 }}>
-                <div style={{ font: '700 17px/1 var(--hand-bold)' }}>
-                  📅 今日任务
-                </div>
-                {todayTasks.totalEstimatedMin > 0 && (
-                  <span className="hd-pill">
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <IconClock size={12} /> {todayTasks.totalEstimatedMin}min
-                    </span>
-                  </span>
-                )}
-              </div>
-
-              {/* Main tasks */}
-              {todayTasks.mainTasks?.length > 0 && (
-                <div className="hd-flex-col" style={{ gap: 6, marginBottom: todayTasks.sideTasks?.length > 0 ? 10 : 0 }}>
-                  {todayTasks.mainTasks.map((task: any) => {
-                    const done = task.taskStatus === 'done' || task.taskStatus === 'skipped';
-                    const active = task.taskStatus !== 'pending' && task.taskStatus !== 'done' && task.taskStatus !== 'skipped';
-                    return (
-                      <div
-                        key={task.id}
-                        className="hd-flex"
-                        onClick={() => navigate(`/user/knowledge/${encodeURIComponent(task.skillName)}`)}
-                        style={{
-                          gap: 10,
-                          padding: '8px 10px',
-                          borderRadius: 6,
-                          background: done ? 'var(--note-green)' : 'var(--paper)',
-                          border: done ? '1px solid #a3d9a3' : '1px dashed var(--rule)',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s',
-                        }}
-                        onMouseEnter={e => { if (!done) e.currentTarget.style.borderColor = 'var(--accent)'; }}
-                        onMouseLeave={e => { if (!done) e.currentTarget.style.borderColor = 'var(--rule)'; }}
-                      >
-                        {done ? (
-                          <IconCheck size={16} style={{ color: '#3a7d3a', flexShrink: 0 }} />
-                        ) : active ? (
-                          <IconClock size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-                        ) : (
-                          <div
-                            style={{
-                              width: 14,
-                              height: 14,
-                              border: '1.5px solid var(--rule)',
-                              borderRadius: '50%',
-                              background: 'var(--paper)',
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-                        <span
-                          style={{
-                            font: '15px/1.3 var(--hand)',
-                            flex: 1,
-                            color: done ? 'var(--pencil)' : 'var(--ink)',
-                            textDecoration: done ? 'line-through' : 'none',
-                            textDecorationColor: 'var(--rule)',
-                          }}
-                        >
-                          {task.skillName}
-                        </span>
-                        <span
-                          className="hd-badge accent"
-                          style={{ flexShrink: 0 }}
-                        >
-                          主线
-                        </span>
-                        {task.estimatedMin > 0 && (
-                          <span style={{ font: '11px/1 var(--mono)', color: 'var(--pencil)', flexShrink: 0 }}>
-                            {task.estimatedMin}min
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Side tasks */}
-              {todayTasks.sideTasks?.length > 0 && (
-                <div className="hd-flex-col" style={{ gap: 6 }}>
-                  {todayTasks.sideTasks.map((task: any) => {
-                    const done = task.taskStatus === 'done' || task.taskStatus === 'skipped';
-                    const active = task.taskStatus !== 'pending' && task.taskStatus !== 'done' && task.taskStatus !== 'skipped';
-                    return (
-                      <div
-                        key={task.id}
-                        className="hd-flex"
-                        onClick={() => navigate(`/user/knowledge/${encodeURIComponent(task.skillName)}`)}
-                        style={{
-                          gap: 10,
-                          padding: '8px 10px',
-                          borderRadius: 6,
-                          background: done ? 'var(--note-green)' : 'var(--paper)',
-                          border: done ? '1px solid #a3d9a3' : '1px dashed var(--rule)',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s',
-                        }}
-                        onMouseEnter={e => { if (!done) e.currentTarget.style.borderColor = 'var(--accent)'; }}
-                        onMouseLeave={e => { if (!done) e.currentTarget.style.borderColor = 'var(--rule)'; }}
-                      >
-                        {done ? (
-                          <IconCheck size={16} style={{ color: '#3a7d3a', flexShrink: 0 }} />
-                        ) : active ? (
-                          <IconClock size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-                        ) : (
-                          <div
-                            style={{
-                              width: 14,
-                              height: 14,
-                              border: '1.5px solid var(--rule)',
-                              borderRadius: '50%',
-                              background: 'var(--paper)',
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-                        <span
-                          style={{
-                            font: '15px/1.3 var(--hand)',
-                            flex: 1,
-                            color: done ? 'var(--pencil)' : 'var(--ink)',
-                            textDecoration: done ? 'line-through' : 'none',
-                            textDecorationColor: 'var(--rule)',
-                          }}
-                        >
-                          {task.skillName}
-                        </span>
-                        <span
-                          style={{
-                            font: '11px/1 var(--mono)',
-                            padding: '3px 8px',
-                            border: '1.5px solid var(--pencil)',
-                            borderRadius: 4,
-                            color: 'var(--pencil)',
-                            flexShrink: 0,
-                          }}
-                        >
-                          支线
-                        </span>
-                        {task.estimatedMin > 0 && (
-                          <span style={{ font: '11px/1 var(--mono)', color: 'var(--pencil)', flexShrink: 0 }}>
-                            {task.estimatedMin}min
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Progress bar */}
-              {todayTasks.totalEstimatedMin > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <div className="hd-progress">
-                    <div
-                      className="hd-progress-bar"
-                      style={{ width: `${todayTasks.progressPct || 0}%` }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                    <span style={{ font: '11px/1 var(--mono)', color: 'var(--pencil)' }}>
-                      {todayTasks.completedMin || 0}/{todayTasks.totalEstimatedMin}min
-                    </span>
-                    <span style={{ font: '700 12px/1 var(--hand-bold)', color: 'var(--accent)' }}>
-                      {todayTasks.progressPct || 0}%
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Section label */}
-          <div className="hd-section-label">
-            <h3>学习阶段</h3>
-            <span className="hd-pill">{path.pathData.phases.length} 阶段</span>
-          </div>
-
-          {/* Timeline */}
-          <div style={{ position: 'relative', paddingLeft: 40 }}>
-            {/* Vertical timeline line */}
-            <div
-              style={{
-                position: 'absolute',
-                left: 15,
-                top: 8,
-                bottom: 8,
-                width: 2,
-                background: 'repeating-linear-gradient(180deg, var(--pencil) 0 6px, transparent 6px 12px)',
-              }}
-            />
-
-            <div className="hd-flex-col" style={{ gap: 16 }}>
-              {path.pathData.phases.map((phase, phaseIdx) => {
-                const phaseDone = phase.skills.filter((s) => s.status === 'done').length;
-                const isCurrent = phaseIdx === path.currentPhase;
-                const isPhaseComplete = phaseDone === phase.skills.length;
-                const isPast = phaseIdx < path.currentPhase;
-
+          </section>
+        ) : (
+          <div className="lp-workspace">
+            <aside className="lp-plan-rail" aria-label="计划列表">
+              {visiblePlans.map((plan) => {
+                const itemProgress = progressOf(plan);
                 return (
-                  <div key={phaseIdx} style={{ position: 'relative' }}>
-                    {/* Timeline dot */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: -32,
-                        top: 18,
-                        width: 18,
-                        height: 18,
-                        borderRadius: '50%',
-                        border: `2.5px solid ${isPhaseComplete || isPast ? 'var(--accent)' : isCurrent ? 'var(--ink)' : 'var(--rule)'}`,
-                        background: isPhaseComplete || isPast ? 'var(--accent)' : isCurrent ? 'var(--highlight)' : 'var(--paper)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 2,
-                      }}
-                    >
-                      {(isPhaseComplete || isPast) && (
-                        <IconCheck size={11} className="" />
-                      )}
-                    </div>
-
-                    {/* Phase card */}
-                    <div
-                      className={`hd-card${isCurrent ? ' hd-card-accent' : ''}`}
-                      style={{
-                        borderColor: isCurrent ? 'var(--ink)' : undefined,
-                        background: isCurrent ? 'var(--paper)' : isPast ? 'var(--paper-tint)' : 'var(--paper)',
-                      }}
-                    >
-                      {/* Phase header */}
-                      <div className="hd-flex-between" style={{ marginBottom: 10 }}>
-                        <div className="hd-flex" style={{ gap: 8 }}>
-                          <h3
-                            style={{
-                              font: isCurrent ? '800 18px/1 var(--serif)' : '700 18px/1 var(--serif)',
-                              margin: 0,
-                              color: isCurrent ? 'var(--accent)' : 'var(--ink)',
-                            }}
-                          >
-                            {phase.name}
-                          </h3>
-                          {isCurrent && (
-                            <span className="hd-badge accent">进行中</span>
-                          )}
-                          {isPhaseComplete && (
-                            <span className="hd-badge green">已完成</span>
-                          )}
-                        </div>
-                        <span
-                          style={{
-                            font: '12px/1 var(--mono)',
-                            color: 'var(--pencil)',
-                          }}
-                        >
-                          {phaseDone}/{phase.skills.length}
-                        </span>
-                      </div>
-
-                      {/* Skills list */}
-                      <div className="hd-flex-col" style={{ gap: 6 }}>
-                        {phase.skills.map((skill, skillIdx) => {
-                          const isDone = skill.status === 'done';
-                          return (
-                            <div
-                              key={skillIdx}
-                              className="hd-flex"
-                              onClick={() => !isDone && navigate(`/user/knowledge/${encodeURIComponent(skill.name)}`)}
-                              style={{
-                                gap: 10,
-                                padding: '8px 10px',
-                                borderRadius: 6,
-                                background: isDone ? 'var(--note-green)' : isCurrent ? 'var(--paper-tint)' : 'var(--paper)',
-                                border: isDone ? '1px solid #a3d9a3' : '1px dashed var(--rule)',
-                                cursor: isDone ? 'default' : 'pointer',
-                                transition: 'all 0.15s',
-                              }}
-                              onMouseEnter={e => { if (!isDone) e.currentTarget.style.borderColor = 'var(--accent)'; }}
-                              onMouseLeave={e => { if (!isDone) e.currentTarget.style.borderColor = 'var(--rule)'; }}
-                            >
-                              {/* Status icon */}
-                              <div style={{ flexShrink: 0 }}>
-                                {isDone ? (
-                                  <IconCheck size={16} style={{ color: '#3a7d3a' }} />
-                                ) : isCurrent ? (
-                                  <IconClock size={16} style={{ color: 'var(--accent)' }} />
-                                ) : (
-                                  <div
-                                    style={{
-                                      width: 14,
-                                      height: 14,
-                                      border: '1.5px solid var(--rule)',
-                                      borderRadius: 3,
-                                      background: 'var(--paper)',
-                                    }}
-                                  />
-                                )}
-                              </div>
-
-                              {/* Skill name */}
-                              <span
-                                style={{
-                                  font: '15px/1.3 var(--hand)',
-                                  flex: 1,
-                                  color: isDone ? 'var(--pencil)' : 'var(--ink)',
-                                  textDecoration: isDone ? 'line-through' : 'none',
-                                  textDecorationColor: 'var(--rule)',
-                                }}
-                              >
-                                {skill.name}
-                                {!isDone && isCurrent && (
-                                  <span style={{ font: '11px/1 var(--mono)', color: 'var(--accent)', marginLeft: 8, opacity: 0.7 }}>点击学习 →</span>
-                                )}
-                              </span>
-
-                              {/* Mastery indicator */}
-                              {!isDone && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                                  {skill.readAt && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3a7d3a' }} title="讲义已读" />}
-                                  {skill.quizPassed && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#8a6d00' }} title="测验通过" />}
-                                  {skill.code_done && <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)' }} title="编程完成" />}
-                                </div>
-                              )}
-
-                              {/* Duration */}
-                              <span
-                                style={{
-                                  font: '11px/1 var(--mono)',
-                                  color: 'var(--pencil)',
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {skill.duration}
-                              </span>
-
-                              {/* Completion date */}
-                              {isDone && skill.completedAt && (
-                                <span
-                                  style={{
-                                    font: '11px/1 var(--mono)',
-                                    color: 'var(--pencil)',
-                                    flexShrink: 0,
-                                  }}
-                                >
-                                  <IconCalendar size={12} style={{ verticalAlign: -2, marginRight: 3 }} />
-                                  {new Date(skill.completedAt * 1000).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
+                  <button key={plan.id} className={`lp-plan-item${plan.id === selectedId ? ' active' : ''}`} onClick={() => setSelectedId(plan.id)}>
+                    <span className="lp-plan-item-top"><strong>{plan.planName}</strong><em className={plan.planStatus}>{STATUS_TEXT[plan.planStatus]}</em></span>
+                    <span className="lp-plan-item-meta">{itemProgress.done}/{itemProgress.total} 项 · {itemProgress.percent}%</span>
+                    <span className="lp-mini-progress"><i style={{ width: `${itemProgress.percent}%` }} /></span>
+                  </button>
                 );
               })}
-            </div>
+              {selectedPlan && (
+                <>
+                  <section className="lp-rail-panel">
+                    <div className="lp-rail-title"><strong>计划概览</strong><span>{progress.percent}%</span></div>
+                    <div className="lp-rail-metrics">
+                      <div><strong>{phases.length}</strong><span>学习阶段</span></div>
+                      <div><strong>{pendingSkills}</strong><span>待完成项</span></div>
+                      <div><strong>{selectedPlan.dailyHours || 2}h</strong><span>每日投入</span></div>
+                      <div><strong>{selectedPlan.matchScore || 0}%</strong><span>{selectedPlan.planType === 'main' ? '岗位匹配' : '目标进度'}</span></div>
+                    </div>
+                    <div className="lp-rail-current">
+                      <span>当前阶段</span>
+                      <strong>{currentPhase?.name || '等待开始'}</strong>
+                    </div>
+                  </section>
+
+                  <section className="lp-rail-panel">
+                    <div className="lp-rail-title"><strong>今日排期</strong><span>{mainTaskMinutes + sideTaskMinutes} min</span></div>
+                    <div className="lp-allocation-bar" aria-label="今日主线与自选任务时间分配">
+                      <i className="main" style={{ flexGrow: mainTaskMinutes || 0 }} />
+                      <i className="side" style={{ flexGrow: sideTaskMinutes || 0 }} />
+                      {mainTaskMinutes + sideTaskMinutes === 0 && <i className="empty" />}
+                    </div>
+                    <div className="lp-allocation-legend">
+                      <span><i className="main" />主线 {mainTaskMinutes} min</span>
+                      <span><i className="side" />自选 {sideTaskMinutes} min</span>
+                    </div>
+                  </section>
+
+                  <section className="lp-rail-panel lp-branch-panel">
+                    <div className="lp-rail-title"><strong>计划分支</strong><span>Git</span></div>
+                    <div className="lp-branch-line"><IconGraph size={16} /><span><strong>plan/{selectedPlan.id}</strong><small>分支 #{selectedPlan.branchId || '--'}</small></span></div>
+                    <div className="lp-branch-connection"><i /><span>连接个人能力主干</span></div>
+                  </section>
+                </>
+              )}
+            </aside>
+
+            {selectedPlan && (
+              <main className="lp-plan-main">
+                <section className="lp-plan-heading">
+                  <div>
+                    <span className={`lp-plan-kicker ${selectedPlan.planType}`}>{selectedPlan.planType === 'main' ? '岗位主线' : '自选计划'} · #{selectedPlan.branchId || '--'}</span>
+                    <h2>{selectedPlan.planName}</h2>
+                    <div className="lp-plan-facts">
+                      {selectedPlan.planType === 'main' && <span><IconTarget size={14} />岗位 #{selectedPlan.targetJobId}</span>}
+                      <span><IconClock size={14} />每日 {selectedPlan.dailyHours || 2} 小时</span>
+                      <span><IconCalendar size={14} />{selectedPlan.estimatedDate || '待估算'}</span>
+                    </div>
+                  </div>
+                  <div className="lp-actions">
+                    {selectedPlan.planType === 'side' && selectedPlan.planStatus !== 'archived' && (
+                      <button className="hd-btn secondary small" onClick={() => setShowAddCourse(true)}><IconPlus size={14} />学习内容</button>
+                    )}
+                    <button className="hd-btn secondary small" onClick={mergeAbility} disabled={actionBusy}>更新能力档案</button>
+                    {selectedPlan.planStatus === 'active' ? (
+                      <button className="hd-btn secondary small" onClick={() => changeStatus('paused')} disabled={actionBusy}>暂停</button>
+                    ) : selectedPlan.planStatus === 'paused' ? (
+                      <button className="hd-btn secondary small" onClick={() => changeStatus('active')} disabled={actionBusy}>恢复</button>
+                    ) : null}
+                    {selectedPlan.planStatus !== 'archived' && (
+                      <button className="hd-btn secondary small" onClick={() => changeStatus('archived')} disabled={actionBusy}>归档</button>
+                    )}
+                  </div>
+                </section>
+
+                <div className="lp-overview-grid">
+                  <section className="hd-card lp-progress-card">
+                    <div className="lp-section-title"><strong>计划进度</strong><span>{progress.done}/{progress.total}</span></div>
+                    <div className="hd-progress"><div className="hd-progress-bar" style={{ width: `${progress.percent}%` }} /></div>
+                    <div className="lp-progress-caption"><span>{phases[selectedPlan.currentPhase]?.name || '未开始'}</span><strong>{progress.percent}%</strong></div>
+                  </section>
+                  <section className="hd-card lp-today-card">
+                    <div className="lp-section-title"><strong>今日组合任务</strong><span>{todayTasks?.totalEstimatedMin || 0} min</span></div>
+                    {allTodayTasks.length === 0 ? <p className="lp-muted">今天没有待处理任务</p> : (
+                      <div className="lp-task-list">
+                        {allTodayTasks.slice(0, 4).map((task: any) => (
+                          <TaskRow key={task.id} task={task} planName={paths.find((plan) => Number(plan.id) === Number(task.planId))?.planName || '学习计划'} onOpen={() => navigate(`/user/knowledge/${encodeURIComponent(task.skillName)}`)} />
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </div>
+
+                <section className="lp-phases">
+                  <div className="lp-section-title"><strong>学习阶段</strong><span>{phases.length} 个阶段</span></div>
+                  {phases.length === 0 ? <p className="lp-muted">计划正在生成学习路径</p> : phases.map((phase, phaseIndex) => (
+                    <div className={`lp-phase${phaseIndex === selectedPlan.currentPhase ? ' current' : ''}`} key={`${phase.name}-${phaseIndex}`}>
+                      <div className="lp-phase-marker">{phaseIndex < selectedPlan.currentPhase ? <IconCheck size={13} /> : phaseIndex + 1}</div>
+                      <div className="lp-phase-content">
+                        <header><h3>{phase.name}</h3><span>{(phase.skills || []).filter((skill) => skill.status === 'done').length}/{phase.skills?.length || 0}</span></header>
+                        <div className="lp-skill-list">
+                          {(phase.skills || []).map((skill: SkillNode) => (
+                            <button key={skill.name} className={`lp-skill${skill.status === 'done' ? ' done' : ''}`} onClick={() => navigate(`/user/knowledge/${encodeURIComponent(skill.name)}`)}>
+                              {skill.status === 'done' ? <IconCheck size={15} /> : <span className="lp-skill-dot" />}
+                              <strong>{skill.name}</strong>
+                              <span>{skill.estimatedMin ? `${skill.estimatedMin} min` : skill.duration || '待估算'}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </section>
+              </main>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
-      {showAddCourse && currentPlanId && (
-        <AddCourseModal
-          planId={currentPlanId}
-          onClose={() => setShowAddCourse(false)}
-          onAdded={() => {
-            setShowAddCourse(false);
-            fetchPaths();
-          }}
-        />
+      {showAddCourse && selectedPlan?.planType === 'side' && (
+        <AddCourseModal planId={selectedPlan.id} onClose={() => setShowAddCourse(false)} onAdded={async () => { setShowAddCourse(false); await fetchPaths(true); }} />
       )}
     </div>
   );

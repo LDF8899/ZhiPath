@@ -91,12 +91,13 @@ export const AGENT_CONFIGS: Record<string, AgentConfig> = {
   'recommend_jobs':     { id: 'jobs',      animal: 'rabbit',  color: '#ff6b6b', name: '岗位顾问',   intent: 'recommend_jobs' },
   'generate_video':     { id: 'video',     animal: 'panda',   color: '#2ed573', name: '视频制作人', intent: 'generate_video' },
   'generate_animation': { id: 'animation', animal: 'fox',     color: '#ffa502', name: '动画设计师', intent: 'generate_animation' },
-  'generate_diagram':   { id: 'diagram',   animal: 'fox',     color: '#ffa502', name: '动画设计师', intent: 'generate_diagram' },
+  'generate_diagram':   { id: 'diagram',   animal: 'deer',    color: '#c9a06c', name: '图表设计师', intent: 'generate_diagram' },
+  'generate_avatar':    { id: 'avatar',    animal: 'penguin', color: '#2b2620', name: '数字讲师',   intent: 'generate_avatar' },
   'show_progress':      { id: 'progress',  animal: 'owl',     color: '#1e90ff', name: '进度管理员', intent: 'show_progress' },
   'show_today_tasks':   { id: 'tasks',     animal: 'parrot',  color: '#ff4500', name: '任务调度员', intent: 'show_today_tasks' },
   'recommend_resources':{ id: 'resources', animal: 'hamster', color: '#ff69b4', name: '资源推荐官', intent: 'recommend_resources' },
-  'set_target_job':     { id: 'target',    animal: 'rabbit',  color: '#ff6b6b', name: '岗位顾问',   intent: 'set_target_job' },
-  'match_analysis':     { id: 'gap',       animal: 'duck',    color: '#4169e1', name: '差距分析师', intent: 'analyze_skill_gap' },
+  'set_target_job':     { id: 'target',    animal: 'bear',    color: '#8b6b4a', name: '目标设定师', intent: 'set_target_job' },
+  'match_analysis':     { id: 'gap',       animal: 'duck',    color: '#4169e1', name: '差距分析师', intent: 'match_analysis' },
   'chat':               { id: 'chat',      animal: 'hamster', color: '#ff69b4', name: 'AI 助教',    intent: 'chat' },
 };
 

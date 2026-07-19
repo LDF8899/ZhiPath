@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   getJobDetail,
+  getJobCompanyContext,
   calculateMatch,
   applyJob,
   importJobSkills,
@@ -23,7 +24,9 @@ import {
   IconTarget,
 } from '../../components/icons';
 import MatchBreakdown from '../../components/MatchBreakdown';
+import InteractiveCompanyMap from '../../components/InteractiveCompanyMap';
 import type { Job } from '../../types';
+import { readOnlineJob } from '../../utils/onlineJobCache';
 
 /* ──────────────────────────────────────────
    Job Detail Page — hand-drawn design system
@@ -55,6 +58,7 @@ function scoreColor(score: number): string {
 export default function JobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { el: msgEl, show: showMsg } = useHdMessage();
 
   const [job, setJob] = useState<Job | null>(null);
@@ -64,6 +68,8 @@ export default function JobDetail() {
   const [applying, setApplying] = useState(false);
   const [addingPlan, setAddingPlan] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [companyContext, setCompanyContext] = useState<any>(null);
+  const [companyContextLoading, setCompanyContextLoading] = useState(false);
 
   const fetchData = async () => {
     if (!id) return;
@@ -71,6 +77,18 @@ export default function JobDetail() {
     setError(null);
     try {
       const jobId = parseInt(id, 10);
+      if (jobId < 0) {
+        const routeJob = (location.state as { onlineJob?: Job } | null)?.onlineJob;
+        const onlineJob = routeJob?.id === jobId ? routeJob : readOnlineJob(jobId);
+        if (!onlineJob) {
+          setError('联网岗位信息已过期，请返回岗位列表重新搜索');
+          setJob(null);
+          return;
+        }
+        setJob(onlineJob);
+        setMatchResult(null);
+        return;
+      }
       const [jobRes, matchRes] = await Promise.all([
         getJobDetail(jobId),
         calculateMatch(jobId).catch(() => null),
@@ -89,6 +107,21 @@ export default function JobDetail() {
   useEffect(() => {
     fetchData();
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !job || Number(job.id) < 0 || job.source === 'online') {
+      setCompanyContext(null);
+      setCompanyContextLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setCompanyContextLoading(true);
+    getJobCompanyContext(parseInt(id, 10))
+      .then((res) => { if (!cancelled) setCompanyContext(res.data); })
+      .catch(() => { if (!cancelled) setCompanyContext(null); })
+      .finally(() => { if (!cancelled) setCompanyContextLoading(false); });
+    return () => { cancelled = true; };
+  }, [id, job?.id]);
 
   /* ── Action handlers ── */
 
@@ -169,6 +202,8 @@ export default function JobDetail() {
 
   /* ── Match analysis data ── */
   const score = matchResult?.totalScore || job.matchScore || 0;
+  const isOnlineJob = Number(job.id) < 0 || job.source === 'online';
+  const isAiGenerated = isOnlineJob && (job.searchMeta?.origin === 'ai_generated' || !job.url);
   const matchedSkills: string[] =
     matchResult?.breakdown?.requiredSkills?.matched || [];
   const missingSkills: string[] =
@@ -205,7 +240,14 @@ export default function JobDetail() {
 
         {/* ── Header ── */}
         <div className="hd-header">
-          <h1>{job.title}</h1>
+          <div className="hd-flex" style={{ gap: 10, alignItems: 'center', minWidth: 0 }}>
+            <h1>{job.title}</h1>
+            {isOnlineJob && (
+              <span className="hd-badge accent" style={{ flexShrink: 0 }}>
+                {isAiGenerated ? 'AI 推荐' : '联网岗位'}
+              </span>
+            )}
+          </div>
           <div className="hd-flex" style={{ gap: 12 }}>
             <span
               className="hd-flex"
@@ -294,9 +336,11 @@ export default function JobDetail() {
                     marginTop: 8,
                   }}
                 >
-                  {job.requiredSkills.map((s, i) => (
+                  {job.requiredSkills.length > 0 ? job.requiredSkills.map((s, i) => (
                     <span key={s.name || i} className="hd-tag hot">{s.name}</span>
-                  ))}
+                  )) : (
+                    <span style={{ font: '13px/1.5 var(--hand)', color: 'var(--pencil)' }}>暂未提取技能要求</span>
+                  )}
                 </div>
               </div>
               {job.preferredSkills && job.preferredSkills.length > 0 && (
@@ -347,6 +391,90 @@ export default function JobDetail() {
                 </p>
               </div>
             )}
+
+            {/* ── AI company introduction ── */}
+            <div className="hd-canvas">
+              <div className="hd-section-label">
+                <IconBuilding size={18} />
+                <h3>公司简介</h3>
+                <span className="hd-badge accent" style={{ marginLeft: 'auto' }}>
+                  {isOnlineJob ? (isAiGenerated ? '推荐摘要' : '来源摘要') : 'AI 整理'}
+                </span>
+              </div>
+              <div className="hd-divider" style={{ marginBottom: 16 }} />
+              {companyContextLoading ? (
+                <div className="hd-flex" style={{ gap: 9, color: 'var(--pencil)', font: '14px/1.6 var(--hand)' }}>
+                  <span className="hd-spinner" /> 正在整理公司公开信息...
+                </div>
+              ) : (
+                <p style={{ font: '15px/1.75 var(--hand)', color: 'var(--ink)', margin: 0 }}>
+                  {companyContext?.introduction
+                    || `${job.enterpriseName || job.company}正在招聘${job.title}。公开信息有限，建议结合岗位描述及企业官方渠道进一步了解业务方向与团队情况。`}
+                </p>
+              )}
+              <div style={{ marginTop: 12, color: 'var(--pencil)', font: '12px/1.5 var(--hand)' }}>
+                {isOnlineJob
+                  ? '公司信息根据当前岗位卡片整理，请以企业官方信息为准。'
+                  : '内容由 deepseek-v4-flash 基于岗位与企业公开常识整理，请以企业官方信息为准。'}
+              </div>
+            </div>
+
+            {/* ── Company location ── */}
+            {!isOnlineJob && <div className="hd-canvas" style={{ overflow: 'hidden' }}>
+              <div className="hd-section-label">
+                <IconMapPin size={18} />
+                <h3>公司位置</h3>
+              </div>
+              <div className="hd-divider" style={{ marginBottom: 14 }} />
+              <div className="hd-flex-between" style={{ gap: 16, marginBottom: 12, alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ font: '700 16px/1.4 var(--hand-bold)', color: 'var(--ink)' }}>
+                    {companyContext?.location?.formattedAddress || job.location || '暂未提供工作地点'}
+                  </div>
+                  {companyContext?.location?.longitude != null && (
+                    <div style={{ marginTop: 4, font: '11px/1.4 var(--mono)', color: 'var(--pencil)' }}>
+                      {companyContext.location.longitude.toFixed(5)}, {companyContext.location.latitude.toFixed(5)}
+                    </div>
+                  )}
+                </div>
+                {companyContext?.location?.longitude != null && (
+                  <a
+                    className="hd-btn small secondary"
+                    href={`https://uri.amap.com/marker?position=${companyContext.location.longitude},${companyContext.location.latitude}&name=${encodeURIComponent(companyContext.companyName || job.company)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0 }}
+                  >
+                    <IconMapPin size={14} /> 查看地图
+                  </a>
+                )}
+              </div>
+              {companyContextLoading ? (
+                <div style={{ height: 220, background: 'var(--paper-tint)', border: '1px solid var(--rule)', borderRadius: 6 }} />
+              ) : companyContext?.location?.longitude != null ? (
+                <InteractiveCompanyMap
+                  longitude={companyContext.location.longitude}
+                  latitude={companyContext.location.latitude}
+                  companyName={companyContext.companyName || job.company}
+                  staticImage={companyContext.location.mapImage}
+                />
+              ) : (
+                <div
+                  style={{
+                    height: 180,
+                    display: 'grid',
+                    placeItems: 'center',
+                    border: '1px solid var(--rule)',
+                    borderRadius: 6,
+                    background: 'var(--paper-tint)',
+                    color: 'var(--pencil)',
+                    font: '13px/1.5 var(--hand)',
+                  }}
+                >
+                  <span className="hd-flex" style={{ gap: 6 }}><IconMapPin size={17} /> 暂无精确地图</span>
+                </div>
+              )}
+            </div>}
           </div>
 
           {/* ═══════════════════════════════════
@@ -357,7 +485,7 @@ export default function JobDetail() {
             <div className="hd-card-accent">
               <div className="hd-section-label">
                 <IconTarget size={18} />
-                <h3>匹配度分析</h3>
+                <h3>{isOnlineJob ? '推荐匹配度' : '匹配度分析'}</h3>
               </div>
               <div className="hd-divider" />
 
@@ -396,6 +524,12 @@ export default function JobDetail() {
                 </div>
               </div>
 
+              {isOnlineJob && !matchResult && (
+                <div className="hd-dashed" style={{ marginBottom: 16, font: '13px/1.5 var(--hand)', color: 'var(--pencil)' }}>
+                  当前分数按技能标签快速估算；完整匹配分析仅适用于本地岗位库。
+                </div>
+              )}
+
               {/* 5 因子分解图 */}
               {matchResult?.breakdown && (
                 <div style={{ marginBottom: 16 }}>
@@ -420,7 +554,7 @@ export default function JobDetail() {
               )}
 
               {/* Matched skills (green) */}
-              <div style={{ marginBottom: 14 }}>
+              {!isOnlineJob && <div style={{ marginBottom: 14 }}>
                 <div
                   className="hd-flex"
                   style={{
@@ -447,10 +581,10 @@ export default function JobDetail() {
                     </span>
                   )}
                 </div>
-              </div>
+              </div>}
 
               {/* Missing skills (red) */}
-              <div style={{ marginBottom: 14 }}>
+              {!isOnlineJob && <div style={{ marginBottom: 14 }}>
                 <div
                   className="hd-flex"
                   style={{
@@ -477,7 +611,7 @@ export default function JobDetail() {
                     </span>
                   )}
                 </div>
-              </div>
+              </div>}
 
               {/* Preferred matched */}
               {preferredMatched.length > 0 && (
@@ -542,7 +676,37 @@ export default function JobDetail() {
             </div>
 
             {/* ── Action buttons ── */}
-            <div className="hd-card-accent">
+            {isOnlineJob ? (
+              <div className="hd-card-accent">
+                <div className="hd-section-label">
+                  <h3>岗位来源</h3>
+                </div>
+                <div className="hd-divider" style={{ marginBottom: 16 }} />
+                <div className="hd-dashed" style={{ marginBottom: 14, font: '13px/1.5 var(--hand)', color: 'var(--pencil)' }}>
+                  {isAiGenerated
+                    ? '这是联网未命中后的 AI 补充推荐，不代表企业当前正在招聘。'
+                    : `岗位来自 ${job.host || '公开招聘页面'}，请以来源页面信息为准。`}
+                </div>
+                {job.url && (
+                  <a
+                    className="hd-btn highlight"
+                    href={job.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ width: '100%', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none' }}
+                  >
+                    <IconSend size={16} />查看原岗位
+                  </a>
+                )}
+                <button
+                  className="hd-btn secondary"
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  onClick={() => navigate('/user/jobs')}
+                >
+                  <IconArrowLeft size={16} />返回岗位列表
+                </button>
+              </div>
+            ) : <div className="hd-card-accent">
               <div className="hd-section-label">
                 <h3>操作</h3>
               </div>
@@ -606,7 +770,7 @@ export default function JobDetail() {
                 <IconSend size={16} />
                 {applying ? '投递中...' : '投递简历'}
               </button>
-            </div>
+            </div>}
 
             {/* ── Enterprise info ── */}
             <div className="hd-card">

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { addSkill } from '../api/user';
+import { addLearningPathSkill } from '../api/user';
 import '../styles/hand-draw.css';
 
 interface AddCourseModalProps {
@@ -20,6 +20,7 @@ const RECOMMENDED_SKILLS = [
 export default function AddCourseModal({ planId, onClose, onAdded }: AddCourseModalProps) {
   const [search, setSearch] = useState('');
   const [adding, setAdding] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   const filtered = search.trim()
     ? RECOMMENDED_SKILLS.filter(s => s.toLowerCase().includes(search.toLowerCase()))
@@ -27,10 +28,13 @@ export default function AddCourseModal({ planId, onClose, onAdded }: AddCourseMo
 
   const handleAdd = async (skillName: string) => {
     setAdding(skillName);
+    setError('');
     try {
-      await addSkill({ name: skillName, source: 'self_select', planId });
+      await addLearningPathSkill(planId, { skillName });
       onAdded();
-    } catch {} finally {
+    } catch (err: any) {
+      setError(err?.response?.data?.message || '添加失败，请稍后重试');
+    } finally {
       setAdding(null);
     }
   };
@@ -50,8 +54,14 @@ export default function AddCourseModal({ planId, onClose, onAdded }: AddCourseMo
         onClick={e => e.stopPropagation()}
       >
         <h3 style={{ font: '800 22px/1 var(--serif)', margin: '0 0 16px' }}>
-          添加课程
+          添加学习内容
         </h3>
+
+        {error && (
+          <div style={{ marginBottom: 12, color: 'var(--accent)', font: '13px/1.4 var(--hand)' }}>
+            {error}
+          </div>
+        )}
 
         {/* 搜索框 */}
         <input
@@ -88,9 +98,9 @@ export default function AddCourseModal({ planId, onClose, onAdded }: AddCourseMo
         </div>
 
         {filtered.length === 0 && search.trim() && (
-          <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--pencil)' }}>
-            未找到匹配的技能
-          </div>
+          <button className="hd-btn secondary" onClick={() => handleAdd(search.trim())} disabled={!!adding}>
+            添加“{search.trim()}”
+          </button>
         )}
 
         {/* 关闭按钮 */}

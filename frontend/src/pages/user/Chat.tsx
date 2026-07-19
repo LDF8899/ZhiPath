@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams, useNavigate } from 'react-router-dom';
 import type { ChatMessage, ChatAction, ChatSession, ResourceItem } from '../../types';
 import { sendChat, getChatSessions, getChatSession, deleteChatSession, getKnowledge } from '../../api/user';
 import { useChatStore } from '../../stores/chat';
@@ -731,6 +731,8 @@ export default function Chat() {
 
 /** Renders AI action cards */
 function ActionRenderer({ action }: { action: ChatAction }) {
+  const navigate = useNavigate();
+
   switch (action.type) {
     case 'jobs':
       return (
@@ -774,13 +776,23 @@ function ActionRenderer({ action }: { action: ChatAction }) {
       return <AvatarCard data={action.data} />;
     case 'skill_gap':
       return <SkillGapCard data={action.data} />;
-    case 'path_generated':
+    case 'path_generated': {
+      const planId = action.data?.planId;
       return (
-        <div className="chat-action-card success">
+        <div
+          className="chat-action-card success"
+          style={{ cursor: planId ? 'pointer' : 'default' }}
+          onClick={() => planId && navigate(`/user/learning/${planId}`)}
+          role={planId ? 'button' : undefined}
+          tabIndex={planId ? 0 : undefined}
+          onKeyDown={(e) => { if (planId && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); navigate(`/user/learning/${planId}`); } }}
+        >
           <IconCheck size={16} />
           <span>学习路径「{typeof action.data?.planName === 'string' ? action.data.planName : ''}」已生成 ✨</span>
+          {planId && <span style={{ marginLeft: 4, fontSize: 12, opacity: 0.6 }}>点击查看 →</span>}
         </div>
       );
+    }
     case 'error':
       return (
         <div className="chat-action-card error">

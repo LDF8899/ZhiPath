@@ -352,9 +352,17 @@ export class ActionExecutorService {
   /** 3. 生成学习路径（同步） — 对齐 Python _generate_path() */
   private async generatePath(action: any, userId: number): Promise<any> {
     const jobId = action.targetJobId || action.target_job_id;
+    const customSkills: string[] | undefined = action.skills;
+    const customPlanName: string | undefined = action.plan_name;
 
     try {
-      const result = await this.plannerAgent.generatePath(userId, jobId || undefined);
+      const result = await this.plannerAgent.generatePath(
+        userId,
+        jobId || undefined,
+        undefined,
+        customSkills,
+        customPlanName,
+      );
       return {
         type: 'path_generated',
         data: {
@@ -418,7 +426,10 @@ export class ActionExecutorService {
 
   /** 5. 生成练习题 — 对齐 Python _generate_exam() */
   private async generateExam(action: any, userId: number): Promise<any> {
-    const skillName = action.skillName || action.skill_name || 'JavaScript';
+    const skillName = action.skillName || action.skill_name || '';
+    if (!skillName) {
+      return { type: 'error', data: { message: '请告诉我你想练习哪个技能？比如「出5道React题」' } };
+    }
     const count = action.question_count || 5;
     const qType = action.question_type || 'mixed';
 

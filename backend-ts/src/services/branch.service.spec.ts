@@ -17,7 +17,7 @@ describe('BranchService', () => {
       save: jest.fn(async (value) => value),
     };
     const commitRepo = { find: jest.fn(), findOne: jest.fn() };
-    const userSkillRepo = { delete: jest.fn() };
+    const planRepo = { findOne: jest.fn() };
     const snapshotService = {
       getSnapshotByCommit: jest.fn().mockResolvedValue(snapshot),
       calculateDelta: jest.fn(),
@@ -28,7 +28,7 @@ describe('BranchService', () => {
     const service = new BranchService(
       branchRepo as any,
       commitRepo as any,
-      userSkillRepo as any,
+      planRepo as any,
       snapshotService as any,
       skillService as any,
       learningCommitService as any,
@@ -37,11 +37,10 @@ describe('BranchService', () => {
 
     const result = await service.rollback(1, 10);
 
-    expect(userSkillRepo.delete).toHaveBeenCalledWith({ userId: 1 });
-    expect(skillService.addSkill).toHaveBeenCalledWith(1, 'Git', 'exam', 1, 40);
+    expect(skillService.addSkill).not.toHaveBeenCalled();
     expect(branchRepo.save).toHaveBeenCalledWith(expect.objectContaining({ headCommitId: 10 }));
-    expect(result).toEqual({ branch: expect.objectContaining({ headCommitId: 10 }), commit, snapshot });
+    expect(result).toEqual({ branch: expect.objectContaining({ headCommitId: 10 }), commit, snapshot, nonDestructive: true });
     expect(eventsService.emit).toHaveBeenCalledWith(1, expect.objectContaining({ type: 'branch_updated' }));
-    expect(eventsService.emit).toHaveBeenCalledWith(1, expect.objectContaining({ type: 'radar_updated' }));
+    expect(eventsService.emit).not.toHaveBeenCalledWith(1, expect.objectContaining({ type: 'radar_updated' }));
   });
 });

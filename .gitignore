@@ -57,3 +57,11 @@ venv/
 
 # ── Chat history (user data) ──
 backend-ts/data/chat_history/
+
+# ── Local secrets and private data exports ──
+/MD/key.txt
+/deploy/deb702205d1b67163671f325dbe7ed8b.md
+/deploy/zhipath_latest*.sql
+
+# ── Office temporary lock files ──
+~$*.docx

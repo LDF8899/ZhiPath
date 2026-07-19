@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LearningPlan } from '../../entities/learning.entity';
@@ -9,6 +9,7 @@ import { LectureAgentService, CodeAgentService, ReadingAgentService } from '../.
 import { AgentTaskService } from '../../services/agent-task.service';
 import { AgentProfileService } from '../../services/agent-profile.service';
 import { GeneratedResourceService } from '../../services/generated-resource.service';
+import { BranchService } from '../../services/branch.service';
 
 /**
  * Learning Paths 服务 — 对齐 Python api/user/learning_paths.py
@@ -28,6 +29,7 @@ export class LearningPathsService {
     private taskService: AgentTaskService,
     private profileService: AgentProfileService,
     private generatedResources: GeneratedResourceService,
+    private branchService: BranchService,
   ) {}
 
   /** 学习路径列表 — 对齐 GET /api/user/learning-paths */
@@ -39,12 +41,19 @@ export class LearningPathsService {
       skip,
       take: pageSize,
     });
-    return { list: items, total, page, pageSize };
+    const list = await Promise.all(items.map(async (plan) => {
+      const branch = await this.branchService.ensurePlanBranch(userId, plan);
+      return { ...plan, branchId: branch.id };
+    }));
+    return { list, total, page, pageSize };
   }
 
   /** 单条路径 — 对齐 GET /api/user/learning-paths/:pathId */
-  async getPath(pathId: number) {
-    return this.pathRepo.findOne({ where: { id: pathId, status: 1 } });
+  async getPath(userId: number, pathId: number) {
+    const plan = await this.pathRepo.findOne({ where: { id: pathId, userId, status: 1 } });
+    if (!plan) throw new NotFoundException('学习计划不存在');
+    const branch = await this.branchService.ensurePlanBranch(userId, plan);
+    return { ...plan, branchId: branch.id };
   }
 
   /** 创建路径 — 对齐 POST /api/user/learning-paths */
@@ -59,6 +68,67 @@ export class LearningPathsService {
       updateTime: Date.now(),
     });
     return path;
+  }
+
+  async addSkill(userId: number, pathId: number, input: { skillName?: string; estimatedMin?: number }) {
+    const skillName = String(input.skillName || '').trim();
+    if (!skillName) throw new BadRequestException('请输入学习主题');
+    const plan = await this.pathRepo.findOne({ where: { id: pathId, userId, status: 1 } });
+    if (!plan) throw new NotFoundException('学习计划不存在');
+    if (plan.planType !== 'side') throw new BadRequestException('额外学习内容只能加入自选计划');
+    if (plan.planStatus === 'archived') throw new BadRequestException('归档计划不能添加学习内容');
+
+    const pathData = plan.pathData || { direction: 'self', phases: [] };
+    const phases = Array.isArray(pathData.phases) ? pathData.phases : [];
+    const duplicate = phases.some((phase: any) =>
+      (phase.skills || []).some((skill: any) => String(skill.name).toLowerCase() === skillName.toLowerCase()),
+    );
+    if (duplicate) throw new BadRequestException('该学习内容已在计划中');
+
+    let phase = phases.find((item: any) => item.kind === 'self_added');
+    if (!phase) {
+      phase = { name: '自选补充', kind: 'self_added', index: phases.length, skills: [] };
+      phases.push(phase);
+    }
+    phase.skills.push({
+      name: skillName,
+      estimatedMin: Math.max(30, Math.min(1200, Number(input.estimatedMin) || 120)),
+      priority: 5,
+      isRequired: false,
+      status: 'pending',
+    });
+    plan.pathData = { ...pathData, phases };
+    plan.updateTime = Date.now();
+    await this.pathRepo.save(plan);
+    return this.getPath(userId, pathId);
+  }
+
+  async setPlanStatus(userId: number, pathId: number, planStatus: 'active' | 'paused' | 'archived') {
+    const plan = await this.pathRepo.findOne({ where: { id: pathId, userId, status: 1 } });
+    if (!plan) throw new NotFoundException('学习计划不存在');
+    if (!['active', 'paused', 'archived'].includes(planStatus)) throw new BadRequestException('无效的计划状态');
+    if (planStatus === 'active' && plan.planType === 'main') {
+      await this.pathRepo.createQueryBuilder()
+        .update(LearningPlan)
+        .set({ planStatus: 'archived', scheduleEnabled: 0, updateTime: Date.now() })
+        .where('user_id = :userId AND plan_type = :type AND plan_status = :status AND id <> :id', {
+          userId,
+          type: 'main',
+          status: 'active',
+          id: plan.id,
+        })
+        .execute();
+    }
+    plan.planStatus = planStatus;
+    plan.scheduleEnabled = planStatus === 'active' ? 1 : 0;
+    plan.updateTime = Date.now();
+    await this.pathRepo.save(plan);
+    return this.getPath(userId, pathId);
+  }
+
+  async mergePlan(userId: number, pathId: number) {
+    const branch = await this.branchService.ensurePlanBranch(userId, pathId);
+    return this.branchService.mergeBranch(userId, branch.id);
   }
 
   /** 知识库资源查询 — 对齐 GET /api/user/learning-paths/knowledge/:skill */

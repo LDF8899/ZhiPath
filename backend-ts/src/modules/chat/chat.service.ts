@@ -232,7 +232,12 @@ export class ChatService {
     const diagramType = filters.diagramType || filters.diagram_type || 'flowchart';
 
     const actionMap: Record<string, any> = {
-      generate_path: { type: 'generate_path', targetJobId: filters.targetJobId || 0 },
+      generate_path: {
+        type: 'generate_path',
+        targetJobId: filters.targetJobId || 0,
+        skills: filters.skills || [],
+        plan_name: filters.plan_name || '',
+      },
       recommend_jobs: { type: 'recommend_jobs', filters },
       set_target_job: { type: 'set_target_job', jobId: filters.jobId || 0 },
       generate_exam: { type: 'generate_exam', skillName, question_count: 5, question_type: 'mixed' },
@@ -266,8 +271,9 @@ export class ChatService {
       return { actions: [], reply: '' };
     }
 
-    // 对于 generate_path，如果没有 targetJobId，从用户画像取
-    if (name === 'generate_path' && !filters.targetJobId) {
+    // 对于 generate_path，如果没有 targetJobId 也没有自定义技能，从用户画像取
+    // 如果有自定义技能，直接放行（用户通过聊天指定了想学的技能）
+    if (name === 'generate_path' && !filters.targetJobId && !(filters.skills && filters.skills.length > 0)) {
       const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
       if (student?.targetJobId) {
         action.targetJobId = student.targetJobId;

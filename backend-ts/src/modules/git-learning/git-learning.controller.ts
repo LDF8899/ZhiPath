@@ -23,7 +23,7 @@ export class GitLearningController {
   @Post('branches')
   async createBranch(
     @CurrentUser('sub') userId: number,
-    @Body() body: { branchName?: string; branchType?: 'main' | 'side' | 'experiment'; sourceBranchId?: number },
+    @Body() body: { branchName?: string; branchType?: 'main' | 'plan' | 'side' | 'experiment'; sourceBranchId?: number; planId?: number },
   ) {
     return success(await this.branchService.createBranch(userId, body));
   }

@@ -81,7 +81,14 @@ export async function actionsFromResourceReadyEvent(data: any): Promise<ChatActi
   const kb = res.data;
   const actions: ChatAction[] = [];
   if ((contentType === 'lecture' || contentType === 'reading') && kb.lecture) {
-    actions.push({ type: 'resources', data: [{ title: `${skillName} lecture`, type: 'lecture' }] });
+    actions.push({
+      type: 'resources',
+      data: [{
+        title: `${skillName} lecture`,
+        type: contentType === 'lecture' ? '文档' : '教程',
+        url: `/user/knowledge/${encodeURIComponent(skillName)}`,
+      }],
+    });
     saveResource({ skill: skillName, type: 'lecture', title: `${skillName} lecture`, data: kb.lecture });
   } else if (contentType === 'quiz' || contentType === 'coding') {
     const quizData = contentType === 'quiz' ? kb.quiz : kb.coding;
@@ -244,9 +251,11 @@ function actionTypeFromResource(resource: GeneratedResource): string {
 function normalizeGeneratedPayload(resource: GeneratedResource, actionType: string, payload: any): any {
   const skillName = resource.skillName || payload.skillName || payload.skill_name || payload.skill || '';
   if (actionType === 'resources' && !Array.isArray(payload)) {
+    const url = (typeof payload === 'object' && payload?.url) || `/user/knowledge/${encodeURIComponent(skillName || resource.title)}`;
     return [{
       title: resource.title,
-      type: resource.resourceType,
+      url,
+      type: resource.resourceType === 'lecture' ? '文档' : resource.resourceType === 'reading' ? '教程' : resource.resourceType,
       skillName,
       resourceId: resource.id,
     }];

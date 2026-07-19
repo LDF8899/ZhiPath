@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Brackets } from 'typeorm';
 import { JobPosition, JobApplication } from '../../entities/job.entity';
@@ -8,6 +9,19 @@ import { LearningPlan } from '../../entities/learning.entity';
 import { MatchAgentService } from '../../services/match-agent.service';
 import { JobSearchService } from '../../services/job-search.service';
 import { SkillService } from '../../services/skill.service';
+import { LlmService } from '../../services/llm.service';
+
+export interface CompanyContext {
+  companyName: string;
+  introduction: string;
+  location: {
+    query: string;
+    formattedAddress: string;
+    longitude: number | null;
+    latitude: number | null;
+    mapImage: string | null;
+  };
+}
 
 /**
  * Jobs 服务 — 岗位列表/详情/匹配/投递/技能导入
@@ -16,6 +30,8 @@ import { SkillService } from '../../services/skill.service';
  */
 @Injectable()
 export class JobsService {
+  private readonly companyContextCache = new Map<number, { expiresAt: number; value: CompanyContext }>();
+
   constructor(
     @InjectRepository(JobPosition) private jobRepo: Repository<JobPosition>,
     @InjectRepository(JobApplication) private applicationRepo: Repository<JobApplication>,
@@ -25,6 +41,8 @@ export class JobsService {
     private matchAgent: MatchAgentService,
     private jobSearch: JobSearchService,
     private skillService: SkillService,
+    private llmService: LlmService,
+    private config: ConfigService,
   ) {}
 
   /** 岗位列表（按匹配度排序） — GET /api/user/jobs */
@@ -110,6 +128,7 @@ export class JobsService {
     const keyword = (options.keyword || '').trim();
     const mode = options.searchMode || 'hybrid';
     const includeOnline = mode === 'online' || options.includeOnline || (mode === 'hybrid' && keyword.length > 0);
+    const onlineQuery = includeOnline ? (keyword || 'IT') : '';
     const skip = (page - 1) * pageSize;
 
     const localItems = mode === 'online'
@@ -135,9 +154,11 @@ export class JobsService {
 
     const localList = localItems.map((j) => this.toJobCard(j, enterpriseMap, matchMap.get(Number(j.id)) || 0, keyword));
     let onlineList: any[] = [];
-    if (includeOnline && keyword) {
-      onlineList = await this.searchOnlineJobs(userId, keyword);
+    if (onlineQuery) {
+      onlineList = await this.searchOnlineJobs(userId, onlineQuery);
     }
+    const aiRecommendationCount = onlineList.filter((job) => job.searchMeta?.origin === 'ai_generated').length;
+    const webOnlineCount = onlineList.length - aiRecommendationCount;
 
     const merged = this.dedupeJobs([...localList, ...onlineList]);
     merged.sort((a, b) => {
@@ -155,9 +176,12 @@ export class JobsService {
       pageSize,
       meta: {
         keyword,
+        onlineQuery,
         searchMode: mode,
         localCount: localList.length,
         onlineCount: onlineList.length,
+        webOnlineCount,
+        aiRecommendationCount,
       },
     };
   }
@@ -190,6 +214,111 @@ export class JobsService {
       enterpriseIndustry: enterprise?.industry || '',
       enterpriseContact: enterprise ? { name: enterprise.contactName, email: enterprise.contactEmail } : null,
     };
+  }
+
+  /** Company introduction and geocoded location for the job detail page. */
+  async getCompanyContext(jobId: number): Promise<CompanyContext | null> {
+    const cached = this.companyContextCache.get(jobId);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+    const job = await this.jobRepo.findOne({ where: { id: jobId, status: 1 } });
+    if (!job) return null;
+    const enterprise = job.enterpriseId
+      ? await this.enterpriseRepo.findOne({ where: { id: job.enterpriseId, status: 1 } })
+      : null;
+    const companyName = enterprise?.name || job.company || '该公司';
+    const industry = enterprise?.industry || '';
+
+    const [introduction, location] = await Promise.all([
+      this.generateCompanyIntroduction(companyName, industry, job),
+      this.resolveCompanyLocation(companyName, job.location || ''),
+    ]);
+    const value: CompanyContext = { companyName, introduction, location };
+    this.companyContextCache.set(jobId, { expiresAt: Date.now() + 24 * 60 * 60 * 1000, value });
+    return value;
+  }
+
+  private async generateCompanyIntroduction(
+    companyName: string,
+    industry: string,
+    job: JobPosition,
+  ): Promise<string> {
+    const fallback = industry
+      ? `${companyName}是一家从事${industry}相关业务的企业。本岗位为${job.title}，可结合岗位描述进一步了解团队方向、工作内容与能力要求。`
+      : `${companyName}正在招聘${job.title}。建议结合岗位描述和企业公开渠道，进一步了解业务方向、团队情况与岗位发展空间。`;
+    try {
+      const result = await this.llmService.chatCompletion([
+        {
+          role: 'system',
+          content: `你是严谨的企业研究助理。根据公司名称、行业和招聘岗位，撰写 120-180 字中文公司简介。
+只写稳定、可验证的公开常识和与求职相关的业务方向；不得编造人数、融资、营收、排名、福利或具体产品数据。
+若信息不足，明确使用“公开信息有限”等克制表达。直接输出纯文本，不要标题、列表或 Markdown。`,
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            company: companyName,
+            industry,
+            position: job.title,
+            location: job.location,
+            jobDescription: String(job.jdText || '').slice(0, 1200),
+          }),
+        },
+      ], { tier: 'flash', temperature: 0.2, maxTokens: 350 });
+      const clean = String(result || '').replace(/[#*_`]/g, '').replace(/\s+/g, ' ').trim();
+      return clean.length >= 40 ? clean.slice(0, 320) : fallback;
+    } catch (e: any) {
+      console.warn('[JobsService] Company introduction fallback:', e.message);
+      return fallback;
+    }
+  }
+
+  private async resolveCompanyLocation(companyName: string, location: string): Promise<CompanyContext['location']> {
+    const query = [location, companyName].filter(Boolean).join(' ');
+    const fallback = { query, formattedAddress: location || '暂未提供工作地点', longitude: null, latitude: null, mapImage: null };
+    const key = this.config.get<string>('AMAP_WEB_SERVICE_KEY', '').trim();
+    if (!key || !query) return fallback;
+
+    try {
+      const params = new URLSearchParams({ key, address: query });
+      const response = await fetch(`https://restapi.amap.com/v3/geocode/geo?${params}`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) return fallback;
+      const data: any = await response.json();
+      const geocode = Array.isArray(data?.geocodes) ? data.geocodes[0] : null;
+      const [longitude, latitude] = String(geocode?.location || '').split(',').map(Number);
+      if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return fallback;
+
+      const mapParams = new URLSearchParams({
+        key,
+        location: `${longitude},${latitude}`,
+        zoom: '12',
+        size: '700*320',
+        scale: '2',
+        markers: `mid,,A:${longitude},${latitude}`,
+      });
+      let mapImage: string | null = null;
+      const mapResponse = await fetch(`https://restapi.amap.com/v3/staticmap?${mapParams}`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (mapResponse.ok && (mapResponse.headers.get('content-type') || '').startsWith('image/')) {
+        const contentType = mapResponse.headers.get('content-type') || 'image/png';
+        const image = Buffer.from(await mapResponse.arrayBuffer()).toString('base64');
+        mapImage = `data:${contentType};base64,${image}`;
+      }
+
+      return {
+        query,
+        formattedAddress: String(geocode.formatted_address || location || query),
+        longitude,
+        latitude,
+        mapImage,
+      };
+    } catch (e: any) {
+      console.warn('[JobsService] AMap location fallback:', e.message);
+      return fallback;
+    }
   }
 
   /** 岗位匹配分析 — GET /api/user/jobs/:jobId/match
@@ -393,7 +522,11 @@ export class JobsService {
         enterpriseName: card.company || '',
         enterpriseIndustry: '',
         matchScore: card.matchScore || 0,
-        searchMeta: { source: 'online', matchedFields: ['online'] },
+        searchMeta: {
+          source: 'online',
+          origin: card.origin || (card.url ? 'web' : 'ai_generated'),
+          matchedFields: ['online'],
+        },
       }));
     } catch (e) {
       console.warn('[JobsService] online job search failed:', (e as Error).message);

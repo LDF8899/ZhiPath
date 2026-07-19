@@ -5,16 +5,14 @@ import { StudentService } from './student.service';
 import { Student } from '../../entities/student.entity';
 import { UserSkill } from '../../entities/user-skills.entity';
 import { LearningPlan } from '../../entities/learning.entity';
-import { LearningTask } from '../../entities/learning-tasks.entity';
 import { JobPosition } from '../../entities/job.entity';
 import { ProfileService } from '../../services/profile.service';
 import { SkillModule } from '../skill/skill.module';
 import { PlannerModule } from '../planner/planner.module';
-import { QueueModule } from '../queue/queue.module';
 import { GitLearningModule } from '../git-learning/git-learning.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Student, UserSkill, LearningPlan, LearningTask, JobPosition]), SkillModule, PlannerModule, QueueModule, GitLearningModule],
+  imports: [TypeOrmModule.forFeature([Student, UserSkill, LearningPlan, JobPosition]), SkillModule, PlannerModule, GitLearningModule],
   controllers: [StudentController],
   providers: [StudentService, ProfileService],
   exports: [StudentService],

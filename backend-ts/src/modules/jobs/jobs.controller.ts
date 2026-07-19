@@ -42,6 +42,13 @@ export class JobsController {
     return success(job);
   }
 
+  /** GET /api/user/jobs/:jobId/company-context */
+  @Get('jobs/:jobId/company-context')
+  async getCompanyContext(@Param('jobId') jobId: string) {
+    const context = await this.jobsService.getCompanyContext(Number(jobId));
+    return success(context);
+  }
+
   /** GET /api/user/jobs/:jobId/match */
   @Get('jobs/:jobId/match')
   async getJobMatch(@CurrentUser() user: any, @Param('jobId') jobId: string) {

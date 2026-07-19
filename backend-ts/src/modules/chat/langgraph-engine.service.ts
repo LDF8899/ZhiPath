@@ -718,9 +718,17 @@ export class LangGraphEngineService {
   /** 节点: 生成学习路径 */
   private async generatePathNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
     const jobId = state.intent?.filters?.targetJobId || state.student?.targetJobId;
+    const customSkills: string[] | undefined = state.intent?.filters?.skills;
+    const customPlanName: string | undefined = state.intent?.filters?.plan_name;
     return this.trackOfficeNode(state, { type: 'generate_path', targetJobId: jobId }, async () => {
       try {
-      const result = await this.plannerAgent.generatePath(state.userId, jobId || undefined);
+      const result = await this.plannerAgent.generatePath(
+        state.userId,
+        jobId || undefined,
+        undefined,
+        customSkills,
+        customPlanName,
+      );
       return {
         pathResult: result,
         actions: [{
@@ -742,7 +750,10 @@ export class LangGraphEngineService {
 
   /** 节点: 生成考试 */
   private async generateExamNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
-    const skillName = state.intent?.filters?.skillName || 'JavaScript';
+    const skillName = state.intent?.filters?.skillName || '';
+    if (!skillName) {
+      return { actions: [{ type: 'error', data: { message: '请告诉我你想练习哪个技能？比如「出5道React题」' } }] };
+    }
     const count = state.intent?.filters?.question_count || 5;
     const qType = state.intent?.filters?.question_type || 'mixed';
     return this.trackOfficeNode(state, { type: 'generate_exam', skillName, question_count: count, question_type: qType }, async () => {
@@ -831,7 +842,7 @@ export class LangGraphEngineService {
     return this.trackOfficeNode(state, { type: 'match_analysis' }, async () => {
     try {
       const userSkills = state.profile?.skills || [];
-      const targetJobId = state.student?.targetJobId;
+      const targetJobId = state.intent?.filters?.job_id || state.student?.targetJobId;
       if (!targetJobId) {
         return { skillGapResult: { message: '请先设置目标岗位' }, actions: [] };
       }
@@ -995,7 +1006,12 @@ export class LangGraphEngineService {
     const diagramType = filters.diagramType || filters.diagram_type || 'flowchart';
 
     const actionMap: Record<string, any> = {
-      generate_path: { type: 'generate_path', targetJobId: filters.targetJobId || 0 },
+      generate_path: {
+        type: 'generate_path',
+        targetJobId: filters.targetJobId || 0,
+        skills: filters.skills || [],
+        plan_name: filters.plan_name || '',
+      },
       recommend_jobs: { type: 'recommend_jobs', filters },
       set_target_job: { type: 'set_target_job', jobId: filters.jobId || 0 },
       generate_exam: { type: 'generate_exam', skillName, question_count: 5, question_type: 'mixed' },
@@ -1030,8 +1046,9 @@ export class LangGraphEngineService {
       return { actions: [], reply: '' };
     }
 
-    // 对于 generate_path，如果没有 targetJobId，从用户画像取
-    if (name === 'generate_path' && !filters.targetJobId) {
+    // 对于 generate_path，如果没有 targetJobId 也没有自定义技能，从用户画像取
+    // 如果有自定义技能，直接放行（用户通过聊天指定了想学的技能）
+    if (name === 'generate_path' && !filters.targetJobId && !(filters.skills && filters.skills.length > 0)) {
       const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
       if (student?.targetJobId) {
         action.targetJobId = student.targetJobId;

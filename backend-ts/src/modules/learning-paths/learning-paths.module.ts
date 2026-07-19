@@ -11,9 +11,17 @@ import { AgentsModule } from '../agents/agents.module';
 import { AgentTaskService } from '../../services/agent-task.service';
 import { AgentProfileService } from '../../services/agent-profile.service';
 import { GeneratedResourceService } from '../../services/generated-resource.service';
+import { GitLearningModule } from '../git-learning/git-learning.module';
+import { StudentModule } from '../student/student.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LearningPlan, AgentTask, AgentProfile, GeneratedResource]), KnowledgeModule, AgentsModule],
+  imports: [
+    TypeOrmModule.forFeature([LearningPlan, AgentTask, AgentProfile, GeneratedResource]),
+    KnowledgeModule,
+    AgentsModule,
+    GitLearningModule,
+    StudentModule,
+  ],
   controllers: [LearningPathsController],
   providers: [LearningPathsService, AgentTaskService, AgentProfileService, GeneratedResourceService],
   exports: [LearningPathsService],

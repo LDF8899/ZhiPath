@@ -52,7 +52,7 @@ export const submitOnboarding = (data: {
 
 /** 获取用户所有计划 */
 export const getMyPlans = () =>
-  client.get('/user/plans') as Promise<ApiResponse<Array<{
+  client.get('/user/learning-paths') as Promise<ApiResponse<Array<{
     id: number;
     planName: string;
     planType: 'main' | 'side';
@@ -67,11 +67,15 @@ export const getMyPlans = () =>
 
 /** 创建新计划 */
 export const createPlan = (data: {
-  direction: string;
+  planType: 'main' | 'side';
+  direction?: string;
+  planName?: string;
+  skills?: string[];
+  targetJobId?: number;
   dailyHours?: number;
   importFromPlanId?: number;
 }) =>
-  client.post('/user/plans', data) as Promise<ApiResponse<{
+  client.post('/user/learning-paths', data) as Promise<ApiResponse<{
     id: number;
     planName: string;
     estimatedDate: string;
@@ -114,6 +118,20 @@ export const getJobs = (params?: {
 export const getJobDetail = (id: number) =>
   client.get(`/user/jobs/${id}`) as Promise<ApiResponse<Job>>;
 
+/** 获取 AI 公司简介与地理位置 */
+export const getJobCompanyContext = (id: number) =>
+  client.get(`/user/jobs/${id}/company-context`) as Promise<ApiResponse<{
+    companyName: string;
+    introduction: string;
+    location: {
+      query: string;
+      formattedAddress: string;
+      longitude: number | null;
+      latitude: number | null;
+      mapImage: string | null;
+    };
+  }>>;
+
 /** 岗位匹配分析 */
 export const getJobMatch = (id: number) =>
   client.get(`/user/jobs/${id}/match`) as Promise<ApiResponse<any>>;
@@ -133,6 +151,15 @@ export const getLearningPaths = (params?: { page?: number; pageSize?: number }) 
 /** 学习路径详情 */
 export const getLearningPathDetail = (id: number) =>
   client.get(`/user/learning-paths/${id}`) as Promise<ApiResponse<LearningPath>>;
+
+export const addLearningPathSkill = (id: number, data: { skillName: string; estimatedMin?: number }) =>
+  client.post(`/user/learning-paths/${id}/skills`, data) as Promise<ApiResponse<LearningPath>>;
+
+export const setLearningPathStatus = (id: number, planStatus: 'active' | 'paused' | 'archived') =>
+  client.patch(`/user/learning-paths/${id}/status`, { planStatus }) as Promise<ApiResponse<LearningPath>>;
+
+export const mergeLearningPath = (id: number) =>
+  client.post(`/user/learning-paths/${id}/merge`) as Promise<ApiResponse<any>>;
 
 /** 知识库资源 */
 export const getKnowledge = (skill: string) =>

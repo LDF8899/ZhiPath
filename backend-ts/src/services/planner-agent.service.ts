@@ -7,6 +7,7 @@ import { LearningTask } from '../entities/learning-tasks.entity';
 import { Student } from '../entities/student.entity';
 import { SkillService } from './skill.service';
 import { getPlanTemplate } from '../modules/student/plan-templates';
+import { BranchService } from './branch.service';
 import { QueueService } from '../modules/queue/queue.service';
 
 /**
@@ -31,6 +32,7 @@ export class PlannerAgentService {
     @InjectRepository(Student) private studentRepo: Repository<Student>,
     private skillService: SkillService,
     private queueService: QueueService,
+    private branchService: BranchService,
   ) {}
 
   /**
@@ -57,6 +59,9 @@ export class PlannerAgentService {
     userId: number,
     targetJobId?: number,
     dailyHours?: number,
+    customSkills?: string[],
+    customPlanName?: string,
+    requestedPlanType?: 'main' | 'side',
   ): Promise<{ plan: LearningPlan; tasks: LearningTask[]; gapSkills: string[] }> {
     const now = Date.now();
 
@@ -65,15 +70,21 @@ export class PlannerAgentService {
     if (!student) throw new Error('用户未完成 Onboarding');
 
     const effectiveDailyHours = dailyHours || student.dailyHours || 2;
-    const effectiveJobId = targetJobId || student.targetJobId;
+    const planType = requestedPlanType || (customSkills?.length ? 'side' : 'main');
+    const effectiveJobId = planType === 'main' ? (targetJobId || student.targetJobId) : null;
+    if (planType === 'main' && !effectiveJobId) throw new Error('岗位驱动计划必须绑定目标岗位');
 
-    // 2. 获取目标岗位技能
+    // 2. 获取目标岗位技能（除非传入了自定义技能列表）
     let requiredSkills: Array<{ name: string; weight?: number }> = [];
     let preferredSkills: Array<{ name: string; weight?: number }> = [];
     let jobTitle = '';
     let direction = student.interests?.[0] || 'frontend';
 
-    if (effectiveJobId) {
+    if (customSkills && customSkills.length > 0) {
+      // 用户通过聊天明确指定了想学的技能 → 直接使用，不走岗位查询
+      requiredSkills = customSkills.map((name, i) => ({ name, weight: 1.0 - i * 0.05 }));
+      jobTitle = customPlanName || '';
+    } else if (effectiveJobId) {
       const job = await this.jobRepo.findOne({ where: { id: effectiveJobId, status: 1 } });
       if (job) {
         requiredSkills = job.requiredSkills || [];
@@ -150,9 +161,11 @@ export class PlannerAgentService {
     // 9. 写入 learning_plans_v3
     const plan = await this.planRepo.save({
       userId,
-      planName: `${jobTitle || direction}学习计划`,
-      planType: 'main',
-      targetJobId: effectiveJobId || null,
+      planName: customPlanName || `${jobTitle || direction}学习计划`,
+      planType,
+      targetJobId: planType === 'main' ? effectiveJobId : null,
+      planStatus: 'active',
+      scheduleEnabled: 1,
       pathData,
       currentPhase: 0,
       dailyHours: effectiveDailyHours,
@@ -164,8 +177,23 @@ export class PlannerAgentService {
       status: 1,
     });
 
+    if (planType === 'main') {
+      await this.planRepo.createQueryBuilder()
+        .update(LearningPlan)
+        .set({ planStatus: 'archived', scheduleEnabled: 0, updateTime: now })
+        .where('user_id = :userId AND plan_type = :planType AND plan_status = :status AND id <> :id', {
+          userId,
+          planType: 'main',
+          status: 'active',
+          id: plan.id,
+        })
+        .execute();
+    }
+
+    await this.branchService.ensurePlanBranch(userId, plan);
+
     // 10. 生成第一天的学习任务
-    const tasks = await this.generateDailyTasks(plan.id, userId, phases, mainMinutesPerDay, now);
+    const tasks = await this.generateDailyTasks(plan.id, userId, phases, mainMinutesPerDay, now, planType);
 
     // 11. §5.2 异步提交资源生成任务（讲义/题目/编程题）
     await this.enqueuePathResources(userId, pathData);
@@ -341,6 +369,7 @@ export class PlannerAgentService {
     phases: Array<{ name: string; skills: Array<{ name: string; estimatedMin: number; priority: number; isRequired: boolean }> }>,
     mainMinutesPerDay: number,
     now: number,
+    taskType: 'main' | 'side',
   ): Promise<LearningTask[]> {
     if (phases.length === 0) return [];
 
@@ -356,7 +385,7 @@ export class PlannerAgentService {
         userId,
         planId,
         skillName: sk.name,
-        taskType: 'main',
+        taskType,
         taskStatus: 'pending',
         estimatedMin: sk.estimatedMin,
         priority: sk.priority,

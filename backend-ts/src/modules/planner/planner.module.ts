@@ -7,6 +7,7 @@ import { Student } from '../../entities/student.entity';
 import { PlannerAgentService } from '../../services/planner-agent.service';
 import { SkillModule } from '../skill/skill.module';
 import { QueueModule } from '../queue/queue.module';
+import { GitLearningModule } from '../git-learning/git-learning.module';
 
 /**
  * PlannerAgent 模块 — 学习路径 LLM 生成
@@ -16,6 +17,7 @@ import { QueueModule } from '../queue/queue.module';
     TypeOrmModule.forFeature([JobPosition, LearningPlan, LearningTask, Student]),
     SkillModule,
     QueueModule,
+    GitLearningModule,
   ],
   providers: [PlannerAgentService],
   exports: [PlannerAgentService],

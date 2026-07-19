@@ -43,7 +43,7 @@ export type { AssessData, DimensionScore, WeakPoint, Improvement } from './asses
 // 新增类型
 export type { JDParseResult, JDSkill } from './jd-parser-agent.service';
 export type { ReviewResult, ReviewIssue, AnswerVerification, ErrorAnalysis, ReinforcementPlan } from './reviewer-agent.service';
-export type { ResumeData, UserProfile, TargetJob, ResumeSection } from './resume-agent.service';
+export type { ResumeData, UserProfile, TargetJob, ResumeTemplateData } from './resume-agent.service';
 export type { ProfileReport, Achievement, LearningPattern, Recommendation } from './profile-agent.service';
 export type { ExamData, ExamQuestion, ExamConfig, QuickTestConfig } from './exam-agent.service';
 export type { SkillGapReport, GapSkill, MatchedSkill, GapAnalysis, ImprovementPlan } from './skill-gap-agent.service';

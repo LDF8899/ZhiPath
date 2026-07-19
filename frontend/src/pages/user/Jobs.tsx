@@ -12,6 +12,7 @@ import {
   IconLink,
 } from '../../components/icons';
 import type { Job } from '../../types';
+import { storeOnlineJob } from '../../utils/onlineJobCache';
 
 /* ──────────────────────────────────────────
    Jobs Page — hand-drawn design system
@@ -109,20 +110,40 @@ export default function Jobs() {
   const [searchMeta, setSearchMeta] = useState<Record<string, any> | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [loadingText, setLoadingText] = useState('正在匹配岗位...');
+  const requestSeq = useRef(0);
   const pageSize = 20;
 
   const fetchJobs = async (p = 1, kw?: string, lv?: string, mode = searchMode) => {
+    const requestId = ++requestSeq.current;
+    const effectiveKw = kw?.trim() || '';
     setLoading(true);
     setError(null);
+    setLoadingText(
+      mode === 'online'
+        ? `正在联网搜索${effectiveKw ? `“${effectiveKw}”` : '热门 IT 岗位'}...`
+        : mode === 'local'
+          ? '正在查询本地岗位...'
+          : effectiveKw
+            ? `正在混合搜索“${effectiveKw}”...`
+            : '正在匹配岗位...',
+    );
+    if (p === 1) {
+      setJobs([]);
+      setTotal(0);
+      setSearchMeta(null);
+    }
     try {
+      const shouldIncludeOnline = mode === 'online' || (mode === 'hybrid' && effectiveKw.length > 0);
       const res = await getJobs({
         page: p,
         pageSize,
-        keyword: kw || undefined,
+        keyword: effectiveKw || undefined,
         level: lv || undefined,
         searchMode: mode,
-        includeOnline: mode !== 'local' && Boolean(kw?.trim()),
+        includeOnline: shouldIncludeOnline,
       });
+      if (requestId !== requestSeq.current) return;
       const items = res.data || [];
       setTotal(res.total || 0);
       setSearchMeta(res.meta || null);
@@ -133,9 +154,10 @@ export default function Jobs() {
       }
       setPage(p);
     } catch (err: any) {
+      if (requestId !== requestSeq.current) return;
       setError(err?.message || '加载失败');
     } finally {
-      setLoading(false);
+      if (requestId === requestSeq.current) setLoading(false);
     }
   };
 
@@ -163,8 +185,9 @@ export default function Jobs() {
 
   const handleJobClick = (job: Job) => {
     const isOnline = (typeof job.id === 'number' && job.id < 0) || job.source === 'online';
-    if (isOnline && job.url) {
-      window.open(job.url, '_blank', 'noopener,noreferrer');
+    if (isOnline) {
+      storeOnlineJob(job);
+      navigate(`/user/jobs/${job.id}`, { state: { onlineJob: job } });
       return;
     }
     navigate(`/user/jobs/${job.id}`);
@@ -178,18 +201,22 @@ export default function Jobs() {
   });
 
   const hasMore = jobs.length < total;
+  const totalPages = Math.ceil(total / pageSize);
   const localCount = Number(searchMeta?.localCount || 0);
   const onlineCount = Number(searchMeta?.onlineCount || 0);
-  const hasSearchMeta = Boolean(searchMeta && (searchMeta.keyword || localCount || onlineCount));
+  const webOnlineCount = Number(searchMeta?.webOnlineCount ?? onlineCount);
+  const aiRecommendationCount = Number(searchMeta?.aiRecommendationCount || 0);
+  const hasSearchMeta = Boolean(searchMeta);
+  const onlineQuery = String(searchMeta?.onlineQuery || keyword || '').trim();
 
   /* ── Loading state ── */
-  if (loading && jobs.length === 0) {
+  if (loading) {
     return (
       <div className="hd-page">
         <div className="hd-page-wrap">
           <div className="hd-loading">
             <IconBriefcase size={32} className="mb-3" style={{ opacity: 0.4 }} />
-            <div>正在匹配岗位...</div>
+            <div>{loadingText}</div>
           </div>
         </div>
       </div>
@@ -220,12 +247,17 @@ export default function Jobs() {
         {/* ── Header ── */}
         <div className="hd-header">
           <h1>岗位匹配</h1>
-          <span className="hd-pill">{filtered.length} / {total} 个岗位</span>
+          <div className="hd-flex" style={{ gap: 8, alignItems: 'center' }}>
+            <span className="hd-pill">{filtered.length} / {total} 个岗位</span>
+            <button className="hd-btn small secondary" onClick={() => fetchJobs(1, keyword || undefined, levelFilter, searchMode)} disabled={loading} title="刷新">
+              <IconRefresh size={14} />
+            </button>
+          </div>
         </div>
 
         {/* ── Search bar ── */}
         <div style={{ marginBottom: 20 }}>
-          <div className="hd-flex" style={{ maxWidth: 520 }}>
+          <div className="hd-flex" style={{ maxWidth: 520, gap: 8 }}>
             <div style={{ position: 'relative', flex: 1 }}>
               <IconSearch
                 size={18}
@@ -247,8 +279,12 @@ export default function Jobs() {
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               />
             </div>
-            <button className="hd-btn small" onClick={handleSearch}>
+            <button className="hd-btn small" onClick={handleSearch} disabled={loading}>
+              <IconSearch size={14} style={{ marginRight: 4 }} />
               搜索
+            </button>
+            <button className="hd-btn small secondary" onClick={() => fetchJobs(1, keyword || undefined, levelFilter, searchMode)} disabled={loading} title="刷新搜索结果">
+              <IconRefresh size={14} />
             </button>
           </div>
         </div>
@@ -257,14 +293,15 @@ export default function Jobs() {
         <div className="hd-flex-between" style={{ marginTop: -10, marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
           <div className="hd-toggle" title="选择岗位搜索范围">
             {([
-              ['hybrid', '混合'],
-              ['local', '本地'],
-              ['online', '联网'],
+              ['hybrid', '混合搜索'],
+              ['local', '本地岗位'],
+              ['online', '联网搜索'],
             ] as const).map(([mode, label]) => (
               <button
                 key={mode}
                 className={`hd-toggle-tag ${searchMode === mode ? 'active' : ''}`}
                 onClick={() => handleSearchModeChange(mode)}
+                disabled={loading}
               >
                 {label}
               </button>
@@ -272,7 +309,15 @@ export default function Jobs() {
           </div>
           {hasSearchMeta && (
             <span className="hd-pill">
-              本地 {localCount} · 联网 {onlineCount}
+              {searchMode === 'online'
+                ? aiRecommendationCount > 0
+                  ? webOnlineCount > 0
+                    ? `联网 ${webOnlineCount} · AI 补充 ${aiRecommendationCount}`
+                    : `联网未命中 · AI 补充 ${aiRecommendationCount}`
+                  : `联网搜索 · ${webOnlineCount} 个结果`
+                : searchMode === 'local'
+                  ? `本地岗位 · ${localCount} 个结果`
+                  : `本地 ${localCount} · 联网 ${onlineCount}`}
             </span>
           )}
         </div>
@@ -336,15 +381,38 @@ export default function Jobs() {
               ))}
             </div>
 
-            {/* Load more */}
-            {hasMore && (
-              <div style={{ textAlign: 'center', marginTop: 28 }}>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 28 }}>
                 <button
-                  className="hd-btn secondary"
-                  onClick={handleLoadMore}
-                  disabled={loading}
+                  className="hd-btn small secondary"
+                  onClick={() => fetchJobs(page - 1, keyword, levelFilter, searchMode)}
+                  disabled={page <= 1 || loading}
                 >
-                  {loading ? '加载中...' : '加载更多'}
+                  ← 上一页
+                </button>
+                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                  const start = totalPages <= 7 ? 1 : Math.max(1, page - 3);
+                  const end = totalPages <= 7 ? totalPages : Math.min(totalPages, page + 3);
+                  const pn = start + i;
+                  if (pn > end) return null;
+                  return (
+                    <button
+                      key={pn}
+                      className={`hd-btn small ${pn === page ? '' : 'secondary'}`}
+                      onClick={() => fetchJobs(pn, keyword, levelFilter, searchMode)}
+                      disabled={loading}
+                    >
+                      {pn}
+                    </button>
+                  );
+                })}
+                <button
+                  className="hd-btn small secondary"
+                  onClick={() => fetchJobs(page + 1, keyword, levelFilter, searchMode)}
+                  disabled={page * pageSize >= total || loading}
+                >
+                  下一页 →
                 </button>
               </div>
             )}
@@ -352,13 +420,26 @@ export default function Jobs() {
         ) : (
           <div className="hd-empty">
             <IconBriefcase size={36} style={{ opacity: 0.3, marginBottom: 12 }} />
-            <div>没有找到匹配的岗位</div>
+            <div>
+              {searchMode === 'online'
+                ? `联网搜索未找到${onlineQuery && onlineQuery !== 'IT' ? `“${onlineQuery}”` : '热门 IT'}岗位`
+                : '没有找到匹配的岗位'}
+            </div>
             <button
               className="hd-btn small secondary"
               style={{ marginTop: 12 }}
-              onClick={() => { setKeyword(''); fetchJobs(1); }}
+              onClick={() => {
+                if (searchMode === 'online') {
+                  fetchJobs(1, keyword, levelFilter, 'online');
+                } else {
+                  setKeyword('');
+                  fetchJobs(1, '', levelFilter, searchMode);
+                }
+              }}
             >
-              清除搜索
+              {searchMode === 'online' ? (
+                <><IconRefresh size={14} style={{ marginRight: 6 }} />重新联网搜索</>
+              ) : '清除搜索'}
             </button>
           </div>
         )}
@@ -388,6 +469,7 @@ function JobCardItem({
 }) {
   const score = job.matchScore || 0;
   const isOnline = (typeof job.id === 'number' && job.id < 0) || job.source === 'online';
+  const isAiGenerated = isOnline && (job.searchMeta?.origin === 'ai_generated' || !job.url);
   const matchedFields = job.searchMeta?.matchedFields || [];
 
   /* Match level badge */
@@ -423,7 +505,7 @@ function JobCardItem({
             {job.title}
             {isOnline && (
               <span className="hd-badge accent" style={{ marginLeft: 8, fontSize: 10, verticalAlign: 'middle' }}>
-                联网
+                {isAiGenerated ? 'AI 推荐' : '联网'}
               </span>
             )}
           </div>
@@ -444,7 +526,7 @@ function JobCardItem({
                 {job.location}
               </span>
             )}
-            {isOnline && job.host && (
+            {isOnline && !isAiGenerated && job.host && (
               <span
                 className="hd-flex"
                 style={{ font: '13px/1 var(--hand)', color: 'var(--pencil)', gap: 4 }}

@@ -11,6 +11,7 @@ import { LlmService } from '../../services/llm.service';
 import { ChatHistoryService } from '../../services/chat-history.service';
 import { ProfileService } from '../../services/profile.service';
 import { JobSearchService } from '../../services/job-search.service';
+import { SearchStackService } from '../../services/search-stack.service';
 import { AgentProfileService } from '../../services/agent-profile.service';
 import { AgentTaskService } from '../../services/agent-task.service';
 import { AgentOfficeBridgeService } from '../../services/agent-office-bridge.service';
@@ -53,6 +54,7 @@ import { EventsModule } from '../events/events.module';
     ChatHistoryService,
     ProfileService,
     JobSearchService,
+    SearchStackService,
     AgentProfileService,
     AgentTaskService,
     AgentOfficeBridgeService,

@@ -54,6 +54,7 @@ describe('LearningPathsService generated resources', () => {
         assignStation: jest.fn().mockResolvedValue(undefined),
       } as any,
       generatedResources as any,
+      { ensurePlanBranch: jest.fn() } as any,
     );
 
     await (service as any).generateAllContent('React', 24);

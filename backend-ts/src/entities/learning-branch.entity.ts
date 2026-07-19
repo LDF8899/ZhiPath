@@ -1,11 +1,12 @@
 import { Entity, Column, Index } from 'typeorm';
 import { BaseEntity } from '../common/base.entity';
 
-export type LearningBranchType = 'main' | 'side' | 'experiment';
+export type LearningBranchType = 'main' | 'plan' | 'side' | 'experiment';
 
 @Entity('learning_branches_v3')
 @Index(['userId', 'status'])
 @Index(['userId', 'branchType'])
+@Index(['userId', 'planId'])
 export class LearningBranch extends BaseEntity {
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
@@ -15,11 +16,14 @@ export class LearningBranch extends BaseEntity {
 
   @Column({
     type: 'enum',
-    enum: ['main', 'side', 'experiment'],
+    enum: ['main', 'plan', 'side', 'experiment'],
     default: 'main',
     name: 'branch_type',
   })
   branchType: LearningBranchType;
+
+  @Column({ type: 'bigint', nullable: true, name: 'plan_id', comment: '计划分支归属；能力主干为空' })
+  planId: number | null;
 
   @Column({ type: 'bigint', nullable: true, name: 'base_commit_id' })
   baseCommitId: number | null;

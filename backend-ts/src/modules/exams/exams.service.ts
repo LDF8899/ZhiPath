@@ -553,54 +553,134 @@ export class ExamsService {
     }> = [];
 
     for (const exam of exams) {
-      // 来源1：从 wrongAnalysis 中提取（submitExam 生成的结构化错题分析）
-      const weakPoints = exam.wrongAnalysis?.weakPoints || [];
-      for (const w of weakPoints) {
-        wrongList.push({
-          examId: exam.id,
-          skillName: exam.skillName || '未知',
-          examType: exam.examType,
-          createTime: exam.createTime,
-          question: w.skill || w.question || '',
-          userAnswer: w.userAnswer || '',
-          correctAnswer: w.correctAnswer || '',
-          type: w.type || 'unknown',
-        });
+      // ═══ 来源1：wrong_analysis（LLM 生成的错题分析）═══
+      const wa = exam.wrongAnalysis;
+      if (wa) {
+        // 格式1：{ weakPoints: [{...}, ...] } — 完整 LLM 输出
+        const weakPoints: any[] = wa.weakPoints || [];
+        if (weakPoints.length > 0) {
+          for (const w of weakPoints) {
+            wrongList.push({
+              examId: exam.id,
+              skillName: exam.skillName || '未知',
+              examType: exam.examType,
+              createTime: exam.createTime,
+              question: w.skill || w.question || w.description || '',
+              userAnswer: w.userAnswer || '',
+              correctAnswer: w.correctAnswer || '',
+              type: w.type || 'unknown',
+            });
+          }
+          continue; // 有 LLM 分析就不再走降级路径
+        }
+
+        // 格式2：[{q, user, correct}, ...] — 简化数组格式
+        if (Array.isArray(wa) && wa.length > 0) {
+          for (const item of wa) {
+            wrongList.push({
+              examId: exam.id,
+              skillName: exam.skillName || '未知',
+              examType: exam.examType,
+              createTime: exam.createTime,
+              question: item.q || item.question || item.skill || '',
+              userAnswer: String(item.user ?? item.userAnswer ?? ''),
+              correctAnswer: String(item.correct ?? item.correctAnswer ?? ''),
+              type: item.type || 'unknown',
+            });
+          }
+          continue;
+        }
       }
 
-      // 来源2：从 answers.userAnswers 中提取（当 wrongAnalysis 为空时降级）
-      if (weakPoints.length === 0 && exam.answers) {
-        const served: any[] = exam.answers.served || [];
-        const userAnswers: Record<string, any> = exam.answers.userAnswers || {};
-        const hasUserAnswers = Object.keys(userAnswers).length > 0;
+      // ═══ 来源2：answers（原始答题数据降级）═══
+      if (!exam.answers) continue;
 
-        if (hasUserAnswers && served.length > 0) {
-          for (const q of served) {
-            const qId = String(q.id);
-            const userAns = userAnswers[qId];
+      // 格式A：{ served: [...题目], userAnswers: {qId: 答案} } — submitByRecord 路径
+      const served: any[] = exam.answers.served || [];
+      const userAnswers: Record<string, any> = exam.answers.userAnswers || {};
+      if (Object.keys(userAnswers).length > 0 && served.length > 0) {
+        for (const q of served) {
+          const qId = String(q.id);
+          const userAns = userAnswers[qId];
+          if (userAns === undefined || userAns === null || userAns === '') continue;
+
+          let isWrong = false;
+          let correctAns = '';
+          let userAnsStr = '';
+
+          if (q.type === 'choice' || q.questionType === 'choice') {
+            const correctIdx = q.answer ?? q.content?.answer;
+            correctAns = q.options?.[correctIdx] || String(correctIdx);
+            userAnsStr = q.options?.[userAns] || String(userAns);
+            isWrong = Number(userAns) !== Number(correctIdx);
+          } else if (q.type === 'coding' || q.questionType === 'coding') {
+            correctAns = q.answer?.solution || q.content?.answer?.solution || '';
+            userAnsStr = typeof userAns === 'string' ? userAns : JSON.stringify(userAns);
+            isWrong = !exam.passed;
+          } else {
+            correctAns = String(q.answer ?? q.content?.answer ?? '');
+            userAnsStr = String(userAns);
+            isWrong = userAnsStr.trim() !== correctAns.trim();
+          }
+
+          if (isWrong) {
+            wrongList.push({
+              examId: exam.id,
+              skillName: exam.skillName || '未知',
+              examType: exam.examType,
+              createTime: exam.createTime,
+              question: q.title || q.question || q.content?.title || '',
+              userAnswer: userAnsStr,
+              correctAnswer: correctAns,
+              type: q.type || q.questionType || 'unknown',
+            });
+          }
+        }
+        continue;
+      }
+
+      // 格式B：{ [qId]: answer } 或 [answer, answer, ...] — 旧 submitExam 路径（无 served）
+      // 尝试从 exam_questions_v3 补全题目信息
+      if (!Array.isArray(exam.answers) && typeof exam.answers === 'object' && Object.keys(exam.answers).length > 0) {
+        const ansMap = exam.answers as Record<string, any>;
+        const qIds = Object.keys(ansMap)
+          .map(Number)
+          .filter((n) => !isNaN(n) && n > 0);
+
+        if (qIds.length > 0) {
+          // 尝试用这些 ID 查题目
+          const questions = await this.questionRepo.find({
+            where: { id: In(qIds), status: 1 },
+          });
+          const qMap = new Map(questions.map((q) => [q.id, q]));
+
+          for (const qId of qIds) {
+            const userAns = ansMap[String(qId)];
             if (userAns === undefined || userAns === null || userAns === '') continue;
+            const q = qMap.get(qId);
 
-            // 判断是否答错
             let isWrong = false;
             let correctAns = '';
-            let userAnsStr = '';
+            let userAnsStr = String(userAns);
+            const qType = q?.questionType || 'choice';
+            const qTitle = q?.title || `题目 #${qId}`;
 
-            if (q.type === 'choice' || q.questionType === 'choice') {
-              const correctIdx = q.answer ?? q.content?.answer;
-              correctAns = q.options?.[correctIdx] || String(correctIdx);
-              userAnsStr = q.options?.[userAns] || String(userAns);
-              isWrong = Number(userAns) !== Number(correctIdx);
-            } else if (q.type === 'coding' || q.questionType === 'coding') {
-              // 编程题：answer 里有 solution
-              correctAns = q.answer?.solution || q.content?.answer?.solution || '';
-              userAnsStr = typeof userAns === 'string' ? userAns : JSON.stringify(userAns);
-              // 编程题如果没有 pass 标记则视为错
-              isWrong = !exam.passed;
+            if (q) {
+              if (qType === 'choice') {
+                const correctIdx = q.answer?.['correctIndex'] ?? q.answer?.['answer'] ?? 0;
+                correctAns = (q.content as any)?.options?.[correctIdx] || String(correctIdx);
+                isWrong = Number(userAns) !== Number(correctIdx);
+              } else if (qType === 'coding') {
+                correctAns = q.answer?.['solution'] || '';
+                isWrong = !exam.passed;
+              } else {
+                correctAns = String(q.answer?.['answer'] ?? q.answer ?? '');
+                isWrong = userAnsStr.trim().toLowerCase() !== correctAns.trim().toLowerCase();
+              }
             } else {
-              // 其他题型：字符串比较
-              correctAns = String(q.answer ?? q.content?.answer ?? '');
-              userAnsStr = String(userAns);
-              isWrong = userAnsStr.trim() !== correctAns.trim();
+              // 找不到题目，仅当未通过时纳入
+              isWrong = !exam.passed;
+              correctAns = '（题目已删除）';
             }
 
             if (isWrong) {
@@ -609,30 +689,29 @@ export class ExamsService {
                 skillName: exam.skillName || '未知',
                 examType: exam.examType,
                 createTime: exam.createTime,
-                question: q.title || q.question || q.content?.title || '',
+                question: qTitle,
                 userAnswer: userAnsStr,
                 correctAnswer: correctAns,
-                type: q.type || q.questionType || 'unknown',
+                type: qType,
               });
             }
           }
-        } else if (!hasUserAnswers && served.length > 0 && !exam.passed && exam.score !== null && exam.score < 60) {
-          // 考试已批改但未通过，且 userAnswers 为空（可能是超时/未答完）
-          for (const q of served) {
-            const correctIdx = q.answer ?? q.content?.answer;
-            const correctAns = q.options?.[correctIdx] || String(correctIdx);
-            wrongList.push({
-              examId: exam.id,
-              skillName: exam.skillName || '未知',
-              examType: exam.examType,
-              createTime: exam.createTime,
-              question: q.title || q.question || q.content?.title || '',
-              userAnswer: '（未作答）',
-              correctAnswer: correctAns,
-              type: q.type || q.questionType || 'unknown',
-            });
-          }
+          continue;
         }
+      }
+
+      // 格式C：完全无法解析的 answers，但考试未通过 → 至少标记一下
+      if (!exam.passed && exam.score !== null && Number(exam.score) < 70) {
+        wrongList.push({
+          examId: exam.id,
+          skillName: exam.skillName || '未知',
+          examType: exam.examType,
+          createTime: exam.createTime,
+          question: '（该次考试题目数据不完整）',
+          userAnswer: '—',
+          correctAnswer: '—',
+          type: 'unknown',
+        });
       }
     }
 

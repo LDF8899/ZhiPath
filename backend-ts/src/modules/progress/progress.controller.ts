@@ -11,6 +11,7 @@ import { NotificationService } from '../../services/notification.service';
 import { LearningProgressService } from '../../services/learning-progress.service';
 import { LearningCommitService } from '../../services/learning-commit.service';
 import { EvaluationService, EvaluationDimensionInput } from '../../services/evaluation.service';
+import { BranchService } from '../../services/branch.service';
 
 /**
  * 学习进度控制器 — 对齐 Python api/user/progress.py
@@ -32,6 +33,7 @@ export class ProgressController {
     private readonly progressStore: LearningProgressService,
     private readonly learningCommitService: LearningCommitService,
     private readonly evaluationService: EvaluationService,
+    private readonly branchService: BranchService,
   ) {}
 
   /**
@@ -67,7 +69,8 @@ export class ProgressController {
 
     // 联动更新技能掌握度：+30%
     const delta = ProgressController.MASTERY_WEIGHTS.lecture;
-    const git = await this.learningCommitService.commitSkill(userId, undefined, {
+    const branch = await this.branchService.ensurePlanBranch(userId, path);
+    const git = await this.learningCommitService.commitSkill(userId, branch.id, {
       type: 'lecture_read',
       skillName: body.skill,
       delta,
@@ -76,9 +79,8 @@ export class ProgressController {
     });
 
     // 获取当前掌握度
-    const skills = await this.skillService.getEffectiveSkills(userId);
-    const current = skills.find(s => s.name === body.skill);
-    const masteryPct = current?.masteryPct ?? delta;
+    const current = (git.snapshot.skillsJson || []).find((skill: any) => skill.name === body.skill);
+    const masteryPct = current?.mastery ?? delta;
     const evaluation = await this.evaluationService.record({
       userId,
       attemptType: 'progress_read',
@@ -155,18 +157,19 @@ export class ProgressController {
 
     if (passed) {
       delta = ProgressController.MASTERY_WEIGHTS.quiz;
-      git = await this.learningCommitService.commitSkill(userId, undefined, {
+      const branch = await this.branchService.ensurePlanBranch(userId, path);
+      git = await this.learningCommitService.commitSkill(userId, branch.id, {
         type: 'quiz_passed',
         skillName: body.skill,
         delta,
         message: `quiz passed: ${body.skill}`,
         payload: { pathId: path.id, total: body.total, correct: body.correct, score },
       });
-      const skills = await this.skillService.getEffectiveSkills(userId);
-      const current = skills.find(s => s.name === body.skill);
-      masteryPct = current?.masteryPct ?? 0;
+      const current = (git.snapshot.skillsJson || []).find((skill: any) => skill.name === body.skill);
+      masteryPct = current?.mastery ?? 0;
     } else {
-      git = await this.learningCommitService.commitSkill(userId, undefined, {
+      const branch = await this.branchService.ensurePlanBranch(userId, path);
+      git = await this.learningCommitService.commitSkill(userId, branch.id, {
         type: 'quiz_failed',
         skillName: body.skill,
         delta: 0,
@@ -256,7 +259,8 @@ export class ProgressController {
     await this.pathRepo.save(path);
 
     const delta = ProgressController.MASTERY_WEIGHTS.code;
-    const git = await this.learningCommitService.commitSkill(userId, undefined, {
+    const branch = await this.branchService.ensurePlanBranch(userId, path);
+    const git = await this.learningCommitService.commitSkill(userId, branch.id, {
       type: 'code_done',
       skillName: body.skill,
       delta,
@@ -264,9 +268,8 @@ export class ProgressController {
       payload: { pathId: path.id },
     });
 
-    const skills = await this.skillService.getEffectiveSkills(userId);
-    const current = skills.find(s => s.name === body.skill);
-    const masteryPct = current?.masteryPct ?? 0;
+    const current = (git.snapshot.skillsJson || []).find((skill: any) => skill.name === body.skill);
+    const masteryPct = current?.mastery ?? 0;
     const evaluation = await this.evaluationService.record({
       userId,
       attemptType: 'progress_code',
@@ -311,31 +314,16 @@ export class ProgressController {
     const phaseDone = this.checkPhaseCompletion(path);
     await this.pathRepo.save(path);
 
-    // 获取当前掌握度（不强制设100，保留分层累加的结果）
-    const skills = await this.skillService.getEffectiveSkills(userId);
-    const current = skills.find(s => s.name === body.skill);
-    const masteryPct = current?.masteryPct ?? 0;
-    let git: any = null;
-
-    // 如果掌握度不足100%，补足到100%（用户手动确认完成）
-    if (masteryPct < 100) {
-      git = await this.learningCommitService.commitSkill(userId, undefined, {
-        type: 'skill_complete',
-        skillName: body.skill,
-        masteryPct: 100,
-        message: `skill complete: ${body.skill}`,
-        payload: { pathId: path.id, phaseDone },
-      });
-    }
-    if (!git) {
-      git = await this.learningCommitService.commitSkill(userId, undefined, {
-        type: 'skill_complete',
-        skillName: body.skill,
-        masteryPct: 100,
-        message: `skill complete: ${body.skill}`,
-        payload: { pathId: path.id, phaseDone },
-      });
-    }
+    const branch = await this.branchService.ensurePlanBranch(userId, path);
+    const git = await this.learningCommitService.commitSkill(userId, branch.id, {
+      type: 'skill_complete',
+      skillName: body.skill,
+      delta: 0,
+      message: `skill learning complete: ${body.skill}`,
+      payload: { pathId: path.id, phaseDone, requiresVerification: true },
+    });
+    const current = (git.snapshot.skillsJson || []).find((skill: any) => skill.name === body.skill);
+    const masteryPct = current?.mastery ?? 0;
 
     await this.notificationService.notifyProgress(userId, body.skill, 100);
 

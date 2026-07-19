@@ -84,6 +84,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const prev = get().mainMessages[sessionId] || [];
     if (!sessionId) return false;
 
+    // 全局去重：检查 action key 是否已在会话的任何消息中存在
+    const normalized = { ...action, key: actionKey };
+    const alreadyExists = prev.some((m) =>
+      (m.actions || []).some((a) => {
+        if (a.key && a.key === actionKey) return true;
+        const aData = a.data || {};
+        const nData = normalized.data || {};
+        const sameVideoTask = aData.taskId && nData.taskId && aData.taskId === nData.taskId;
+        const sameVideoSkill =
+          (a.type === 'video' || a.type === 'video_pending') &&
+          (normalized.type === 'video' || normalized.type === 'video_pending') &&
+          (aData.skillName || aData.skill) &&
+          (aData.skillName || aData.skill) === (nData.skillName || nData.skill);
+        const sameByData = !a.key && !actionKey && a.type === normalized.type &&
+          JSON.stringify(aData).slice(0, 120) === JSON.stringify(nData).slice(0, 120);
+        return sameVideoTask || sameVideoSkill || sameByData;
+      }),
+    );
+    if (alreadyExists) return false;
+
     const targetIndex = [...prev].reverse().findIndex((m) => m.role === 'assistant');
     const assistantIndex = targetIndex < 0 ? prev.length : prev.length - 1 - targetIndex;
     const next = targetIndex < 0
@@ -98,23 +118,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ]
       : [...prev];
     const target = next[assistantIndex];
-    const normalized = { ...action, key: actionKey };
-    const actions = (target.actions || []).filter((a) => {
-      if (a.key === actionKey) return false;
-      const aData = a.data || {};
-      const nData = normalized.data || {};
-      const sameVideoTask = aData.taskId && nData.taskId && aData.taskId === nData.taskId;
-      const sameVideoSkill =
-        (a.type === 'video' || a.type === 'video_pending') &&
-        (normalized.type === 'video' || normalized.type === 'video_pending') &&
-        (aData.skillName || aData.skill) &&
-        (aData.skillName || aData.skill) === (nData.skillName || nData.skill);
-      return !sameVideoTask && !sameVideoSkill;
-    });
 
     next[assistantIndex] = {
       ...target,
-      actions: [...actions, normalized],
+      actions: [...(target.actions || []), normalized],
     };
     set({ mainMessages: { ...get().mainMessages, [sessionId]: next } });
     saveState(get());

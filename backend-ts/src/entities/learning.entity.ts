@@ -16,8 +16,20 @@ export class LearningPlan extends BaseEntity {
   @Column({ type: 'enum', enum: ['main', 'side'], default: 'main', name: 'plan_type', comment: '主线/支线 §4.3' })
   planType: 'main' | 'side';
 
-  @Column({ type: 'bigint', nullable: true, name: 'target_job_id', comment: '目标岗位' })
-  targetJobId: number;
+  @Column({ type: 'bigint', nullable: true, name: 'target_job_id', comment: '主线计划绑定的目标岗位' })
+  targetJobId: number | null;
+
+  @Column({
+    type: 'enum',
+    enum: ['active', 'paused', 'archived'],
+    default: 'active',
+    name: 'plan_status',
+    comment: '计划生命周期，归档保留历史但不参与排期',
+  })
+  planStatus: 'active' | 'paused' | 'archived';
+
+  @Column({ type: 'tinyint', default: 1, name: 'schedule_enabled', comment: '是否参与今日任务聚合' })
+  scheduleEnabled: number;
 
   @Column({ type: 'json', nullable: true, name: 'path_data', comment: '阶段→技能点→资源' })
   pathData: Record<string, any> | null;

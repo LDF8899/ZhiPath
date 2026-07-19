@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { LearningPlan } from '../entities/learning.entity';
 import { LearningTask } from '../entities/learning-tasks.entity';
 import { Student } from '../entities/student.entity';
 import { SkillService } from './skill.service';
 import { LearningCommitService } from './learning-commit.service';
+import { BranchService } from './branch.service';
 
 /**
  * TaskScheduler — 学习任务调度服务
@@ -35,6 +36,7 @@ export class TaskSchedulerService {
     @InjectRepository(Student) private studentRepo: Repository<Student>,
     private skillService: SkillService,
     private learningCommitService: LearningCommitService,
+    private branchService: BranchService,
   ) {}
 
   /**
@@ -57,18 +59,19 @@ export class TaskSchedulerService {
   }> {
     const today = new Date().toISOString().slice(0, 10);
 
-    // 1. 获取计划
-    let plan: LearningPlan | null = null;
+    // 1. 获取参与排期的计划。未指定 planId 时聚合全部活跃计划。
+    let plans: LearningPlan[] = [];
     if (planId) {
-      plan = await this.planRepo.findOne({ where: { id: planId, userId, status: 1 } });
+      const plan = await this.planRepo.findOne({ where: { id: planId, userId, status: 1 } });
+      if (plan) plans = [plan];
     } else {
-      plan = await this.planRepo.findOne({
-        where: { userId, status: 1 },
+      plans = await this.planRepo.find({
+        where: { userId, status: 1, planStatus: 'active', scheduleEnabled: 1 },
         order: { planType: 'ASC', createTime: 'DESC' },
       });
     }
 
-    if (!plan) {
+    if (plans.length === 0) {
       return {
         planId: 0,
         planName: '',
@@ -80,20 +83,32 @@ export class TaskSchedulerService {
       };
     }
 
-    // 2. 获取今日已有任务
+    const planIds = plans.map((plan) => plan.id);
     const existingTasks = await this.taskRepo.find({
-      where: { userId, planId: plan.id, planDate: today, isActive: 1, status: 1 },
+      where: { userId, planId: In(planIds), planDate: today, isActive: 1, status: 1 },
       order: { taskType: 'ASC', sortOrder: 'ASC', priority: 'DESC' },
     });
+    const existingPlanIds = new Set(existingTasks.map((task) => Number(task.planId)));
 
-    // 如果今日已有任务，直接返回
-    if (existingTasks.length > 0) {
-      return this.buildTaskResult(plan, existingTasks);
+    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const mainPlan = plans.find((plan) => plan.planType === 'main');
+    const sidePlans = plans.filter((plan) => plan.planType === 'side');
+    const totalMinutes = Number(student?.dailyHours || mainPlan?.dailyHours || 2) * 60;
+    const mainRatio = mainPlan ? Number(mainPlan.mainRatio || 80) / 100 : 0;
+    const mainBudget = mainPlan ? totalMinutes * mainRatio : 0;
+    const sideBudget = sidePlans.length > 0
+      ? (totalMinutes - mainBudget) / sidePlans.length
+      : 0;
+
+    const generated: LearningTask[] = [];
+    for (const plan of plans) {
+      if (existingPlanIds.has(Number(plan.id))) continue;
+      const budget = planId
+        ? Number(plan.dailyHours || 2) * 60
+        : plan.planType === 'main' ? mainBudget : sideBudget;
+      generated.push(...await this.generateTodayTasks(userId, plan, today, budget));
     }
-
-    // 3. 生成今日任务
-    const newTasks = await this.generateTodayTasks(userId, plan, today);
-    return this.buildTaskResult(plan, newTasks);
+    return this.buildTaskResult(plans, [...existingTasks, ...generated]);
   }
 
   /**
@@ -140,12 +155,13 @@ export class TaskSchedulerService {
         task.actualMin = Math.round((now - task.startTime) / 60000);
       }
 
-      // 如果完成，更新技能掌握度
+      // 普通打卡只形成计划分支记录；能力变化必须来自测评、作品等证据。
       if (newStatus === 'done') {
-        await this.learningCommitService.commitSkill(userId, undefined, {
+        const branch = await this.branchService.ensurePlanBranch(userId, task.planId);
+        await this.learningCommitService.commitSkill(userId, branch.id, {
           type: 'task_done',
           skillName: task.skillName,
-          delta: 10,
+          delta: 0,
           message: `task done: ${task.skillName}`,
           payload: { taskId: task.id, planId: task.planId },
         });
@@ -226,17 +242,12 @@ export class TaskSchedulerService {
     userId: number,
     plan: LearningPlan,
     today: string,
+    availableMinutes: number,
   ): Promise<LearningTask[]> {
     const now = Date.now();
     const pathData = plan.pathData || {};
     const phases = pathData.phases || [];
     const currentPhase = plan.currentPhase || 0;
-    const dailyHours = Number(plan.dailyHours) || 2;
-    const mainRatio = Number(plan.mainRatio) || 80;
-
-    const availableMinutes = dailyHours * 60;
-    const mainMinutes = availableMinutes * (mainRatio / 100);
-    const sideMinutes = availableMinutes * (1 - mainRatio / 100);
 
     // 获取用户已掌握技能
     const userSkills = await this.skillService.getEffectiveSkills(userId);
@@ -245,8 +256,7 @@ export class TaskSchedulerService {
     );
 
     const tasks: Partial<LearningTask>[] = [];
-    let mainUsed = 0;
-    let sideUsed = 0;
+    let usedMinutes = 0;
     let sortOrder = 0;
 
     // 遍历当前阶段和后续阶段
@@ -261,14 +271,12 @@ export class TaskSchedulerService {
         if (skill.status === 'done' || skill.status === 'skipped') continue;
 
         const estimatedMin = skill.estimatedMin || 120;
-        const isMain = phaseIdx === currentPhase;
-
-        if (isMain && (mainUsed + estimatedMin <= mainMinutes || mainUsed === 0)) {
+        if (usedMinutes + estimatedMin <= availableMinutes || usedMinutes === 0) {
           tasks.push({
             userId,
             planId: plan.id,
             skillName: skill.name,
-            taskType: 'main',
+            taskType: plan.planType,
             taskStatus: 'pending',
             estimatedMin,
             priority: skill.priority || 5,
@@ -279,32 +287,12 @@ export class TaskSchedulerService {
             createTime: now,
             updateTime: now,
           });
-          mainUsed += estimatedMin;
-        } else if (!isMain && (sideUsed + estimatedMin <= sideMinutes || sideUsed === 0)) {
-          tasks.push({
-            userId,
-            planId: plan.id,
-            skillName: skill.name,
-            taskType: 'side',
-            taskStatus: 'pending',
-            estimatedMin,
-            priority: skill.priority || 5,
-            sortOrder: sortOrder++,
-            planDate: today,
-            isActive: 1,
-            status: 1,
-            createTime: now,
-            updateTime: now,
-          });
-          sideUsed += estimatedMin;
+          usedMinutes += estimatedMin;
         }
 
-        // 如果主线和支线都满了，停止
-        if (mainUsed >= mainMinutes && sideUsed >= sideMinutes) break;
+        if (usedMinutes >= availableMinutes) break;
       }
-
-      // 只在当前阶段生成主线任务
-      if (phaseIdx === currentPhase && mainUsed >= mainMinutes) continue;
+      if (usedMinutes >= availableMinutes) break;
     }
 
     if (tasks.length === 0) return [];
@@ -314,7 +302,7 @@ export class TaskSchedulerService {
 
   /** 构建任务结果 */
   private buildTaskResult(
-    plan: LearningPlan,
+    plans: LearningPlan[],
     tasks: LearningTask[],
   ): {
     planId: number;
@@ -336,8 +324,8 @@ export class TaskSchedulerService {
     const progressPct = totalEstimatedMin > 0 ? Math.round((completedMin / totalEstimatedMin) * 100) : 0;
 
     return {
-      planId: plan.id,
-      planName: plan.planName,
+      planId: plans.length === 1 ? plans[0].id : 0,
+      planName: plans.length === 1 ? plans[0].planName : '学习组合',
       mainTasks,
       sideTasks,
       totalEstimatedMin,

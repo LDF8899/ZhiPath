@@ -62,7 +62,15 @@ export class StudentController {
 
   /** POST /api/user/plans — 创建新计划 */
   @Post('plans')
-  async createPlan(@CurrentUser() user: any, @Body() body: { direction: string; dailyHours?: number; importFromPlanId?: number }) {
+  async createPlan(@CurrentUser() user: any, @Body() body: {
+    planType?: 'main' | 'side';
+    direction?: string;
+    planName?: string;
+    skills?: string[];
+    targetJobId?: number;
+    dailyHours?: number;
+    importFromPlanId?: number;
+  }) {
     const result = await this.studentService.createPlan(user.sub, body);
     return success(result);
   }
