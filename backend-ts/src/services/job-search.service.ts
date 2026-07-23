@@ -24,6 +24,8 @@ export interface OnlineJobCard {
 @Injectable()
 export class JobSearchService {
   private readonly logger = new Logger(JobSearchService.name);
+  private readonly cacheTtlMs = 15 * 60 * 1000;
+  private readonly cache = new Map<string, { expiresAt: number; value: OnlineJobCard[] }>();
 
   constructor(
     private llm: LlmService,
@@ -36,6 +38,11 @@ export class JobSearchService {
    */
   async search(keyword: string, userSkills: string[] = []): Promise<OnlineJobCard[]> {
     const cleanKeyword = (keyword || 'IT').trim();
+    const cacheKey = this.getCacheKey(cleanKeyword, userSkills);
+    const cached = this.cache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return this.cloneCards(cached.value);
+    }
 
     // ── 路径 A：search-stack 搜索 + LLM 提取 ──
     try {
@@ -47,7 +54,8 @@ export class JobSearchService {
         const cards = await this.extractJobsFromResults(results, cleanKeyword, userSkills);
         if (cards.length >= 2) {
           this.logger.log(`[JobSearch] search-stack → ${cards.length} jobs`);
-          return cards;
+          this.storeCache(cacheKey, cards);
+          return this.cloneCards(cards);
         }
       }
     } catch (e: any) {
@@ -55,10 +63,38 @@ export class JobSearchService {
     }
 
     // ── 路径 B：LLM 直接生成 ──
-    return this.generateJobsWithLLM(cleanKeyword, userSkills);
+    const generated = await this.generateJobsWithLLM(cleanKeyword, userSkills);
+    this.storeCache(cacheKey, generated);
+    return this.cloneCards(generated);
   }
 
   /** 从 search-stack 搜索结果中 LLM 提取结构化岗位 */
+  private getCacheKey(keyword: string, userSkills: string[]): string {
+    const skills = [...new Set(userSkills.map((skill) => skill.trim().toLowerCase()).filter(Boolean))]
+      .sort()
+      .join(',');
+    return `${keyword.trim().toLowerCase()}|${skills}`;
+  }
+
+  private storeCache(key: string, value: OnlineJobCard[]): void {
+    this.cache.set(key, { expiresAt: Date.now() + this.cacheTtlMs, value: this.cloneCards(value) });
+    if (this.cache.size <= 100) return;
+
+    const now = Date.now();
+    for (const [cacheKey, cached] of this.cache.entries()) {
+      if (cached.expiresAt <= now || this.cache.size > 100) {
+        this.cache.delete(cacheKey);
+      }
+    }
+  }
+
+  private cloneCards(cards: OnlineJobCard[]): OnlineJobCard[] {
+    return cards.map((card) => ({
+      ...card,
+      requiredSkills: [...(card.requiredSkills || [])],
+    }));
+  }
+
   private async extractJobsFromResults(
     results: { title: string; url: string; snippet: string }[],
     keyword: string,

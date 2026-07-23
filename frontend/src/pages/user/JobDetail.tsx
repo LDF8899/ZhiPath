@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import AMapLoader from '@amap/amap-jsapi-loader';
 import {
   getJobDetail,
   getJobCompanyContext,
@@ -27,6 +28,67 @@ import MatchBreakdown from '../../components/MatchBreakdown';
 import InteractiveCompanyMap from '../../components/InteractiveCompanyMap';
 import type { Job } from '../../types';
 import { readOnlineJob } from '../../utils/onlineJobCache';
+
+interface OnlineCompanyContext {
+  companyName: string;
+  introduction: string;
+  location: {
+    query: string;
+    formattedAddress: string;
+    longitude: number | null;
+    latitude: number | null;
+    mapImage: string | null;
+  };
+}
+
+async function resolveOnlineCompanyContext(job: Job): Promise<OnlineCompanyContext> {
+  const query = [job.location, job.company].filter(Boolean).join(' ');
+  const fallback: OnlineCompanyContext = {
+    companyName: job.company || job.enterpriseName || '',
+    introduction: job.snippet || job.jdText || '',
+    location: {
+      query,
+      formattedAddress: job.location || '',
+      longitude: null,
+      latitude: null,
+      mapImage: null,
+    },
+  };
+  const key = import.meta.env.VITE_AMAP_WEB_KEY || '';
+  const securityJsCode = import.meta.env.VITE_AMAP_SECURITY_JS_CODE || '';
+  if (!key || !securityJsCode || !query) return fallback;
+
+  try {
+    (window as any)._AMapSecurityConfig = { securityJsCode };
+    const AMap = await AMapLoader.load({
+      key,
+      version: '2.0',
+      plugins: ['AMap.Geocoder'],
+    });
+    return await new Promise<OnlineCompanyContext>((resolve) => {
+      const geocoder = new AMap.Geocoder({ city: job.location || undefined });
+      geocoder.getLocation(query, (status: string, result: any) => {
+        const geocode = status === 'complete' && result?.geocodes?.length
+          ? result.geocodes[0]
+          : null;
+        const point = geocode?.location;
+        const longitude = typeof point?.lng === 'number' ? point.lng : null;
+        const latitude = typeof point?.lat === 'number' ? point.lat : null;
+        resolve({
+          ...fallback,
+          location: {
+            ...fallback.location,
+            formattedAddress: geocode?.formattedAddress || geocode?.formatted_address || job.location || query,
+            longitude,
+            latitude,
+          },
+        });
+      });
+    });
+  } catch {
+    return fallback;
+  }
+}
 
 /* ──────────────────────────────────────────
    Job Detail Page — hand-drawn design system
@@ -109,19 +171,23 @@ export default function JobDetail() {
   }, [id]);
 
   useEffect(() => {
-    if (!id || !job || Number(job.id) < 0 || job.source === 'online') {
+    if (!id || !job) {
       setCompanyContext(null);
       setCompanyContextLoading(false);
       return;
     }
     let cancelled = false;
     setCompanyContextLoading(true);
-    getJobCompanyContext(parseInt(id, 10))
-      .then((res) => { if (!cancelled) setCompanyContext(res.data); })
+    const isOnline = Number(job.id) < 0 || job.source === 'online';
+    const contextPromise = isOnline
+      ? resolveOnlineCompanyContext(job)
+      : getJobCompanyContext(parseInt(id, 10)).then((res) => res.data);
+    contextPromise
+      .then((res) => { if (!cancelled) setCompanyContext(res); })
       .catch(() => { if (!cancelled) setCompanyContext(null); })
       .finally(() => { if (!cancelled) setCompanyContextLoading(false); });
     return () => { cancelled = true; };
-  }, [id, job?.id]);
+  }, [id, job?.id, job?.company, job?.location]);
 
   /* ── Action handlers ── */
 
@@ -420,7 +486,7 @@ export default function JobDetail() {
             </div>
 
             {/* ── Company location ── */}
-            {!isOnlineJob && <div className="hd-canvas" style={{ overflow: 'hidden' }}>
+            <div className="hd-canvas" style={{ overflow: 'hidden' }}>
               <div className="hd-section-label">
                 <IconMapPin size={18} />
                 <h3>公司位置</h3>
@@ -474,7 +540,7 @@ export default function JobDetail() {
                   <span className="hd-flex" style={{ gap: 6 }}><IconMapPin size={17} /> 暂无精确地图</span>
                 </div>
               )}
-            </div>}
+            </div>
           </div>
 
           {/* ═══════════════════════════════════

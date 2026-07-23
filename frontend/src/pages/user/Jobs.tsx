@@ -12,7 +12,14 @@ import {
   IconLink,
 } from '../../components/icons';
 import type { Job } from '../../types';
-import { storeOnlineJob } from '../../utils/onlineJobCache';
+import {
+  jobSearchCacheKey,
+  readJobSearchCache,
+  readLastJobSearchState,
+  storeJobSearchCache,
+  storeLastJobSearchState,
+  storeOnlineJob,
+} from '../../utils/onlineJobCache';
 
 /* ──────────────────────────────────────────
    Jobs Page — hand-drawn design system
@@ -99,24 +106,56 @@ function parseSalaryMax(s: string): number {
 export default function Jobs() {
   const navigate = useNavigate();
   const { el: msgEl } = useHdMessage();
+  const initialSearchState = useRef(readLastJobSearchState()).current;
 
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [jobs, setJobs] = useState<Job[]>(initialSearchState?.jobs || []);
+  const [loading, setLoading] = useState(!initialSearchState);
   const [error, setError] = useState<string | null>(null);
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(initialSearchState?.keyword || '');
   const [sortBy, setSortBy] = useState<'match' | 'salary'>('match');
-  const [levelFilter, setLevelFilter] = useState<string>('');
-  const [searchMode, setSearchMode] = useState<'hybrid' | 'local' | 'online'>('hybrid');
-  const [searchMeta, setSearchMeta] = useState<Record<string, any> | null>(null);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [levelFilter, setLevelFilter] = useState<string>(initialSearchState?.level || '');
+  const [searchMode, setSearchMode] = useState<'hybrid' | 'local' | 'online'>(initialSearchState?.searchMode || 'hybrid');
+  const [searchMeta, setSearchMeta] = useState<Record<string, any> | null>(initialSearchState?.searchMeta || null);
+  const [page, setPage] = useState(initialSearchState?.page || 1);
+  const [total, setTotal] = useState(initialSearchState?.total || 0);
   const [loadingText, setLoadingText] = useState('正在匹配岗位...');
   const requestSeq = useRef(0);
   const pageSize = 20;
 
-  const fetchJobs = async (p = 1, kw?: string, lv?: string, mode = searchMode) => {
+  const fetchJobs = async (p = 1, kw?: string, lv?: string, mode = searchMode, force = false) => {
     const requestId = ++requestSeq.current;
     const effectiveKw = kw?.trim() || '';
+    const effectiveLevel = lv || '';
+    const cacheKey = jobSearchCacheKey({
+      page: p,
+      pageSize,
+      keyword: effectiveKw,
+      level: effectiveLevel,
+      searchMode: mode,
+    });
+    const canUseCache = !force && (mode === 'online' || (mode === 'hybrid' && effectiveKw.length > 0));
+    if (canUseCache) {
+      const cached = readJobSearchCache(cacheKey);
+      if (cached) {
+        setJobs(cached.jobs);
+        storeLastJobSearchState({
+          jobs: cached.jobs,
+          total: cached.total,
+          page: p,
+          pageSize,
+          keyword: effectiveKw,
+          level: effectiveLevel,
+          searchMode: mode,
+          searchMeta: cached.searchMeta,
+        });
+        setTotal(cached.total);
+        setSearchMeta(cached.searchMeta);
+        setPage(p);
+        setLoading(false);
+        setError(null);
+        return;
+      }
+    }
     setLoading(true);
     setError(null);
     setLoadingText(
@@ -139,7 +178,7 @@ export default function Jobs() {
         page: p,
         pageSize,
         keyword: effectiveKw || undefined,
-        level: lv || undefined,
+        level: effectiveLevel || undefined,
         searchMode: mode,
         includeOnline: shouldIncludeOnline,
       });
@@ -147,11 +186,29 @@ export default function Jobs() {
       const items = res.data || [];
       setTotal(res.total || 0);
       setSearchMeta(res.meta || null);
-      if (p === 1) {
-        setJobs(items);
-      } else {
-        setJobs((prev) => [...prev, ...items]);
+      if (canUseCache) {
+        storeJobSearchCache(cacheKey, {
+          jobs: items,
+          total: res.total || 0,
+          page: p,
+          pageSize,
+          keyword: effectiveKw,
+          level: effectiveLevel,
+          searchMode: mode,
+          searchMeta: res.meta || null,
+        });
       }
+      setJobs(items);
+      storeLastJobSearchState({
+        jobs: items,
+        total: res.total || 0,
+        page: p,
+        pageSize,
+        keyword: effectiveKw,
+        level: effectiveLevel,
+        searchMode: mode,
+        searchMeta: res.meta || null,
+      });
       setPage(p);
     } catch (err: any) {
       if (requestId !== requestSeq.current) return;
@@ -162,6 +219,7 @@ export default function Jobs() {
   };
 
   useEffect(() => {
+    if (initialSearchState) return;
     fetchJobs(1);
   }, []);
 
@@ -249,7 +307,7 @@ export default function Jobs() {
           <h1>岗位匹配</h1>
           <div className="hd-flex" style={{ gap: 8, alignItems: 'center' }}>
             <span className="hd-pill">{filtered.length} / {total} 个岗位</span>
-            <button className="hd-btn small secondary" onClick={() => fetchJobs(1, keyword || undefined, levelFilter, searchMode)} disabled={loading} title="刷新">
+            <button className="hd-btn small secondary" onClick={() => fetchJobs(1, keyword || undefined, levelFilter, searchMode, true)} disabled={loading} title="刷新">
               <IconRefresh size={14} />
             </button>
           </div>
@@ -283,7 +341,7 @@ export default function Jobs() {
               <IconSearch size={14} style={{ marginRight: 4 }} />
               搜索
             </button>
-            <button className="hd-btn small secondary" onClick={() => fetchJobs(1, keyword || undefined, levelFilter, searchMode)} disabled={loading} title="刷新搜索结果">
+            <button className="hd-btn small secondary" onClick={() => fetchJobs(1, keyword || undefined, levelFilter, searchMode, true)} disabled={loading} title="刷新搜索结果">
               <IconRefresh size={14} />
             </button>
           </div>
@@ -430,7 +488,7 @@ export default function Jobs() {
               style={{ marginTop: 12 }}
               onClick={() => {
                 if (searchMode === 'online') {
-                  fetchJobs(1, keyword, levelFilter, 'online');
+                  fetchJobs(1, keyword, levelFilter, 'online', true);
                 } else {
                   setKeyword('');
                   fetchJobs(1, '', levelFilter, searchMode);

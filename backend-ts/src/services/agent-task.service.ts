@@ -80,6 +80,25 @@ export class AgentTaskService {
     return this.taskRepo.findOne({ where: { id: taskId, userId, status: 1 } });
   }
 
+  async hasRunningTask(
+    userId: number,
+    agentType: AgentTask['agentType'],
+    excludeTaskId?: number,
+  ): Promise<boolean> {
+    const qb = this.taskRepo
+      .createQueryBuilder('t')
+      .where('t.user_id = :userId', { userId })
+      .andWhere('t.agent_type = :agentType', { agentType })
+      .andWhere('t.status = :status', { status: 1 })
+      .andWhere('t.task_status = :taskStatus', { taskStatus: 'running' });
+
+    if (excludeTaskId !== undefined) {
+      qb.andWhere('t.id != :excludeTaskId', { excludeTaskId });
+    }
+
+    return (await qb.getCount()) > 0;
+  }
+
   /**
    * 更新任务状态
    */

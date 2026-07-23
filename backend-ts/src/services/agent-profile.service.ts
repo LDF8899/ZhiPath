@@ -1,9 +1,8 @@
-import { Injectable } from '@nestjs/common';
+﻿import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AgentProfile } from '../entities/agent-profile.entity';
 
-/** 默认 Agent 配置 */
 const DEFAULT_PROFILES: Array<{
   agentType: AgentProfile['agentType'];
   animalType: string;
@@ -11,11 +10,11 @@ const DEFAULT_PROFILES: Array<{
   nickname: string;
   displayRole: string;
 }> = [
-  { agentType: 'lecture', animalType: 'cat', color: '#f9d27c', nickname: '小喵', displayRole: '讲义专家' },
-  { agentType: 'reading', animalType: 'dog', color: '#c9daf5', nickname: '旺财', displayRole: '阅读向导' },
-  { agentType: 'code', animalType: 'fox', color: '#e5d5f5', nickname: '小狐', displayRole: '代码大师' },
-  { agentType: 'path', animalType: 'panda', color: '#c9f5c0', nickname: '团子', displayRole: '路径规划' },
-  { agentType: 'assess', animalType: 'owl', color: '#ffd5c9', nickname: '咕咕', displayRole: '评估官' },
+  { agentType: 'lecture', animalType: 'cat', color: '#f9d27c', nickname: 'Lecta', displayRole: 'Lecture Expert' },
+  { agentType: 'reading', animalType: 'dog', color: '#c9daf5', nickname: 'Readio', displayRole: 'Reading Guide' },
+  { agentType: 'code', animalType: 'fox', color: '#e5d5f5', nickname: 'Codey', displayRole: 'Code Master' },
+  { agentType: 'path', animalType: 'panda', color: '#c9f5c0', nickname: 'Patha', displayRole: 'Path Planner' },
+  { agentType: 'assess', animalType: 'owl', color: '#ffd5c9', nickname: 'Evalo', displayRole: 'Assessment Expert' },
 ];
 
 const PROFILE_PRESETS: Record<string, {
@@ -24,30 +23,24 @@ const PROFILE_PRESETS: Record<string, {
   nickname: string;
   displayRole: string;
 }> = {
-  lecture: { animalType: 'cat', color: '#f9d27c', nickname: '小喵', displayRole: '讲义专家' },
-  reading: { animalType: 'dog', color: '#c9daf5', nickname: '旺财', displayRole: '阅读向导' },
-  code: { animalType: 'fox', color: '#e5d5f5', nickname: '小狐', displayRole: '代码大师' },
-  path: { animalType: 'panda', color: '#c9f5c0', nickname: '团子', displayRole: '路径规划' },
-  assess: { animalType: 'owl', color: '#ffd5c9', nickname: '咕咕', displayRole: '评估官' },
-  exam: { animalType: 'dog', color: '#d7ccff', nickname: '阿题', displayRole: '出题专家' },
-  skillgap: { animalType: 'duck', color: '#c8d7ff', nickname: '蓝蓝', displayRole: '差距分析师' },
-  resume: { animalType: 'hamster', color: '#ffd1e8', nickname: '米米', displayRole: '简历顾问' },
-  profile: { animalType: 'owl', color: '#cce6ff', nickname: '镜镜', displayRole: '画像分析师' },
-  news: { animalType: 'parrot', color: '#c8f5c8', nickname: '小鹦', displayRole: '资讯编辑' },
+  lecture: { animalType: 'cat', color: '#f9d27c', nickname: 'Lecta', displayRole: 'Lecture Expert' },
+  reading: { animalType: 'dog', color: '#c9daf5', nickname: 'Readio', displayRole: 'Reading Guide' },
+  code: { animalType: 'fox', color: '#e5d5f5', nickname: 'Codey', displayRole: 'Code Master' },
+  path: { animalType: 'panda', color: '#c9f5c0', nickname: 'Patha', displayRole: 'Path Planner' },
+  assess: { animalType: 'owl', color: '#ffd5c9', nickname: 'Evalo', displayRole: 'Assessment Expert' },
+  exam: { animalType: 'dog', color: '#d7ccff', nickname: 'Quizzy', displayRole: 'Exam Expert' },
+  skillgap: { animalType: 'duck', color: '#c8d7ff', nickname: 'Gapper', displayRole: 'Gap Analyst' },
+  resume: { animalType: 'hamster', color: '#ffd1e8', nickname: 'Resuma', displayRole: 'Resume Advisor' },
+  profile: { animalType: 'owl', color: '#cce6ff', nickname: 'Lens', displayRole: 'Profile Analyst' },
+  news: { animalType: 'parrot', color: '#c8f5c8', nickname: 'Scout', displayRole: 'News Editor' },
 };
 
-/**
- * AgentProfile 服务 — 管理用户 Agent 员工配置
- */
 @Injectable()
 export class AgentProfileService {
   constructor(
     @InjectRepository(AgentProfile) private profileRepo: Repository<AgentProfile>,
   ) {}
 
-  /**
-   * 招聘新员工（创建新的 Agent 配置）
-   */
   async hireAgent(
     userId: number,
     agentType: string,
@@ -58,16 +51,6 @@ export class AgentProfileService {
   ): Promise<AgentProfile> {
     const now = Date.now();
 
-    // 找一个空工位
-    const existingStations = await this.profileRepo.find({
-      where: { userId, status: 1 },
-    });
-    const usedStations = new Set(existingStations.map(p => p.stationId).filter(Boolean));
-    let nextStation: number | null = null;
-    for (let i = 1; i <= 20; i++) {
-      if (!usedStations.has(i)) { nextStation = i; break; }
-    }
-
     return this.profileRepo.save({
       userId,
       agentType,
@@ -75,7 +58,7 @@ export class AgentProfileService {
       color,
       nickname,
       displayRole,
-      stationId: nextStation,
+      stationId: null,
       agentStatus: 'idle',
       status: 1,
       createTime: now,
@@ -83,30 +66,20 @@ export class AgentProfileService {
     });
   }
 
-  /**
-   * 获取单个员工
-   */
   async getProfile(userId: number, profileId: number): Promise<AgentProfile | null> {
     return this.profileRepo.findOne({ where: { id: profileId, userId, status: 1 } });
   }
 
-  /**
-   * 软删除员工
-   */
   async softDelete(userId: number, profileId: number): Promise<void> {
     await this.profileRepo.update({ id: profileId, userId }, { status: 0, updateTime: Date.now() });
   }
 
-  /**
-   * 获取用户所有 Agent 配置（无则自动创建默认）
-   */
   async getProfiles(userId: number): Promise<AgentProfile[]> {
     let profiles = await this.profileRepo.find({
       where: { userId, status: 1 },
       order: { agentType: 'ASC' },
     });
 
-    // 首次访问：自动创建默认配置
     if (profiles.length === 0) {
       profiles = await this.createDefaults(userId);
     }
@@ -114,9 +87,22 @@ export class AgentProfileService {
     return profiles;
   }
 
-  /**
-   * 更新单个 Agent 配置
-   */
+  async releaseInactiveStations(userId: number, activeAgentTypes: string[]): Promise<void> {
+    const qb = this.profileRepo
+      .createQueryBuilder()
+      .update(AgentProfile)
+      .set({ stationId: null, agentStatus: 'idle', updateTime: Date.now() } as any)
+      .where('user_id = :userId', { userId })
+      .andWhere('status = :status', { status: 1 })
+      .andWhere('station_id IS NOT NULL');
+
+    if (activeAgentTypes.length > 0) {
+      qb.andWhere('agent_type NOT IN (:...activeAgentTypes)', { activeAgentTypes });
+    }
+
+    await qb.execute();
+  }
+
   async updateProfile(
     userId: number,
     agentType: AgentProfile['agentType'],
@@ -127,17 +113,13 @@ export class AgentProfileService {
     });
     if (!profile) return null;
 
-    const now = Date.now();
     await this.profileRepo.update(profile.id, {
       ...updates,
-      updateTime: now,
+      updateTime: Date.now(),
     });
     return this.profileRepo.findOne({ where: { id: profile.id } });
   }
 
-  /**
-   * 分配/移除工位
-   */
   async assignStation(
     userId: number,
     agentType: AgentProfile['agentType'],
@@ -148,7 +130,6 @@ export class AgentProfileService {
     });
     if (!profile) return null;
 
-    // 如果目标工位已被其他 agent 占用，先释放
     if (stationId !== null) {
       const existing = await this.profileRepo.findOne({
         where: { userId, stationId, status: 1 },
@@ -162,40 +143,34 @@ export class AgentProfileService {
     return this.profileRepo.findOne({ where: { id: profile.id } });
   }
 
-  /**
-   * 更新 Agent 状态（由任务系统调用）
-   */
   async updateStatus(
     userId: number,
     agentType: AgentProfile['agentType'],
     agentStatus: 'idle' | 'busy',
+    options?: { releaseStation?: boolean },
   ): Promise<void> {
     const updateData: any = { agentStatus, updateTime: Date.now() };
 
-    // busy 时自动分配工位（如果还在待命区）
+    if (agentStatus === 'idle' && options?.releaseStation) {
+      updateData.stationId = null;
+    }
+
     if (agentStatus === 'busy') {
       const profile = await this.profileRepo.findOne({ where: { userId, agentType, status: 1 } });
-      console.log(`[AgentProfile] busy check: found=${!!profile}, stationId=${profile?.stationId}`);
       if (profile && profile.stationId === null) {
         const allProfiles = await this.profileRepo.find({ where: { userId, status: 1 } });
         const usedStations = allProfiles.filter(p => p.stationId !== null).map(p => p.stationId);
         const maxStation = Math.max(0, ...usedStations as number[]);
         updateData.stationId = maxStation + 1;
-        console.log(`[AgentProfile] assigning station ${updateData.stationId}`);
       }
     }
 
-    const result = await this.profileRepo.update(
+    await this.profileRepo.update(
       { userId, agentType, status: 1 },
       updateData,
     );
-    console.log(`[AgentProfile] updateStatus affected=${result.affected}, data=`, JSON.stringify(updateData));
   }
 
-  /**
-   * 确保某个 agent 档案存在。
-   * 聊天触发办公室任务时会调用它，避免任务队列里出现没有员工承接的任务。
-   */
   async ensureAgent(userId: number, agentType: AgentProfile['agentType']): Promise<AgentProfile> {
     const existing = await this.profileRepo.findOne({
       where: { userId, agentType, status: 1 },
@@ -205,8 +180,8 @@ export class AgentProfileService {
     const preset = PROFILE_PRESETS[agentType] || {
       animalType: 'hamster',
       color: '#ff69b4',
-      nickname: '助手',
-      displayRole: '智能体',
+      nickname: 'Helper',
+      displayRole: 'AI Staff',
     };
 
     return this.hireAgent(
@@ -219,12 +194,9 @@ export class AgentProfileService {
     );
   }
 
-  /**
-   * 创建默认配置
-   */
   private async createDefaults(userId: number): Promise<AgentProfile[]> {
     const now = Date.now();
-    const entities = DEFAULT_PROFILES.map((def, idx) =>
+    const entities = DEFAULT_PROFILES.map((def) =>
       this.profileRepo.create({
         userId,
         agentType: def.agentType,
@@ -232,7 +204,7 @@ export class AgentProfileService {
         color: def.color,
         nickname: def.nickname,
         displayRole: def.displayRole,
-        stationId: idx < 3 ? idx + 1 : null, // 前3个默认上工位
+        stationId: null,
         agentStatus: 'idle',
         status: 1,
         createTime: now,

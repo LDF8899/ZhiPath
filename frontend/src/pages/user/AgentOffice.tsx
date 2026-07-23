@@ -7,6 +7,7 @@ import AgentDispatchMenu from '../../components/office/AgentDispatchMenu';
 import AgentDetail from '../../components/office/AgentDetail';
 import TaskCenter from '../../components/office/TaskCenter';
 import OfficeModals from '../../components/office/OfficeModals';
+import AgentAvatarConcepts from '../../components/office/AgentAvatarConcepts';
 import '../../styles/office.css';
 
 /* ═══════════════════════════════════════════════
@@ -16,6 +17,7 @@ import '../../styles/office.css';
 export default function AgentOffice() {
   const office = useAgentOffice();
   const { showGuide, dismiss } = useAgentOnboarding();
+  const showAvatarPreview = new URLSearchParams(window.location.search).get('avatarPreview') === '1';
 
   /* ── 派遣菜单定位 ── */
   const [menuPosition, setMenuPosition] = React.useState({ x: 0, y: 0 });
@@ -109,6 +111,8 @@ export default function AgentOffice() {
           </button>
         </div>
       )}
+
+      {showAvatarPreview && <AgentAvatarConcepts />}
 
       <div className="office-layout">
         {/* ── 左侧：办公室场景 ── */}

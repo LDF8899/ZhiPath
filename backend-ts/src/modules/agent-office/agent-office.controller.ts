@@ -73,6 +73,14 @@ export class AgentOfficeController {
   /** 获取所有员工配置 */
   @Get('profiles')
   async getProfiles(@CurrentUser() user: any) {
+    const tasks = await this.taskService.getTasks(user.sub);
+    const activeAgentTypes = [...new Set(
+      tasks
+        .filter((task) => ['pending', 'running'].includes(task.taskStatus))
+        .map((task) => task.agentType),
+    )];
+    await this.profileService.releaseInactiveStations(user.sub, activeAgentTypes).catch(() => {});
+
     const profiles = await this.profileService.getProfiles(user.sub);
     return success(profiles);
   }
@@ -268,7 +276,7 @@ export class AgentOfficeController {
       await this.generatedResources.failFromTask(user.sub, task, 'Task cancelled by user').catch((e) =>
         console.warn('[AgentOffice] generated resource cancel upsert failed:', e.message),
       );
-      await this.profileService.updateStatus(user.sub, task.agentType as any, 'idle').catch(() => {});
+      await this.releaseAgentIfNoRunningTasks(user.sub, task.agentType, task.id);
       this.eventsService.emitAgentProgress(user.sub, task.agentType, String(task.id), -1, 'Task cancelled');
       this.eventsService.emitAgentStatus(user.sub, task.agentType, 'idle');
     }
@@ -296,6 +304,18 @@ export class AgentOfficeController {
     );
   }
 
+  private async releaseAgentIfNoRunningTasks(userId: number, agentType: string, finishedTaskId: number): Promise<void> {
+    const stillRunning = await this.taskService
+      .hasRunningTask(userId, agentType as any, finishedTaskId)
+      .catch(() => false);
+
+    if (stillRunning) return;
+
+    await this.profileService
+      .updateStatus(userId, agentType as any, 'idle', { releaseStation: true })
+      .catch(() => {});
+  }
+
   // ── 内部方法 ──────────────────────────────────
 
   /** 执行任务（派发模式，异步） */
@@ -318,7 +338,7 @@ export class AgentOfficeController {
 
       const completedTask = await this.taskService.updateStatus(taskId, 'success', result);
       await this.syncGeneratedResource(userId, completedTask, result, 'success');
-      await this.profileService.updateStatus(userId, agentType as any, 'idle').catch(() => {});
+      await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId);
 
       // SSE：任务完成
       this.eventsService.emitAgentStatus(userId, agentType, 'idle');
@@ -345,7 +365,7 @@ export class AgentOfficeController {
           console.warn('[AgentOffice] generated resource failure upsert failed:', err.message),
         );
       }
-      await this.profileService.updateStatus(userId, agentType as any, 'idle').catch(() => {});
+      await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId);
     }
   }
 
@@ -370,7 +390,7 @@ export class AgentOfficeController {
       await this.syncGeneratedResource(userId, await this.taskService.getTask(taskId, userId), undefined, 'direct saving');
       const completedTask = await this.taskService.updateStatus(taskId, 'success', result);
       await this.syncGeneratedResource(userId, completedTask, result, 'direct success');
-      await this.profileService.updateStatus(userId, agentType as any, 'idle').catch(() => {});
+      await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId);
 
       // SSE：任务完成
       this.eventsService.emitAgentStatus(userId, agentType, 'idle');
@@ -397,7 +417,7 @@ export class AgentOfficeController {
           console.warn('[AgentOffice] generated resource failure upsert failed:', err.message),
         );
       }
-      await this.profileService.updateStatus(userId, agentType as any, 'idle').catch(() => {});
+      await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId);
     }
   }
 

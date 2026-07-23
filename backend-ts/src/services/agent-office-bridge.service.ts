@@ -161,7 +161,7 @@ export class AgentOfficeBridgeService {
         console.warn('[AgentOfficeBridge] generated resource upsert failed:', e.message),
       );
     }
-    await this.profileService.updateStatus(userId, agentType, 'idle').catch(() => {});
+    await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId);
     this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 100, '完成');
     this.eventsService.emitAgentStatus(userId, agentType, 'idle');
   }
@@ -178,9 +178,25 @@ export class AgentOfficeBridgeService {
         console.warn('[AgentOfficeBridge] generated resource failure upsert failed:', e.message),
       );
     }
-    await this.profileService.updateStatus(userId, agentType, 'idle').catch(() => {});
+    await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId);
     this.eventsService.emitAgentProgress(userId, agentType, String(taskId), -1, `失败: ${errorMessage}`);
     this.eventsService.emitAgentStatus(userId, agentType, 'error', errorMessage);
+  }
+
+  private async releaseAgentIfNoRunningTasks(
+    userId: number,
+    agentType: OfficeAgentType,
+    finishedTaskId: number,
+  ): Promise<void> {
+    const stillRunning = await this.taskService
+      .hasRunningTask(userId, agentType, finishedTaskId)
+      .catch(() => false);
+
+    if (stillRunning) return;
+
+    await this.profileService
+      .updateStatus(userId, agentType, 'idle', { releaseStation: true })
+      .catch(() => {});
   }
 
   private createExternalId(userId: number, actionType: string): string {

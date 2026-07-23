@@ -9,24 +9,24 @@ interface AnimalAvatarProps {
   className?: string;
 }
 
-export default function AnimalAvatar({ 
-  type, 
+export default function AnimalAvatar({
+  type,
   color = ANIMAL_COLORS[type] || '#f5a623',
   size = 40,
   status = 'idle',
-  className = '' 
+  className = '',
 }: AnimalAvatarProps) {
   return (
-    <div 
+    <div
       className={`animal-avatar animal-${status} ${className}`}
       style={{ width: size, height: size }}
     >
       <AnimalSVG type={type} color={color} size={size} />
       {status === 'working' && (
         <div className="working-indicator">
-          <span className="dot"></span>
-          <span className="dot"></span>
-          <span className="dot"></span>
+          <span className="dot" />
+          <span className="dot" />
+          <span className="dot" />
         </div>
       )}
       {status === 'completed' && (

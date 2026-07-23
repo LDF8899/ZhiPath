@@ -1,77 +1,66 @@
-# ZhiPath
+# ZhiPath / 智途
 
-ZhiPath 是一个面向软件工程学习与就业准备的 AI 学习平台。它不只是生成课程内容，而是把学习动作、能力画像、评价记录、岗位匹配、智能体资源生产和资讯推送串成一条可追踪的成长链路。
+ZhiPath 是面向学生学习成长与求职准备的 AI 产品。它把学习路径、技能画像、Git 式学习记录、测评、岗位匹配、简历、资讯和智能体办公室串成一条闭环：用户不是只拿到一份计划，而是能持续学习、评估、补齐能力并对齐岗位。
 
-当前主线可以概括为：
+当前主线：
 
 ```text
-学习动作 -> Git 学习 commit -> 技能快照/雷达变化 -> 评价沉淀 -> 岗位匹配更新 -> 资源与资讯持续补给
+个人画像 -> 岗位目标 -> 学习计划 -> 知识/练习/项目 -> 测评沉淀
+        -> 技能雷达/进度变化 -> 岗位匹配更新 -> 简历与投递
+        -> 智能体办公室异步生产学习资源
 ```
 
 ## 当前能力
 
-| 模块 | 当前状态 | 关键能力 |
-| --- | --- | --- |
-| AI 助教聊天 | 可用，已接资源生产链路 | 对话触发讲义、阅读、代码、考试、评估、岗位等智能体动作 |
-| 智能体办公室 | 可用，已接资源台账 | 任务、资源、智能体状态可以从侧栏/办公室同步查看 |
-| Git 学习系统 v2 | 已升级 | 每次学习动作生成 commit、snapshot、delta、雷达变化 |
-| 评价系统 | 已升级 | progress、quick test、exam、AI assess 统一沉淀 evaluation attempt/result/impact |
-| 画像雷达图 | 已升级 | 从“技能前 8 展示”升级为固定能力维度雷达 |
-| 进度页 | 已重构 | 分支、提交时间线、快照、对比、合并、回滚 |
-| 岗位模块 | 已升级 | 本地多字段搜索 + 联网岗位搜索 + 匹配度排序 |
-| AI 资讯推送 | 已升级 | SearXNG/RSS 抓取 AI 新闻，DeepSeek 摘要和标签入库 |
-| 学习资源生成 | 可用 | 生成资源独立入库，切页后可从资源台账恢复 |
-| 后台管理 | 可用 | 用户、企业、岗位、考试、资讯等基础管理 |
-
-## 2026-07-18 更新摘要
-
-今天完成了几条核心链路的修复和升级：
-
-- `generated_resources_v3` 资源台账接入聊天和智能体办公室，资源生成不再只依赖当前聊天页面内存状态。
-- Git 学习系统 v2 落地：新增 branch、commit、snapshot、delta、radar、ability metrics、branch compare、merge、rollback。
-- 评价系统主线落地：学习动作、速测、考试、AI 评估都沉淀统一评价记录，并和 Git commit 关联。
-- 岗位搜索升级为混合搜索：本地岗位支持标题、公司、城市、薪资、JD、必备技能、加分技能搜索；有关键词时可合并联网岗位结果。
-- AI 资讯推送升级：支持 RSS/feed + SearXNG 抓取，AI 领域过滤，DeepSeek 摘要和标签，空库自动刷新，前端手动刷新。
-- SearXNG 修复：运行容器已允许 `json/rss` 输出；资讯抓取默认指定 `bing,baidu`，避免默认全引擎超时。
-- Docker MySQL 中补入基础企业/岗位种子数据，保证岗位页不是空体验。
+| 模块 | 能力说明 |
+| --- | --- |
+| 登录与引导 | 支持学生/管理员角色，学生完成 onboarding 后进入学习与求职工作台。 |
+| AI 助教聊天 | 基于用户画像、页面上下文和工具调用，提供学习计划、岗位推荐、资源生成、测评等入口。 |
+| 智能体办公室 | 支持讲义、阅读、代码案例、路径、测评、出题、技能差距、简历、画像、资讯等 Agent；员工有忙闲状态、工位状态和任务历史。 |
+| 学习路径 | 支持主线/支线计划、阶段技能、知识详情、资源沉淀和进度推进。 |
+| Git 学习系统 | 用 branch、commit、snapshot、delta 记录学习动作，支撑技能雷达和进度页。 |
+| 测评闭环 | 快速测试、正式考试、错题、AI 评估统一沉淀到 evaluation attempt/result/impact。 |
+| 岗位搜索 | 支持本地、多字段、混合、联网搜索；按匹配度排序；联网结果带短期缓存和详情地图补充。 |
+| 岗位详情 | 展示 JD、技能要求、匹配分析、技能导入、投递、企业介绍和高德地图位置。 |
+| 简历与项目 | 支持个人资料、项目经历、GitHub 项目导入、简历生成与投递关联。 |
+| AI 资讯 | 支持 RSS/SearXNG/Search Stack 抓取、摘要、标签和个性化推荐。 |
+| 管理后台 | 支持用户、岗位、企业、投递、资讯、考试、题库、简历和系统设置管理。 |
 
 ## 技术栈
 
 | 层 | 技术 |
 | --- | --- |
-| 前端 | React 19, Vite 8, TypeScript, Zustand, React Router, Three.js, CodeMirror |
-| 后端 | NestJS 11, TypeORM, JWT, SSE, BullMQ, LangGraph |
-| 数据 | MySQL 8, MongoDB 7, Redis 7, Neo4j 5, Chroma, MinIO |
-| AI | DeepSeek/OpenAI-compatible API, local Ollama fallback, agent services |
-| 搜索 | SearXNG JSON API, RSS/feed fallback |
-| 部署 | Docker Compose middleware stack |
+| 前端 | React 19, Vite 8, TypeScript 6, React Router 7, Zustand, Tailwind CSS 4, Three.js, CodeMirror, Mermaid, AMap JSAPI |
+| 后端 | NestJS 11, TypeScript, TypeORM, Mongoose, JWT, SSE, BullMQ, LangGraph packages, OpenAI-compatible SDK |
+| 数据与中间件 | MySQL 8, MongoDB 7, Redis 7, RabbitMQ, Neo4j, Chroma, MinIO, SearXNG |
+| AI/Search | DeepSeek/OpenAI/Ollama/MiMo 兼容接口，Search Stack，SearXNG |
+| 地图 | 高德 Web JS API、Web Service 地理编码与静态图 |
 
 ## 目录结构
 
 ```text
 ZhiPath/
-├── backend-ts/                 # NestJS 后端
-│   ├── src/entities/           # TypeORM 实体
-│   ├── src/modules/            # 业务模块
-│   ├── src/services/           # Agent、LLM、Git 学习、评价、资讯等服务
-│   └── scripts/                # 数据迁移脚本
-├── frontend/                   # React 前端
-│   ├── src/pages/user/         # 学生端页面
-│   ├── src/pages/admin/        # 管理端页面
-│   ├── src/components/         # 通用组件、办公室、聊天、图表等
-│   └── src/api/                # API client
-├── deploy/                     # Docker Compose、SQL 迁移和部署文档
-├── MD/                         # 设计文档、方案文档、项目说明
-└── README.md
+|-- backend-ts/                 # NestJS 后端
+|   |-- src/entities/           # TypeORM 实体
+|   |-- src/modules/            # 业务模块和 Controller
+|   |-- src/services/           # Agent、LLM、搜索、学习、测评等服务
+|   `-- scripts/                # 数据迁移和维护脚本
+|-- frontend/                   # React 前端
+|   |-- src/pages/user/         # 学生端页面
+|   |-- src/pages/admin/        # 管理端页面
+|   |-- src/components/         # 组件、地图、办公室、图表、聊天等
+|   `-- src/api/                # API client
+|-- deploy/                     # Docker Compose、SQL、部署说明
+|-- MD/                         # 产品、设计、API、开发记录文档
+`-- README.md
 ```
 
 ## 环境要求
 
 - Windows + Docker Desktop
-- Node.js 22+ 建议；项目当前本机环境已使用 Node 22
-- npm
-- 可用的 DeepSeek 或 OpenAI-compatible API key
-- 可选：本地代理或外网版 SearXNG，用于 AI 新闻/联网搜索
+- Node.js 22+，npm
+- MySQL/Redis/MongoDB 等中间件，推荐用 `deploy/docker-compose.yml`
+- 可选但建议配置：LLM API Key、Search Stack 或 SearXNG、高德地图 Key
 
 ## 启动中间件
 
@@ -103,11 +92,12 @@ docker compose -f deploy/docker-compose.yml -p middleware --profile core --profi
 
 ## 后端配置
 
-后端配置文件：`backend-ts/.env`
-
-关键配置示例：
+后端读取 `backend-ts/.env`。最小开发配置示例：
 
 ```env
+APP_HOST=0.0.0.0
+APP_PORT=3000
+
 MYSQL_HOST=127.0.0.1
 MYSQL_PORT=3307
 MYSQL_USER=root
@@ -126,34 +116,43 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-v4-pro
 DEEPSEEK_FLASH_MODEL=deepseek-v4-flash
 
+SEARCH_STACK_URL=http://127.0.0.1:17080
+SEARCH_STACK_API_KEY=your_search_stack_key
+
 SEARXNG_URL=http://127.0.0.1:8080
 NEWS_SEARXNG_URL=http://127.0.0.1:8080
 NEWS_SEARXNG_ENGINES=bing,baidu
+
+AMAP_WEB_SERVICE_KEY=your_amap_web_service_key
 ```
 
 说明：
 
-- `SEARXNG_URL` 是通用联网搜索入口，岗位搜索等模块默认使用它。
-- `NEWS_SEARXNG_URL` 是 AI 资讯抓取入口，建议指向“走外网代理”的 SearXNG 实例。
-- 如果有两个 SearXNG 实例，国内实例可放 `SEARXNG_URL`，外网实例放 `NEWS_SEARXNG_URL`。
-- 不要把真实 API key 提交到仓库。
+- `LLM_PROVIDER` 支持 `ollama`、`deepseek`、`mimo` 或 OpenAI-compatible 配置。
+- `SEARCH_STACK_URL` 用于联网岗位搜索等多引擎检索；不可用时会降级。
+- `SEARXNG_URL`/`NEWS_SEARXNG_URL` 用于搜索和资讯抓取。
+- `AMAP_WEB_SERVICE_KEY` 用于后端企业位置地理编码和静态地图。
+- 不要提交真实 API Key。
 
-## 安装和迁移
+## 前端配置
+
+前端读取 `frontend/.env` 或 Vite 环境变量：
+
+```env
+VITE_AMAP_WEB_KEY=your_amap_web_js_key
+VITE_AMAP_SECURITY_JS_CODE=your_amap_security_js_code
+```
+
+如果没有高德前端 Key，岗位详情仍可展示文字位置；地图交互能力会降级。
+
+## 安装与启动
 
 后端：
 
 ```powershell
 cd backend-ts
 npm install
-npm run migrate:generated-resources
-npm run migrate:git-v2
-npm run migrate:evaluation-spine
-```
-
-如果确认要清空旧学习轨迹并重建 Git 学习基线：
-
-```powershell
-npm run reset:git-v2-data -- --confirm-clear-learning-history
+npm run start:dev
 ```
 
 前端：
@@ -161,37 +160,73 @@ npm run reset:git-v2-data -- --confirm-clear-learning-history
 ```powershell
 cd frontend
 npm install
-```
-
-## 本地启动
-
-后端开发模式：
-
-```powershell
-cd backend-ts
-npm run start:dev
-```
-
-后端生产构建运行：
-
-```powershell
-cd backend-ts
-npm run build
-node dist/main.js
-```
-
-前端：
-
-```powershell
-cd frontend
 npm run dev -- --host 0.0.0.0
 ```
 
 默认访问：
 
-- 前端：`http://localhost:5173`
+- 前端：`http://localhost:5173`，如果 5173 被占用，Vite 会自动切到 5174 等端口
 - 后端：`http://localhost:3000`
 - API 前缀：`/api`
+
+## 数据迁移
+
+按需执行：
+
+```powershell
+cd backend-ts
+npm run migrate:generated-resources
+npm run migrate:git-v2
+npm run migrate:learning-portfolio
+npm run migrate:evaluation-spine
+```
+
+仅在确认要清空旧学习轨迹并重建 Git 学习基线时执行：
+
+```powershell
+npm run reset:git-v2-data -- --confirm-clear-learning-history
+```
+
+## 核心页面
+
+| 路由 | 说明 |
+| --- | --- |
+| `/` | 公开首页，包含登录/注册入口 |
+| `/onboarding` | 学生初始化画像和目标 |
+| `/user/home` | 学生工作台 |
+| `/user/chat` | AI 助教聊天 |
+| `/user/learning` | 学习路径 |
+| `/user/knowledge/:skill` | 知识详情 |
+| `/user/jobs` | 岗位搜索与匹配 |
+| `/user/jobs/:id` | 岗位详情、地图、投递、技能导入 |
+| `/user/exams` | 考试列表 |
+| `/user/quick-test` | 快速测试 |
+| `/user/wrong-answers` | 错题 |
+| `/user/progress` | 学习进度 |
+| `/user/resume` | 简历 |
+| `/user/projects` | 项目经历 |
+| `/user/agent-office` | 智能体办公室 |
+| `/admin/*` | 管理后台 |
+
+## 岗位搜索策略
+
+`GET /api/user/jobs` 支持 `searchMode=local|hybrid|online`、`includeOnline`、`keyword`、`company`、`location`、`level`。
+
+- `local`：只查 MySQL 岗位库，标题、公司、城市、薪资、JD、必备技能、加分技能多字段检索。
+- `hybrid`：默认策略。有关键词时先查本地，再走联网搜索补充，并合并去重。
+- `online`：只取联网候选岗位。
+- 联网搜索先走 Search Stack 多引擎搜索，再由 LLM 从搜索结果摘要中提取岗位卡片；搜索不可用或有效结果不足时，降级为 LLM 根据市场常识生成候选岗位。
+- 联网结果以关键词和用户技能作为缓存键，内存缓存 15 分钟，避免切页或重复查询时反复调用外部搜索。
+- 最终结果会按匹配度优先排序，并保留 `searchMeta` 标识来源、命中字段和是否 AI 兜底。
+
+## 智能体办公室状态
+
+智能体员工有两类状态：
+
+- 工作状态：`pending`/`running` 任务会使对应 Agent 进入忙碌，前端显示在工位工作。
+- 空闲状态：任务成功、失败或取消后，后端会检查该 Agent 是否还有其它运行中任务；没有则释放工位并回到空闲。
+
+办公室页面会在读取员工配置时清理历史残留工位：如果某类 Agent 当前没有待处理或运行中的任务，不应继续占用工位。
 
 ## 验证命令
 
@@ -204,195 +239,11 @@ cd ..\frontend
 npm run build
 ```
 
-当前验证结果：
+文档-only 修改不要求重新构建；涉及代码或依赖变更时至少运行对应目录的 build。
 
-- 后端 build：通过
-- 后端 Jest：`8 passed, 30 tests passed`
-- 前端 build：通过
-- Vite 大 chunk 警告仍存在，属于已有打包体积提示，不影响功能
+## 更多文档
 
-## SearXNG 注意事项
-
-资讯和联网岗位搜索依赖 SearXNG JSON API。运行中的 SearXNG 必须允许 `json` 输出。
-
-容器内 `/etc/searxng/settings.yml` 需要包含：
-
-```yaml
-search:
-  formats:
-    - html
-    - json
-    - rss
-
-server:
-  method: "GET"
-```
-
-如果 JSON 请求返回 403，通常是 `formats` 没有启用 `json`。
-
-测试命令：
-
-```powershell
-curl.exe -i -A "Mozilla/5.0" "http://127.0.0.1:8080/search?q=AI%20news&format=json"
-```
-
-如果返回 `200 application/json` 但 `results` 为空，通常是上游搜索引擎超时或代理未打通。资讯模块默认使用：
-
-```env
-NEWS_SEARXNG_ENGINES=bing,baidu
-```
-
-## 主要 API
-
-### 学习 Git 系统
-
-| 方法 | 路径 |
-| --- | --- |
-| GET | `/api/user/git/branches` |
-| POST | `/api/user/git/branches` |
-| GET | `/api/user/git/branches/:branchId/log` |
-| POST | `/api/user/git/branches/:branchId/commit` |
-| GET | `/api/user/git/commits/:commitId` |
-| POST | `/api/user/git/commits/:commitId/rollback` |
-| GET | `/api/user/git/snapshots` |
-| GET | `/api/user/git/snapshots/compare` |
-| GET | `/api/user/git/branches/compare` |
-| POST | `/api/user/git/branches/:branchId/merge` |
-
-### 画像和评价
-
-| 方法 | 路径 |
-| --- | --- |
-| GET | `/api/user/profile` |
-| GET | `/api/user/profile/radar` |
-| GET | `/api/user/profile/ability-metrics` |
-| GET | `/api/user/evaluations` |
-| GET | `/api/user/evaluations/:attemptId` |
-
-### 学习动作
-
-兼容旧接口，但内部已走 Git commit 和评价链路：
-
-| 方法 | 路径 |
-| --- | --- |
-| POST | `/api/user/progress/read` |
-| POST | `/api/user/progress/quiz` |
-| POST | `/api/user/progress/code` |
-| POST | `/api/user/progress/complete` |
-| GET | `/api/user/progress/summary` |
-
-### 岗位
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/api/user/jobs` | 支持 `keyword`, `level`, `searchMode=hybrid/local/online`, `includeOnline` |
-| GET | `/api/user/jobs/:jobId` | 岗位详情 |
-| POST | `/api/user/jobs/:jobId/apply` | 投递 |
-| POST | `/api/user/jobs/:jobId/import-skills` | 导入岗位技能 |
-
-### 资讯
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/api/user/news` | 资讯列表，空库时自动抓取 |
-| POST | `/api/user/news/refresh` | 手动刷新 AI 资讯 |
-| GET | `/api/user/news/:newsId` | 资讯详情 |
-| GET | `/api/user/news/recommend` | 个性化推荐 |
-| GET | `/api/user/news/trends` | 技术趋势分析 |
-
-### 聊天和资源
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| POST | `/api/user/chat` | AI 助教聊天 |
-| GET | `/api/user/chat-sessions` | 聊天会话列表 |
-| GET | `/api/user/generated-resources` | 资源台账 |
-| GET | `/api/user/events/stream` | SSE 事件流 |
-
-## 核心数据表
-
-| 表 | 说明 |
-| --- | --- |
-| `generated_resources_v3` | AI 生成资源台账 |
-| `learning_branches_v3` | Git 学习分支 |
-| `learning_commits_v3` | 学习动作 commit |
-| `skill_snapshots_v3` | 技能快照、雷达、能力指标 |
-| `evaluation_attempts_v3` | 评价尝试 |
-| `evaluation_results_v3` | 评价结果 |
-| `evaluation_impacts_v3` | 评价对技能/雷达/匹配度的影响 |
-| `job_positions_v3` | 岗位 |
-| `news_v3` | AI 资讯、摘要、标签 |
-
-## 当前开发重点
-
-后续优先级建议：
-
-1. 继续补齐岗位模块：岗位详情体验、投递反馈、岗位技能导入后的学习分支联动。
-2. 继续补齐资讯模块：资讯去重质量、来源白名单、外网 SearXNG 独立实例配置、资讯推荐和学生画像联动。
-3. 继续补齐智能体办公室：任务状态和聊天调用状态更强绑定，避免用户不知道资源在哪里生成。
-4. 为 Git 学习系统和评价系统补更多端到端测试。
-5. 前端做代码分包，降低 Vite 大 chunk 警告。
-
-## 故障排查
-
-### `/api/user/news` 没有资讯
-
-1. 检查 `news_v3` 是否为空。
-2. 检查 SearXNG JSON 是否可用：
-
-```powershell
-curl.exe -i -A "Mozilla/5.0" "http://127.0.0.1:8080/search?q=AI%20news&format=json"
-```
-
-3. 检查 `backend-ts/.env`：
-
-```env
-NEWS_SEARXNG_URL=http://127.0.0.1:8080
-NEWS_SEARXNG_ENGINES=bing,baidu
-```
-
-### 岗位搜索只有本地结果
-
-确认请求参数：
-
-```text
-searchMode=hybrid
-includeOnline=true
-keyword=React
-```
-
-如果在线结果为空，先测 SearXNG：
-
-```powershell
-curl.exe -A "Mozilla/5.0" "http://127.0.0.1:8080/search?q=React%20招聘&format=json&engines=bing,baidu"
-```
-
-### 资源生成切页后看不到
-
-检查 `generated_resources_v3` 和接口：
-
-```text
-GET /api/user/generated-resources
-```
-
-资源不应只依赖聊天页面内存状态。
-
-## 代码质量基线
-
-提交前至少跑：
-
-```powershell
-cd backend-ts
-npm run build
-npm test -- --runInBand
-
-cd ..\frontend
-npm run build
-```
-
-如果修改了数据库模型，同时补充：
-
-- SQL migration
-- 脚本入口
-- README 或部署文档说明
-
+- 产品文档：[MD/ZhiPath_产品文档_v3.0.md](MD/ZhiPath_产品文档_v3.0.md)
+- 中间件部署：[deploy/中间件部署指南.md](deploy/中间件部署指南.md)
+- 后端开发：[backend-ts/README.md](backend-ts/README.md)
+- 前端开发：[frontend/README.md](frontend/README.md)

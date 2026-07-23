@@ -282,9 +282,9 @@ export class LearningPathsService {
           readingResult.status === 'rejected' ? readingResult.reason?.message : undefined),
       ]);
       // 员工下岗
-      this.profileService.updateStatus(userId, 'lecture', 'idle').catch(() => {});
-      this.profileService.updateStatus(userId, 'code', 'idle').catch(() => {});
-      this.profileService.updateStatus(userId, 'reading', 'idle').catch(() => {});
+      this.profileService.updateStatus(userId, 'lecture', 'idle', { releaseStation: true }).catch(() => {});
+      this.profileService.updateStatus(userId, 'code', 'idle', { releaseStation: true }).catch(() => {});
+      this.profileService.updateStatus(userId, 'reading', 'idle', { releaseStation: true }).catch(() => {});
     }
 
     if (lectureResult.status === 'rejected') console.error(`[LearningPaths] Lecture error:`, lectureResult.reason);

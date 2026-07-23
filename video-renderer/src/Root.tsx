@@ -1,6 +1,7 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import { VideoGenerator } from './compositions/VideoGenerator';
+import { ProjectShowcase } from './compositions/ProjectShowcase';
 import { VIDEO_THEME } from './types';
 
 export const RemotionRoot: React.FC = () => {
@@ -56,6 +57,18 @@ export const RemotionRoot: React.FC = () => {
               },
             ],
           },
+          audioSegments: [],
+        }}
+      />
+      <Composition
+        id="ProjectShowcase"
+        component={ProjectShowcase as unknown as React.FC<Record<string, unknown>>}
+        durationInFrames={VIDEO_THEME.canvas.fps * 300}
+        fps={VIDEO_THEME.canvas.fps}
+        width={VIDEO_THEME.canvas.width}
+        height={VIDEO_THEME.canvas.height}
+        defaultProps={{
+          scenes: [],
           audioSegments: [],
         }}
       />

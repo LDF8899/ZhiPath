@@ -6,6 +6,7 @@ import Landing from './pages/Landing'
 import Onboarding from './pages/Onboarding'
 import PlanCreate from './pages/PlanCreate'
 import PlanHub from './pages/PlanHub'
+import AvatarPreview from './pages/AvatarPreview'
 
 // User pages
 import Chat from './pages/user/Chat'
@@ -64,6 +65,7 @@ export default function App() {
         {/* Landing page (includes login/register) */}
         <Route path="/" element={isAuthenticated ? <Navigate to={user?.role === 'admin' ? '/admin/dashboard' : '/user/home'} replace /> : <Landing />} />
         {/* Legacy routes — redirect to landing auth section */}
+        <Route path="/avatar-preview" element={<AvatarPreview />} />
         <Route path="/login" element={isAuthenticated ? <Navigate to={user?.role === 'admin' ? '/admin/dashboard' : '/user/home'} replace /> : <Landing />} />
         <Route path="/register" element={isAuthenticated ? <Navigate to={user?.role === 'admin' ? '/admin/dashboard' : '/user/home'} replace /> : <Landing />} />
 
