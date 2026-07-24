@@ -8,6 +8,7 @@ import { setGeneratedResourceFeedback } from '../../api/user';
 interface TaskCenterProps {
   profiles: AgentProfile[];
   tasks: AgentTask[];
+  history: AgentTask[];
   activeTasks: AgentTask[];
   completedOutputs: AgentTask[];
   generatedOutputs: GeneratedResource[];
@@ -27,7 +28,7 @@ interface TaskCenterProps {
  * 保留了原 monolith 中所有右侧面板的功能
  */
 export default function TaskCenter({
-  profiles, activeTasks, completedOutputs, generatedOutputs, failedTasks,
+  profiles, history, activeTasks, completedOutputs, generatedOutputs, failedTasks,
   busyCount, idleCount, stationCount, agentCount,
   standbyAgents, onTaskAction, onTaskReorder, onDirectUse,
 }: TaskCenterProps) {
@@ -39,6 +40,7 @@ export default function TaskCenter({
   const nextPendingTask = activeTasks.find(task => task.taskStatus === 'pending') || null;
   const latestOutput = generatedOutputs[0] || completedOutputs[0] || null;
   const runningAgent = runningTask ? profiles.find(p => p.agentType === runningTask.agentType) : null;
+  const recentHistory = history.slice(0, 6);
 
   const handleTaskDragStart = (e: React.DragEvent, taskId: number) => {
     dragTaskIdRef.current = taskId;
@@ -144,8 +146,14 @@ export default function TaskCenter({
         </div>
         <div className="control-meta">
           <span>{runningAgent ? `${runningAgent.nickname} · ${AGENT_LABELS[runningTask?.agentType || ''] || ''}` : '智能体空闲'}</span>
-          <span>{runningTask ? `进度 ${runningTask.progress || 0}%` : `待命 ${idleCount} 人`}</span>
+          <span>{runningTask ? `进度 ${runningTask.progress || 0}% · 耗时 ${formatElapsed(runningTask)}` : `待命 ${idleCount} 人`}</span>
         </div>
+        {runningTask && (
+          <div className="control-meta">
+            <span>开始 {formatTime(runningTask.startedAt || runningTask.createTime)}</span>
+            <span>任务 #{String(runningTask.id).padStart(3, '0')}</span>
+          </div>
+        )}
         {runningTask && (
           <div className="control-progress">
             <div style={{ width: `${runningTask.progress || 0}%` }} />
@@ -225,7 +233,7 @@ export default function TaskCenter({
                 {agent ? (
                   <>
                     <span style={{ width: 14, height: 14, borderRadius: '50%', background: agent.color, border: '1.5px solid var(--pencil)', display: 'inline-block' }} />
-                    {agent.nickname} · {task.taskStatus === 'running' ? '处理中' : '排队中'}
+                    {agent.nickname} · {task.taskStatus === 'running' ? `处理中 · ${formatElapsed(task)}` : `排队中 · ${formatQueuedTime(task)}`}
                   </>
                 ) : (
                   <span style={{ opacity: 0.5 }}>等待分配 · {AGENT_LABELS[task.agentType]}</span>
@@ -330,6 +338,39 @@ export default function TaskCenter({
         </div>
       </div>
 
+      {/* ── 历史记录 ── */}
+      <div className="office-output">
+        <div className="office-output-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 12a9 9 0 109-9"/><path d="M3 3v6h6"/><path d="M12 7v5l3 2"/></svg>
+          历史记录
+          <span className="done-count">{recentHistory.length}</span>
+        </div>
+        <div className="office-output-list">
+          {recentHistory.length > 0 ? recentHistory.map(task => {
+            const agent = profiles.find(p => p.agentType === task.agentType);
+            return (
+              <div key={`history-${task.id}`} className="office-output-card">
+                <div className="out-header">
+                  <span className="out-task">{task.title}</span>
+                  <span className="out-time">{labelTaskStatus(task.taskStatus)}</span>
+                </div>
+                <div className="out-agent">
+                  <span className="mini-color" style={{ background: agent?.color || '#ccc' }} />
+                  {agent?.nickname || AGENT_LABELS[task.agentType] || 'Agent'} · 耗时 {formatElapsed(task)}
+                </div>
+                {task.errorMessage && (
+                  <div className="out-result" style={{ color: 'var(--accent)' }}>
+                    失败原因：{task.errorMessage}
+                  </div>
+                )}
+              </div>
+            );
+          }) : (
+            <div className="output-empty">任务完成、失败或取消后会进入历史记录</div>
+          )}
+        </div>
+      </div>
+
       {/* ── 失败任务 ── */}
       {failedTasks.length > 0 && (
         <div className="office-output" style={{ borderTop: '2px solid var(--accent)', marginTop: 8 }}>
@@ -401,4 +442,42 @@ function formatResourceStatus(resource: GeneratedResource): string {
   return resource.updateTime
     ? new Date(resource.updateTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
     : '完成';
+}
+
+function formatElapsed(task: AgentTask): string {
+  const start = Number(task.startedAt || task.createTime || 0);
+  if (!start) return '-';
+  const end = Number(task.completedAt || 0) || Date.now();
+  return formatDuration(Math.max(0, end - start));
+}
+
+function formatQueuedTime(task: AgentTask): string {
+  const start = Number(task.createTime || 0);
+  if (!start) return '刚创建';
+  return `等待 ${formatDuration(Math.max(0, Date.now() - start))}`;
+}
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}
+
+function formatTime(ts?: number | null): string {
+  if (!ts) return '-';
+  return new Date(Number(ts)).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function labelTaskStatus(status: AgentTask['taskStatus']): string {
+  const labels: Record<AgentTask['taskStatus'], string> = {
+    pending: '等待',
+    running: '进行中',
+    success: '完成',
+    failed: '失败',
+    cancelled: '已取消',
+  };
+  return labels[status] || status;
 }

@@ -323,6 +323,8 @@ export default function AgentOffice() {
         {/* ── 右侧：任务中心 ── */}
         <TaskCenter
           profiles={office.profiles}
+          tasks={office.tasks}
+          history={office.history}
           activeTasks={office.activeTasks}
           completedOutputs={office.completedOutputs}
           generatedOutputs={office.generatedOutputs}
