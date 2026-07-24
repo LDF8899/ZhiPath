@@ -1182,6 +1182,62 @@
   color: var(--accent);
   font-style: normal;
 }
+.admin-funnel {
+  margin-top: 12px;
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  padding: 12px;
+}
+.admin-funnel-title {
+  font: 700 12px/1 var(--mono);
+  letter-spacing: 0.08em;
+  color: var(--pencil);
+  margin-bottom: 10px;
+}
+.admin-funnel-row {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  display: grid;
+  grid-template-columns: 64px minmax(120px, 1fr) 48px 48px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  cursor: pointer;
+  text-align: left;
+}
+.admin-funnel-row + .admin-funnel-row {
+  border-top: 1px dashed var(--rule);
+}
+.admin-funnel-row span {
+  font: 13px/1.2 var(--hand-bold);
+  color: var(--ink);
+}
+.admin-funnel-row div {
+  height: 10px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--paper-tint);
+}
+.admin-funnel-row i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.admin-funnel-row strong {
+  font: 800 16px/1 var(--serif);
+  color: var(--ink);
+  text-align: right;
+}
+.admin-funnel-row em {
+  font: 11px/1 var(--mono);
+  color: var(--pencil);
+  font-style: normal;
+  text-align: right;
+}
 
 /* Table */
 .admin-table-wrap {

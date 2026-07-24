@@ -59,17 +59,17 @@ export default function AdminDashboard() {
       link: '/admin/settings',
     },
     {
-      label: '题库质量',
-      value: quality.questions.avgPassRate == null ? '待统计' : `${quality.questions.avgPassRate}%`,
-      desc: `上架 ${quality.questions.approved} · 待审 ${quality.questions.pending} · 低置信 ${quality.questions.lowConfidence}`,
-      alert: quality.questions.pending > 0 ? '存在待审核题目' : '题库审核完成',
+      label: '题目正确率',
+      value: quality.questions.avgScore == null ? '待统计' : `${quality.questions.avgScore}%`,
+      desc: `样本 ${quality.questions.scoredExamCount} · 通过率 ${quality.questions.examPassRate}% · 低置信 ${quality.questions.lowConfidence}`,
+      alert: quality.questions.complaintRate == null ? '投诉率待接入题目反馈' : `投诉率 ${quality.questions.complaintRate}%`,
       link: '/admin/questions',
     },
     {
       label: '投递转化治理',
-      value: `${quality.applications.pendingRate}%`,
-      desc: `待审 ${quality.applications.pending} · 通过 ${quality.applications.approved} · 拒绝 ${quality.applications.rejected}`,
-      alert: quality.applications.pending > 0 ? '需要处理投递' : '暂无待处理投递',
+      value: `${quality.applications.reviewRate}%`,
+      desc: `总投递 ${quality.applications.total} · 通过 ${quality.applications.approvalRate}% · 拒绝 ${quality.applications.rejectionRate}%`,
+      alert: quality.applications.pending > 0 ? `待审 ${quality.applications.pending} 个` : '暂无待处理投递',
       link: '/admin/applications',
     },
     {
@@ -154,6 +154,21 @@ export default function AdminDashboard() {
           <div className="hd-dashed" style={{ marginTop: 12, font: '13px/1.5 var(--hand)', color: 'var(--pencil)' }}>
             {quality.instrumentation.note}
           </div>
+          {quality.applications.funnel?.length > 0 && (
+            <div className="admin-funnel">
+              <div className="admin-funnel-title">投递转化漏斗</div>
+              {quality.applications.funnel.map((item) => (
+                <button key={item.label} className="admin-funnel-row" onClick={() => navigate('/admin/applications')}>
+                  <span>{item.label}</span>
+                  <div>
+                    <i style={{ width: `${item.count > 0 ? Math.max(item.rate, 4) : 0}%` }} />
+                  </div>
+                  <strong>{item.count}</strong>
+                  <em>{item.rate}%</em>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

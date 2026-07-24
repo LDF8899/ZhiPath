@@ -20,10 +20,15 @@ export const getAdminDashboard = () =>
         enterpriseRate: number;
       };
       applications: {
+        total: number;
         pending: number;
         approved: number;
         rejected: number;
         pendingRate: number;
+        reviewRate: number;
+        approvalRate: number;
+        rejectionRate: number;
+        funnel: Array<{ label: string; count: number; rate: number }>;
       };
       questions: {
         total: number;
@@ -31,6 +36,11 @@ export const getAdminDashboard = () =>
         pending: number;
         lowConfidence: number;
         avgPassRate: number | null;
+        avgScore: number | null;
+        examPassRate: number;
+        scoredExamCount: number;
+        complaintRate: number | null;
+        complaintSampleSize: number;
       };
       resources: {
         total: number;

@@ -58,6 +58,7 @@ export class AdminService {
       questionPending,
       lowConfidenceQuestions,
       questionAvgRaw,
+      examQualityRaw,
       resourceTotal,
       resourceSuccess,
       resourceFailed,
@@ -75,6 +76,13 @@ export class AdminService {
       this.questionRepo.count({ where: { status: 0 } }),
       this.questionRepo.createQueryBuilder('q').where('q.confidence_score IS NOT NULL').andWhere('q.confidence_score < :min', { min: 0.6 }).getCount(),
       this.questionRepo.createQueryBuilder('q').select('AVG(q.pass_rate)', 'avg').where('q.pass_rate IS NOT NULL').getRawOne<{ avg: string | null }>(),
+      this.examRepo.createQueryBuilder('e')
+        .select('AVG(e.score)', 'avgScore')
+        .addSelect('SUM(CASE WHEN e.passed = 1 THEN 1 ELSE 0 END)', 'passed')
+        .addSelect('COUNT(e.id)', 'total')
+        .where('e.status = 1')
+        .andWhere('e.score IS NOT NULL')
+        .getRawOne<{ avgScore: string | null; passed: string | null; total: string | null }>(),
       this.resourceRepo.count({ where: { status: 1 } }),
       this.resourceRepo.count({ where: { status: 1, resourceStatus: 'success' } }),
       this.resourceRepo.count({ where: { status: 1, resourceStatus: 'failed' } }),
@@ -91,6 +99,9 @@ export class AdminService {
     const notUsefulFeedback = Number(resourceFeedbackRaw?.notUseful || 0);
     const feedbackTotal = usefulFeedback + notUsefulFeedback;
     const searchMetrics = JobSearchService.getMetricsSnapshot();
+    const scoredExamCount = Number(examQualityRaw?.total || 0);
+    const passedExamCount = Number(examQualityRaw?.passed || 0);
+    const reviewedApplications = approvedApplications + rejectedApplications;
     return {
       jobSource: {
         platformJobCount,
@@ -99,10 +110,20 @@ export class AdminService {
         enterpriseRate: percent(enterpriseJobCount, platformJobCount + enterpriseJobCount),
       },
       applications: {
+        total: activeApplications,
         pending: pendingApplications,
         approved: approvedApplications,
         rejected: rejectedApplications,
         pendingRate: percent(pendingApplications, activeApplications),
+        reviewRate: percent(reviewedApplications, activeApplications),
+        approvalRate: percent(approvedApplications, reviewedApplications),
+        rejectionRate: percent(rejectedApplications, reviewedApplications),
+        funnel: [
+          { label: '投递', count: activeApplications, rate: activeApplications > 0 ? 100 : 0 },
+          { label: '待审', count: pendingApplications, rate: percent(pendingApplications, activeApplications) },
+          { label: '通过', count: approvedApplications, rate: percent(approvedApplications, activeApplications) },
+          { label: '拒绝', count: rejectedApplications, rate: percent(rejectedApplications, activeApplications) },
+        ],
       },
       questions: {
         total: questionTotal,
@@ -110,6 +131,11 @@ export class AdminService {
         pending: questionPending,
         lowConfidence: lowConfidenceQuestions,
         avgPassRate: questionAvgRaw?.avg == null ? null : Math.round(Number(questionAvgRaw.avg) * 100) / 100,
+        avgScore: examQualityRaw?.avgScore == null ? null : Math.round(Number(examQualityRaw.avgScore) * 10) / 10,
+        examPassRate: percent(passedExamCount, scoredExamCount),
+        scoredExamCount,
+        complaintRate: null,
+        complaintSampleSize: 0,
       },
       resources: {
         total: resourceTotal,
@@ -128,8 +154,8 @@ export class AdminService {
         searchSampleSize: searchMetrics.totalSearches,
         resourceFeedbackSampleSize: feedbackTotal,
         note: feedbackTotal > 0
-          ? '搜索指标为当前服务进程运行期统计；资源有用率来自用户反馈。'
-          : '搜索指标为当前服务进程运行期统计；资源有用率等待用户反馈样本。',
+          ? '搜索指标为当前服务进程运行期统计；资源有用率来自用户反馈；题目投诉率需接入题目反馈事件后计算。'
+          : '搜索指标为当前服务进程运行期统计；资源有用率等待用户反馈样本；题目投诉率需接入题目反馈事件后计算。',
       },
     };
   }
