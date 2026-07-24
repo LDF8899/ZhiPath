@@ -15,6 +15,7 @@ import {
   markAgentTaskUrgent,
   skipAgentTask,
   cancelAgentTask,
+  retryAgentTask,
   deleteAgentTask,
   reorderAgentTasks,
 } from '../api/user';
@@ -246,6 +247,7 @@ export function useAgentOffice() {
         case 'urgent': await markAgentTaskUrgent(taskId); break;
         case 'skip': await skipAgentTask(taskId); showToast('已跳过'); break;
         case 'cancel': await cancelAgentTask(taskId); showToast('已取消'); break;
+        case 'retry': await retryAgentTask(taskId); showToast('已重新派发'); break;
         case 'delete': await deleteAgentTask(taskId); showToast('已删除'); break;
       }
       fetchData();

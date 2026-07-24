@@ -200,6 +200,22 @@ export class AgentTaskService {
     return this.updateStatus(taskId, 'cancelled');
   }
 
+  async retryTask(taskId: number, userId: number): Promise<AgentTask | null> {
+    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, status: 1 } });
+    if (!task || !['failed', 'cancelled'].includes(task.taskStatus)) return null;
+
+    return this.createTask(
+      userId,
+      task.agentType as AgentTask['agentType'],
+      task.title,
+      {
+        ...(task.params || {}),
+        _retryOfTaskId: task.id,
+      },
+      task.description || '',
+    );
+  }
+
   /**
    * 删除任务（软删除）
    */

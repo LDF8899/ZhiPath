@@ -356,6 +356,14 @@ export default function TaskCenter({
                       ❌ {task.errorMessage}
                     </div>
                   )}
+                  <div className="failed-task-actions">
+                    <button className="office-btn ghost" onClick={() => onTaskAction('retry', task.id)}>
+                      重试
+                    </button>
+                    <button className="office-btn ghost" onClick={() => onTaskAction('delete', task.id)}>
+                      删除
+                    </button>
+                  </div>
                 </div>
               );
             })}

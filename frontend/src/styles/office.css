@@ -787,6 +787,15 @@
   border-color: var(--accent);
   color: var(--accent);
 }
+.failed-task-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 7px;
+}
+.failed-task-actions .office-btn {
+  padding: 4px 9px;
+  font-size: 11px;
+}
 
 /* Sticky note */
 .office-sticky {

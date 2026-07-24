@@ -283,6 +283,22 @@ export class AgentOfficeController {
     return success(task);
   }
 
+  /** 重试失败/取消任务 */
+  @Post('tasks/:taskId/retry')
+  async retryTask(@Param('taskId') taskId: string, @CurrentUser() user: any) {
+    const task = await this.taskService.retryTask(parseInt(taskId, 10), user.sub);
+    if (!task) return error(400, '任务不可重试');
+
+    await this.syncGeneratedResource(user.sub, task, undefined, 'retry pending');
+    await this.profileService.updateStatus(user.sub, task.agentType as any, 'busy').catch(() => {});
+
+    this.executeTask(task.id, user.sub, task.agentType, task.params || {}).catch((e) =>
+      console.error('[AgentOffice] Retry task execution failed:', e.message),
+    );
+
+    return success(task);
+  }
+
   /** 删除任务 */
   @Post('tasks/:taskId/delete')
   async deleteTask(@Param('taskId') taskId: string, @CurrentUser() user: any) {

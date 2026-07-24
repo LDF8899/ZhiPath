@@ -626,6 +626,10 @@ export const reorderAgentTasks = (taskIds: number[]) =>
 export const cancelAgentTask = (taskId: number) =>
   client.post(`/user/agent-office/tasks/${taskId}/cancel`) as Promise<ApiResponse<any>>;
 
+/** 重试任务 */
+export const retryAgentTask = (taskId: number) =>
+  client.post(`/user/agent-office/tasks/${taskId}/retry`) as Promise<ApiResponse<any>>;
+
 /** 删除任务 */
 export const deleteAgentTask = (taskId: number) =>
   client.post(`/user/agent-office/tasks/${taskId}/delete`) as Promise<ApiResponse<any>>;
