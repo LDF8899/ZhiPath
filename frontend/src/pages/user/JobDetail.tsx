@@ -150,6 +150,11 @@ function buildMatchReason({
   return `已匹配 ${matched}${bonus}；主要缺口是 ${missing}，因此 ${jobTitle} 当前匹配度为 ${score}%。完成缺失技能和测评后，分数会重新计算。`;
 }
 
+function signed(value: number) {
+  const rounded = Math.round(Number(value || 0) * 100) / 100;
+  return `${rounded > 0 ? '+' : ''}${rounded}`;
+}
+
 export default function JobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -320,6 +325,7 @@ export default function JobDetail() {
   const canApply = matchResult?.canApply !== false;
   const deliveryThreshold = matchResult?.deliveryThreshold || 60;
   const learningTargetSkills = isOnlineJob ? getJobSkillNames(job).slice(0, 8) : missingSkills;
+  const scoreChange = matchResult?.scoreChange || null;
   const matchReason = buildMatchReason({
     score,
     jobTitle: job.title,
@@ -659,6 +665,41 @@ export default function JobDetail() {
               <div className="hd-dashed" style={{ marginBottom: 16, font: '13px/1.55 var(--hand)', color: 'var(--ink)' }}>
                 <strong>为什么是这个分数：</strong>{matchReason}
               </div>
+
+              {scoreChange && (
+                <div
+                  className="hd-dashed"
+                  style={{
+                    marginBottom: 16,
+                    background: scoreChange.delta >= 0 ? 'rgba(58, 125, 58, 0.08)' : 'var(--note-pink)',
+                    borderColor: scoreChange.delta >= 0 ? '#3a7d3a' : 'var(--accent)',
+                    font: '13px/1.55 var(--hand)',
+                    color: 'var(--ink)',
+                  }}
+                >
+                  <div className="hd-flex-between" style={{ gap: 10, alignItems: 'flex-start', marginBottom: 8 }}>
+                    <strong>为什么匹配度变化：</strong>
+                    <span className={`hd-badge ${scoreChange.delta >= 0 ? 'green' : 'red'}`}>
+                      {scoreChange.beforeScore}% → {scoreChange.afterScore}%（{signed(scoreChange.delta)}）
+                    </span>
+                  </div>
+                  <div>{scoreChange.explanation}</div>
+                  {(scoreChange.skillChanges?.length > 0 || scoreChange.radarChanges?.length > 0) && (
+                    <div className="hd-flex" style={{ gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                      {scoreChange.skillChanges?.slice(0, 3).map((item: any) => (
+                        <span key={`skill-${item.name}`} className={`hd-badge ${item.delta >= 0 ? 'green' : 'red'}`}>
+                          {item.name} {signed(item.delta)}
+                        </span>
+                      ))}
+                      {scoreChange.radarChanges?.slice(0, 2).map((item: any) => (
+                        <span key={`radar-${item.name}`} className={`hd-badge ${item.delta >= 0 ? 'green' : 'red'}`}>
+                          {item.name} {signed(item.delta)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* 5 因子分解图 */}
               {matchResult?.breakdown && (

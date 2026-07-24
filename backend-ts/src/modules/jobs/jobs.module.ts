@@ -6,6 +6,9 @@ import { JobPosition, JobApplication } from '../../entities/job.entity';
 import { Student } from '../../entities/student.entity';
 import { Enterprise } from '../../entities/enterprise.entity';
 import { LearningPlan } from '../../entities/learning.entity';
+import { LearningBranch } from '../../entities/learning-branch.entity';
+import { LearningCommit } from '../../entities/learning-commit.entity';
+import { SkillSnapshotV3 } from '../../entities/skill-snapshot-v3.entity';
 import { MatchModule } from '../match/match.module';
 import { SkillModule } from '../skill/skill.module';
 import { JobSearchService } from '../../services/job-search.service';
@@ -13,7 +16,7 @@ import { SearchStackService } from '../../services/search-stack.service';
 import { LlmService } from '../../services/llm.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([JobPosition, JobApplication, Student, Enterprise, LearningPlan]), MatchModule, SkillModule],
+  imports: [TypeOrmModule.forFeature([JobPosition, JobApplication, Student, Enterprise, LearningPlan, LearningBranch, LearningCommit, SkillSnapshotV3]), MatchModule, SkillModule],
   controllers: [JobsController],
   providers: [JobsService, JobSearchService, SearchStackService, LlmService],
   exports: [JobsService],

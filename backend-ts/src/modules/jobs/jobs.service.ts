@@ -6,6 +6,9 @@ import { JobPosition, JobApplication } from '../../entities/job.entity';
 import { Student } from '../../entities/student.entity';
 import { Enterprise } from '../../entities/enterprise.entity';
 import { LearningPlan } from '../../entities/learning.entity';
+import { LearningBranch } from '../../entities/learning-branch.entity';
+import { LearningCommit } from '../../entities/learning-commit.entity';
+import { SkillSnapshotV3 } from '../../entities/skill-snapshot-v3.entity';
 import { MatchAgentService } from '../../services/match-agent.service';
 import { JobSearchService } from '../../services/job-search.service';
 import { SkillService } from '../../services/skill.service';
@@ -38,6 +41,9 @@ export class JobsService {
     @InjectRepository(Student) private studentRepo: Repository<Student>,
     @InjectRepository(Enterprise) private enterpriseRepo: Repository<Enterprise>,
     @InjectRepository(LearningPlan) private planRepo: Repository<LearningPlan>,
+    @InjectRepository(LearningBranch) private branchRepo: Repository<LearningBranch>,
+    @InjectRepository(LearningCommit) private commitRepo: Repository<LearningCommit>,
+    @InjectRepository(SkillSnapshotV3) private snapshotRepo: Repository<SkillSnapshotV3>,
     private matchAgent: MatchAgentService,
     private jobSearch: JobSearchService,
     private skillService: SkillService,
@@ -330,6 +336,7 @@ export class JobsService {
     if (!job) return null;
 
     const match = await this.matchAgent.calculateMatch(userId, jobId, 'view_job');
+    const scoreChange = await this.getLatestJobScoreChange(userId, jobId, match.totalScore);
 
     return {
       jobId,
@@ -346,6 +353,7 @@ export class JobsService {
       canApply: match.canApply,
       deliveryThreshold: match.deliveryThreshold,
       requirement: match.requirement,
+      scoreChange,
     };
   }
 
@@ -618,6 +626,123 @@ export class JobsService {
       .split(/[\s,，/|+;；、-]+/)
       .map((token) => token.trim())
       .filter((token) => token.length > 0);
+  }
+
+  private async getLatestJobScoreChange(userId: number, jobId: number, currentScore: number) {
+    const branch = await this.branchRepo.findOne({
+      where: { userId, branchType: 'main', status: 1 },
+      order: { id: 'ASC' },
+    });
+    if (!branch) return null;
+
+    const commits = await this.commitRepo.find({
+      where: { userId, branchId: branch.id, status: 1 },
+      order: { createTime: 'DESC', id: 'DESC' },
+      take: 20,
+    });
+
+    for (const commit of commits) {
+      if (commit.commitType === 'baseline' || !commit.snapshotId) continue;
+      const snapshot = await this.snapshotRepo.findOne({ where: { id: commit.snapshotId, userId, status: 1 } });
+      const afterFromSnapshot = this.findJobScore(snapshot?.matchSummaryJson, jobId);
+      if (afterFromSnapshot == null) continue;
+
+      let beforeScore: number | null = null;
+      if (commit.parentCommitId) {
+        const previous = await this.snapshotRepo.findOne({ where: { commitId: commit.parentCommitId, userId, status: 1 } });
+        beforeScore = this.findJobScore(previous?.matchSummaryJson, jobId);
+      }
+
+      const deltaFromSnapshots = beforeScore == null ? null : this.round(afterFromSnapshot - beforeScore);
+      const deltaFromCommit = this.round(Number(commit.deltaJson?.metricsChange?.matchScore || 0));
+      const delta = deltaFromSnapshots != null ? deltaFromSnapshots : deltaFromCommit;
+      if (Math.abs(delta) < 0.01) continue;
+
+      const afterScore = Number(commit.id) === Number(branch.headCommitId)
+        ? this.round(currentScore)
+        : this.round(afterFromSnapshot);
+      const before = this.round(afterScore - delta);
+      const skillChanges = this.topChanges(commit.deltaJson?.skillChanges, 'delta', 3);
+      const radarChanges = this.topChanges(commit.deltaJson?.radarChanges, 'delta', 2);
+
+      return {
+        commitId: commit.id,
+        commitType: commit.commitType,
+        message: commit.message,
+        skillName: commit.skillName,
+        beforeScore: before,
+        afterScore,
+        delta,
+        createdAt: Number(commit.createTime || 0),
+        skillChanges,
+        radarChanges,
+        explanation: this.buildScoreChangeExplanation(commit, before, afterScore, delta, skillChanges, radarChanges),
+      };
+    }
+
+    return null;
+  }
+
+  private findJobScore(summary: any, jobId: number): number | null {
+    const jobs = Array.isArray(summary?.jobs) ? summary.jobs : [];
+    const item = jobs.find((job: any) => Number(job.jobId || job.id) === Number(jobId));
+    const score = Number(item?.matchScore ?? item?.totalScore);
+    return Number.isFinite(score) ? this.round(score) : null;
+  }
+
+  private topChanges(items: any, field: string, limit: number) {
+    return (Array.isArray(items) ? items : [])
+      .filter((item) => Math.abs(Number(item?.[field] || 0)) >= 0.01)
+      .sort((a, b) => Math.abs(Number(b[field] || 0)) - Math.abs(Number(a[field] || 0)))
+      .slice(0, limit)
+      .map((item) => ({
+        name: item.name || item.dimension || '',
+        before: this.round(Number(item.before || 0)),
+        after: this.round(Number(item.after || 0)),
+        delta: this.round(Number(item[field] || 0)),
+      }));
+  }
+
+  private buildScoreChangeExplanation(
+    commit: LearningCommit,
+    beforeScore: number,
+    afterScore: number,
+    delta: number,
+    skillChanges: Array<{ name: string; delta: number }>,
+    radarChanges: Array<{ name: string; delta: number }>,
+  ): string {
+    const source = commit.skillName || commit.message || this.labelCommitType(commit.commitType);
+    const skillText = skillChanges.length
+      ? skillChanges.map((item) => `${item.name} ${this.signed(item.delta)}`).join('、')
+      : `${source} 形成了新的能力证据`;
+    const radarText = radarChanges.length
+      ? `，带动 ${radarChanges.map((item) => `${item.name} ${this.signed(item.delta)}`).join('、')}`
+      : '';
+    return `最近一次${this.labelCommitType(commit.commitType)}更新了 ${skillText}${radarText}，因此该岗位匹配度从 ${beforeScore}% 到 ${afterScore}%（${this.signed(delta)}）。`;
+  }
+
+  private labelCommitType(type: string): string {
+    const labels: Record<string, string> = {
+      lecture_read: '讲义学习',
+      quiz_passed: '测验通过',
+      quiz_failed: '测验记录',
+      code_done: '代码练习',
+      skill_complete: '技能完成',
+      task_done: '任务完成',
+      manual: '手动记录',
+      merge: '分支合并',
+      rollback: '回滚',
+    };
+    return labels[type] || '学习';
+  }
+
+  private signed(value: number): string {
+    const rounded = this.round(value);
+    return `${rounded > 0 ? '+' : ''}${rounded}`;
+  }
+
+  private round(value: number): number {
+    return Math.round((Number(value) || 0) * 100) / 100;
   }
 
   private norm(input: string) {
