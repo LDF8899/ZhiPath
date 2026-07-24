@@ -225,7 +225,12 @@ export default function JobDetail() {
   /* ── Action handlers ── */
 
   const handleApply = async () => {
-    if (!id) return;
+    if (!id || !job) return;
+    const currentTrust = getJobTrustTier(job);
+    if (!currentTrust.canDirectApply) {
+      showMsg(`${currentTrust.label}不能直接投递，可作为学习目标参考`, 'error');
+      return;
+    }
     setApplying(true);
     try {
       await applyJob(parseInt(id, 10));
@@ -301,8 +306,8 @@ export default function JobDetail() {
 
   /* ── Match analysis data ── */
   const score = matchResult?.totalScore || job.matchScore || 0;
-  const isOnlineJob = Number(job.id) < 0 || job.source === 'online';
   const trustTier = getJobTrustTier(job);
+  const isOnlineJob = Number(job.id) < 0 || job.source === 'online' || job.searchMeta?.source === 'online';
   const isAiGenerated = trustTier.kind === 'ai';
   const matchedSkills: string[] =
     matchResult?.breakdown?.requiredSkills?.matched || [];
@@ -801,7 +806,7 @@ export default function JobDetail() {
             </div>
 
             {/* ── Action buttons ── */}
-            {isOnlineJob ? (
+            {!trustTier.canDirectApply ? (
               <div className="hd-card-accent">
                 <div className="hd-section-label">
                   <h3>岗位来源</h3>
