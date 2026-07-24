@@ -1,0 +1,720 @@
+﻿{
+    "title":  "智途 ZhiPath 项目介绍视频",
+    "scenes":  [
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_01",
+                       "subtitle":  "岗位驱动的多智能体职业学习与能力成长平台",
+                       "focus":  {
+                                     "y":  48,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.08,
+                                     "x":  50
+                                 },
+                       "durationSec":  16.525,
+                       "narration":  "这是智途 ZhiPath 的真实产品入口。项目不是再做一个聊天机器人，而是把岗位目标、学习计划、评估证据和简历表达放进同一条成长链路，让学生每一次学习都能靠近真实职业目标。",
+                       "callouts":  [
+                                        {
+                                            "y":  40,
+                                            "text":  "从职业目标开始，而不是从课程列表开始",
+                                            "x":  58
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/01-landing.png",
+                       "chapter":  "01 产品入口",
+                       "title":  "智途 ZhiPath",
+                       "stats":  [
+                                     {
+                                         "value":  "16+",
+                                         "label":  "真实产品页面"
+                                     },
+                                     {
+                                         "value":  "9",
+                                         "label":  "核心闭环模块"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "diagram",
+                       "id":  "scene_02",
+                       "subtitle":  "目标岗位定义方向，学习过程持续沉淀能力证据。",
+                       "focus":  {
+                                     "y":  50,
+                                     "scaleStart":  1,
+                                     "scaleEnd":  1.05,
+                                     "x":  50
+                                 },
+                       "durationSec":  16.1,
+                       "narration":  "智途的核心逻辑是一条闭环。系统先解析目标岗位，再识别用户差距，生成主线和支线计划。学习产生提交，评估形成证据，能力画像反过来影响岗位匹配和简历生成。",
+                       "callouts":  [
+                                        {
+                                            "y":  52,
+                                            "text":  "岗位、计划、评估、画像、简历互相回写",
+                                            "x":  56
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/d-02-career-loop.png",
+                       "chapter":  "02 成长闭环",
+                       "title":  "把学习、岗位和证据连成闭环",
+                       "stats":  [
+                                     {
+                                         "value":  "闭环",
+                                         "label":  "岗位到学习"
+                                     },
+                                     {
+                                         "value":  "持续累积",
+                                         "label":  "能力证据"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_03",
+                       "subtitle":  "用户进入后先看到行动优先级，而不是零散功能入口。",
+                       "focus":  {
+                                     "y":  45,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.09,
+                                     "x":  50
+                                 },
+                       "durationSec":  13.762,
+                       "narration":  "学生端首页把今日任务、学习进度、岗位匹配和能力变化集中到一个工作台。用户不用在多个工具之间搬运信息，系统会把下一步最该做的事情推到前面。",
+                       "callouts":  [
+                                        {
+                                            "y":  38,
+                                            "text":  "任务、匹配、能力状态同屏呈现",
+                                            "x":  70
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/02-dashboard.png",
+                       "chapter":  "03 学生工作台",
+                       "title":  "学生首页：今日任务和成长态势",
+                       "stats":  [
+                                     {
+                                         "value":  "任务",
+                                         "label":  "首页聚合"
+                                     },
+                                     {
+                                         "value":  "可追踪",
+                                         "label":  "能力状态"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_04",
+                       "subtitle":  "聊天区可以触发讲义、图解、视频、练习和学习计划。",
+                       "focus":  {
+                                     "y":  55,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.1,
+                                     "x":  50
+                                 },
+                       "durationSec":  16.662,
+                       "narration":  "AI 助教并不只给一段回答。它会结合当前页面、用户画像和最近学习上下文识别意图，再把请求路由到不同智能体，生成可以进入资源台账的讲义、图解、代码练习或视频任务。",
+                       "callouts":  [
+                                        {
+                                            "y":  58,
+                                            "text":  "从回答升级为可执行任务",
+                                            "x":  46
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/03-chat.png",
+                       "chapter":  "04 AI 助教",
+                       "title":  "对话不是终点，动作才是结果",
+                       "stats":  [
+                                     {
+                                         "value":  "上下文感知",
+                                         "label":  "意图路由"
+                                     },
+                                     {
+                                         "value":  "入台账",
+                                         "label":  "生成结果"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_05",
+                       "subtitle":  "主线服务就业目标，支线承载兴趣探索和补强技能。",
+                       "focus":  {
+                                     "y":  52,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.1,
+                                     "x":  52
+                                 },
+                       "durationSec":  14.837,
+                       "narration":  "学习页面采用类似 Git 分支的结构。目标岗位对应 main 主线，兴趣探索和补强技能是 side 支线。多个目标可以并行推进，每次完成任务都会留下可回溯的学习提交。",
+                       "callouts":  [
+                                        {
+                                            "y":  45,
+                                            "text":  "同一能力画像支撑多条学习分支",
+                                            "x":  60
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/04-learning.png",
+                       "chapter":  "05 学习路线",
+                       "title":  "岗位主线与自选支线并行",
+                       "stats":  [
+                                     {
+                                         "value":  "岗位驱动",
+                                         "label":  "主线"
+                                     },
+                                     {
+                                         "value":  "兴趣补强",
+                                         "label":  "支线"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_06",
+                       "subtitle":  "系统区分真实来源、抓取时间和 AI 建议，避免混淆。",
+                       "focus":  {
+                                     "y":  48,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.11,
+                                     "x":  55
+                                 },
+                       "durationSec":  15.787,
+                       "narration":  "岗位页同时支持本地岗位库和联网搜索。联网链路会保留来源站点、原始链接和抓取时间；如果网络失败，系统回退到本地岗位，不把 AI 猜测包装成真实招聘。",
+                       "callouts":  [
+                                        {
+                                            "y":  34,
+                                            "text":  "真实岗位、联网结果、AI 建议分清楚",
+                                            "x":  66
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/05-jobs.png",
+                       "chapter":  "06 岗位搜索",
+                       "title":  "本地岗位与联网岗位一起看",
+                       "stats":  [
+                                     {
+                                         "value":  "URL",
+                                         "label":  "来源透明"
+                                     },
+                                     {
+                                         "value":  "本地库",
+                                         "label":  "失败降级"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_07",
+                       "subtitle":  "匹配分数被拆成技能、项目、考试、进度和速度等证据。",
+                       "focus":  {
+                                     "y":  52,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.1,
+                                     "x":  55
+                                 },
+                       "durationSec":  18.775,
+                       "narration":  "岗位详情页不是只给一个总分，而是展示六因子匹配。系统说明已匹配技能、缺失技能、项目证据、学习进度和投递门槛，把差距直接转化成下一步学习任务。地图服务也在这里展示公司位置和静态地图。",
+                       "callouts":  [
+                                        {
+                                            "y":  58,
+                                            "text":  "差距分析直接连接学习任务",
+                                            "x":  66
+                                        },
+                                        {
+                                            "y":  31,
+                                            "text":  "公司位置解析与地图展示",
+                                            "x":  73
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/06-job-detail.png",
+                       "chapter":  "07 岗位详情",
+                       "title":  "六因子匹配解释差距",
+                       "stats":  [
+                                     {
+                                         "value":  "6 因子",
+                                         "label":  "匹配模型"
+                                     },
+                                     {
+                                         "value":  "高德",
+                                         "label":  "地图接入"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_08",
+                       "subtitle":  "能力不是静态标签，而是由学习证据不断更新的数字画像。",
+                       "focus":  {
+                                     "y":  51,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.1,
+                                     "x":  48
+                                 },
+                       "durationSec":  13.662,
+                       "narration":  "能力画像页同时展示基础雷达、三维能力图谱和历史快照。每个维度都能回到具体提交、考试或项目证据，回答能力在什么时候、因为什么发生了变化。",
+                       "callouts":  [
+                                        {
+                                            "y":  50,
+                                            "text":  "能力变化可以追溯到具体证据",
+                                            "x":  58
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/07-profile.png",
+                       "chapter":  "08 能力画像",
+                       "title":  "二维雷达与三维能力图谱",
+                       "stats":  [
+                                     {
+                                         "value":  "6",
+                                         "label":  "能力维度"
+                                     },
+                                     {
+                                         "value":  "快照",
+                                         "label":  "历史状态"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_09",
+                       "subtitle":  "借鉴版本管理思想表达多目标学习和能力演进。",
+                       "focus":  {
+                                     "y":  50,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.1,
+                                     "x":  51
+                                 },
+                       "durationSec":  16.187,
+                       "narration":  "进度页把学习动作抽象成提交。完成任务后形成 Commit，能力状态形成 Snapshot，分支之间可以 Compare，确认有效的成果可以 Merge 回主线。Rollback 只移动指针，不删除历史。",
+                       "callouts":  [
+                                        {
+                                            "y":  45,
+                                            "text":  "多目标并行，历史可回溯",
+                                            "x":  63
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/08-progress.png",
+                       "chapter":  "09 Git 化学习",
+                       "title":  "学习也可以 Commit、Compare、Merge",
+                       "stats":  [
+                                     {
+                                         "value":  "Commit",
+                                         "label":  "学习提交"
+                                     },
+                                     {
+                                         "value":  "Compare",
+                                         "label":  "分支对比"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_10",
+                       "subtitle":  "分数不只是结果，还会影响画像、计划和岗位匹配。",
+                       "focus":  {
+                                     "y":  50,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.09,
+                                     "x":  50
+                                 },
+                       "durationSec":  15.225,
+                       "narration":  "考试中心记录正式测评和快速测试。系统把 Attempt、Result、DimensionScore、Evidence 和 Impact 串成证据链，说明一次评估怎样影响技能画像、学习计划和岗位匹配。",
+                       "callouts":  [
+                                        {
+                                            "y":  46,
+                                            "text":  "成绩会回写能力和计划",
+                                            "x":  61
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/10-exams.png",
+                       "chapter":  "10 评估闭环",
+                       "title":  "考试和错题进入能力证据链",
+                       "stats":  [
+                                     {
+                                         "value":  "Attempt",
+                                         "label":  "评估记录"
+                                     },
+                                     {
+                                         "value":  "Impact",
+                                         "label":  "业务影响"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_11",
+                       "subtitle":  "错题被重新组织为技能缺口、复习建议和后续练习。",
+                       "focus":  {
+                                     "y":  52,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.09,
+                                     "x":  52
+                                 },
+                       "durationSec":  13.837,
+                       "narration":  "错题本把错误答案归因到知识点和能力维度。它不是简单保存题目，而是辅助用户识别薄弱点，生成复习建议，并把后续练习重新接回学习路径。",
+                       "callouts":  [
+                                        {
+                                            "y":  47,
+                                            "text":  "错题回到能力成长链路",
+                                            "x":  57
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/11-wrong-answers.png",
+                       "chapter":  "11 错题复习",
+                       "title":  "薄弱点复习不是题目堆叠",
+                       "stats":  [
+                                     {
+                                         "value":  "归因",
+                                         "label":  "薄弱点"
+                                     },
+                                     {
+                                         "value":  "联动",
+                                         "label":  "复习路径"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_12",
+                       "subtitle":  "项目、技能、校园经历和岗位要求共同驱动版本生成。",
+                       "focus":  {
+                                     "y":  50,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.09,
+                                     "x":  50
+                                 },
+                       "durationSec":  14.425,
+                       "narration":  "智能简历模块读取用户画像、项目经历、学习证据和目标岗位要求，生成可编辑的岗位定制版本。简历内容不是凭空包装，而是尽量回到系统已经沉淀的事实。",
+                       "callouts":  [
+                                        {
+                                            "y":  50,
+                                            "text":  "从能力证据生成表达材料",
+                                            "x":  58
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/09-resume.png",
+                       "chapter":  "12 智能简历",
+                       "title":  "简历来自事实证据，而不是凭空包装",
+                       "stats":  [
+                                     {
+                                         "value":  "Resume",
+                                         "label":  "岗位定制"
+                                     },
+                                     {
+                                         "value":  "画像",
+                                         "label":  "证据来源"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_13",
+                       "subtitle":  "长任务、状态、失败恢复和资源台账集中展示。",
+                       "focus":  {
+                                     "y":  50,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.1,
+                                     "x":  52
+                                 },
+                       "durationSec":  16.137,
+                       "narration":  "智能体办公室把后台任务可视化。用户能看到哪个智能体正在工作，任务进行到哪一步，哪些资源已经完成，失败发生在哪里。单个任务失败时，已完成的局部结果仍然保留并可重试。",
+                       "callouts":  [
+                                        {
+                                            "y":  36,
+                                            "text":  "AI 后台任务变成可观察流程",
+                                            "x":  62
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/12-agent-office.png",
+                       "chapter":  "13 智能体办公室",
+                       "title":  "让后台 AI 工作过程可见",
+                       "stats":  [
+                                     {
+                                         "value":  "SSE",
+                                         "label":  "异步任务"
+                                     },
+                                     {
+                                         "value":  "台账",
+                                         "label":  "资源结果"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "diagram",
+                       "id":  "scene_14",
+                       "subtitle":  "Orchestrator 负责拆解动作，专业智能体负责生成和校验。",
+                       "focus":  {
+                                     "y":  50,
+                                     "scaleStart":  1,
+                                     "scaleEnd":  1.06,
+                                     "x":  50
+                                 },
+                       "durationSec":  18.1,
+                       "narration":  "系统没有把所有能力交给一个万能提示词。编排器先理解用户请求，再调度画像、路径、讲义、代码、考试、岗位、简历和审核等专业智能体。长任务进入队列，状态通过事件流返回前端。",
+                       "callouts":  [
+                                        {
+                                            "y":  48,
+                                            "text":  "拆解、调度、生成、沉淀各有边界",
+                                            "x":  58
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/d-04-multi-agent.png",
+                       "chapter":  "14 多智能体架构",
+                       "title":  "一个编排器，多个专业执行者",
+                       "stats":  [
+                                     {
+                                         "value":  "专业化",
+                                         "label":  "智能体角色"
+                                     },
+                                     {
+                                         "value":  "队列",
+                                         "label":  "任务调度"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_15",
+                       "subtitle":  "图解、视频、计划和任务互相关联，而不是一次性素材。",
+                       "focus":  {
+                                     "y":  50,
+                                     "scaleStart":  1,
+                                     "scaleEnd":  1.07,
+                                     "x":  50
+                                 },
+                       "durationSec":  13.312,
+                       "narration":  "多模态资源不是展示用的装饰。系统可以生成讲义、技术图解、代码练习、延伸阅读、测验和视频，并把它们关联到学习计划、任务和资源台账。",
+                       "callouts":  [
+                                        {
+                                            "y":  52,
+                                            "text":  "生成结果进入长期学习流程",
+                                            "x":  60
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/15-multimodal-memory-workflow.png",
+                       "chapter":  "15 多模态资源",
+                       "title":  "生成内容进入学习流程",
+                       "stats":  [
+                                     {
+                                         "value":  "6+",
+                                         "label":  "资源类型"
+                                     },
+                                     {
+                                         "value":  "计划",
+                                         "label":  "学习联动"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_16",
+                       "subtitle":  "视频产物、任务状态和学习路径共同服务一个目标。",
+                       "focus":  {
+                                     "y":  50,
+                                     "scaleStart":  1,
+                                     "scaleEnd":  1.07,
+                                     "x":  50
+                                 },
+                       "durationSec":  14.412,
+                       "narration":  "这张实机图展示了视频生成和专项学习计划的联动。视频不是孤立文件，而是由脚本、配音、渲染和资源记录组成的任务结果，完成后继续服务学习路径。",
+                       "callouts":  [
+                                        {
+                                            "y":  52,
+                                            "text":  "本片也由项目视频管线生成",
+                                            "x":  57
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/16-multimodal-video-learning-path.png",
+                       "chapter":  "16 视频学习链路",
+                       "title":  "教学视频和专项计划可以协同",
+                       "stats":  [
+                                     {
+                                         "value":  "Remotion",
+                                         "label":  "视频管线"
+                                     },
+                                     {
+                                         "value":  "可追踪",
+                                         "label":  "任务结果"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "screenshot",
+                       "id":  "scene_17",
+                       "subtitle":  "后台负责岗位、数据、题库和业务状态的集中维护。",
+                       "focus":  {
+                                     "y":  50,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.09,
+                                     "x":  50
+                                 },
+                       "durationSec":  13.15,
+                       "narration":  "管理端提供业务看板和岗位维护能力。学校或运营人员可以看到平台数据、管理岗位、题库和资源，让学生端闭环背后有稳定的数据治理入口。",
+                       "callouts":  [
+                                        {
+                                            "y":  43,
+                                            "text":  "闭环需要后台数据治理支撑",
+                                            "x":  58
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/13-admin-dashboard.png",
+                       "chapter":  "17 管理后台",
+                       "title":  "学生端之外，还有运营和管理视角",
+                       "stats":  [
+                                     {
+                                         "value":  "Admin",
+                                         "label":  "管理入口"
+                                     },
+                                     {
+                                         "value":  "数据治理",
+                                         "label":  "岗位维护"
+                                     }
+                                 ]
+                   },
+                   {
+                       "assetKind":  "diagram",
+                       "id":  "scene_18",
+                       "subtitle":  "React、NestJS、MySQL、Redis、队列、搜索和多智能体协同运行。",
+                       "focus":  {
+                                     "y":  50,
+                                     "scaleStart":  1,
+                                     "scaleEnd":  1.06,
+                                     "x":  50
+                                 },
+                       "durationSec":  28.762,
+                       "narration":  "最后看整体架构。前端由 React、TypeScript、Vite 和可视化组件承载工作台；后端由 NestJS 控制业务边界；MySQL 是核心事实源，Redis、BullMQ、SearXNG、Browserless 和多智能体服务共同支撑长任务与真实岗位检索。智途的价值，是让学习从完成课程，变成可验证、可回溯、可表达的职业能力成长。",
+                       "callouts":  [
+                                        {
+                                            "y":  52,
+                                            "text":  "工程系统支撑完整职业成长闭环",
+                                            "x":  57
+                                        }
+                                    ],
+                       "asset":  "project-showcase/assets/d-01-overall-architecture.png",
+                       "chapter":  "18 工程架构",
+                       "title":  "已落地的工程系统",
+                       "stats":  [
+                                     {
+                                         "value":  "33 表",
+                                         "label":  "数据库结构"
+                                     },
+                                     {
+                                         "value":  "16+",
+                                         "label":  "实机页面"
+                                     }
+                                 ]
+                   }
+               ],
+    "generatedAt":  "2026-07-20T13:36:53",
+    "audioSegments":  [
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_01.mp3",
+                              "duration_sec":  16.525,
+                              "id":  "scene_01",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_02.mp3",
+                              "duration_sec":  16.1,
+                              "id":  "scene_02",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_03.mp3",
+                              "duration_sec":  13.762,
+                              "id":  "scene_03",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_04.mp3",
+                              "duration_sec":  16.662,
+                              "id":  "scene_04",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_05.mp3",
+                              "duration_sec":  14.837,
+                              "id":  "scene_05",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_06.mp3",
+                              "duration_sec":  15.787,
+                              "id":  "scene_06",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_07.mp3",
+                              "duration_sec":  18.775,
+                              "id":  "scene_07",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_08.mp3",
+                              "duration_sec":  13.662,
+                              "id":  "scene_08",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_09.mp3",
+                              "duration_sec":  16.187,
+                              "id":  "scene_09",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_10.mp3",
+                              "duration_sec":  15.225,
+                              "id":  "scene_10",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_11.mp3",
+                              "duration_sec":  13.837,
+                              "id":  "scene_11",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_12.mp3",
+                              "duration_sec":  14.425,
+                              "id":  "scene_12",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_13.mp3",
+                              "duration_sec":  16.137,
+                              "id":  "scene_13",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_14.mp3",
+                              "duration_sec":  18.1,
+                              "id":  "scene_14",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_15.mp3",
+                              "duration_sec":  13.312,
+                              "id":  "scene_15",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_16.mp3",
+                              "duration_sec":  14.412,
+                              "id":  "scene_16",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_17.mp3",
+                              "duration_sec":  13.15,
+                              "id":  "scene_17",
+                              "voice":  "zh-CN-YunyangNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_18.mp3",
+                              "duration_sec":  28.762,
+                              "id":  "scene_18",
+                              "voice":  "zh-CN-YunyangNeural"
+                          }
+                      ],
+    "voice":  {
+                  "provider":  "edge-tts",
+                  "rate":  "+0%",
+                  "voice":  "zh-CN-YunyangNeural"
+              }
+}

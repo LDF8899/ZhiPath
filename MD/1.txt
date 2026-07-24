@@ -4,3 +4,6 @@ cd /mnt/d/X/ZhiPath
 cd D:\X\ZhiPath\backend-ts && npm run start:dev
 # 前端
 cd D:\X\ZhiPath\frontend && npm run dev
+
+蛇类区域预警2	密钥5b3ed07d3b4e322b48d421a9e84ebd9a	安全密钥b50ad6e3b5c8da4a4021e27ac95f04cb	Web端	设置删除
+蛇类区域预警	密钥6b27e2cf049182541e6f659eacf63d89		Web服务	设

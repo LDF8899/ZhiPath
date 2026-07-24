@@ -65,3 +65,8 @@ backend-ts/data/chat_history/
 
 # ── Office temporary lock files ──
 ~$*.docx
+
+# ── Large non-core folders to exclude from pushes ──
+PPT素材包/
+比赛/
+video-renderer/public/project-showcase/*.mp4
