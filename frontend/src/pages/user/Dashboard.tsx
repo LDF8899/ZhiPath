@@ -286,6 +286,23 @@ export default function Dashboard() {
   const doneTasks = data.today_tasks.filter(t => t.status === 'done' || t.status === 'exam_done').length;
   const totalTasks = data.today_tasks.length;
   const taskPct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+  const primaryTask = data.today_tasks.find(t => t.status !== 'done' && t.status !== 'exam_done') || null;
+  const targetScore = bestMatch?.matchScore ?? data.learning_path?.matchScore ?? 0;
+  const gapText = data.target_job
+    ? targetScore >= 80
+      ? '已接近投递标准，建议优化简历并准备面试。'
+      : targetScore >= 60
+        ? '匹配度中等，优先补齐岗位缺失技能。'
+        : '目标差距较大，先完成核心技能和一次测评。'
+    : '还没有目标岗位，先选择一个岗位作为学习主线。';
+  const nextAction = !data.target_job
+    ? { label: '选择目标岗位', path: '/user/jobs', icon: IconBriefcase }
+    : !data.learning_path
+      ? { label: '生成学习计划', path: '/plan/create', icon: IconTarget }
+      : primaryTask
+        ? { label: '继续今日任务', path: '/user/learning', icon: IconBook }
+        : { label: '做一次快速测试', path: '/user/quick-test', icon: IconGradCap };
+  const NextActionIcon = nextAction.icon;
 
   /* 星期标签 */
   const weekDays = ['一', '二', '三', '四', '五', '六', '日'];
@@ -389,6 +406,55 @@ export default function Dashboard() {
               + 新建计划
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* 黄金路径行动中枢 */}
+      <div className="dash-action-hub">
+        <div className="dash-action-card primary">
+          <div className="dash-action-kicker">今日最重要任务</div>
+          <div className="dash-action-title">
+            {primaryTask ? primaryTask.title : '今日学习任务已完成'}
+          </div>
+          <div className="dash-action-desc">
+            {primaryTask
+              ? `${STATUS_LABEL[primaryTask.status] || '待完成'} · 预计 ${primaryTask.estimatedMin || 25} 分钟`
+              : '可以进入速测或简历页，把学习结果转成下一步行动。'}
+          </div>
+          <button className="hd-btn small" onClick={() => navigate(primaryTask ? '/user/learning' : '/user/quick-test')}>
+            <IconArrowRight size={14} style={{ marginRight: 6 }} />
+            {primaryTask ? '开始处理' : '进入速测'}
+          </button>
+        </div>
+
+        <div className="dash-action-card">
+          <div className="dash-action-kicker">目标岗位差距</div>
+          <div className="dash-action-title">
+            {data.target_job?.title || bestMatch?.jobTitle || '未选择目标岗位'}
+          </div>
+          <div className="dash-action-desc">{gapText}</div>
+          <button
+            className="hd-btn small secondary"
+            onClick={() => navigate(data.target_job ? `/user/jobs/${data.target_job.id}` : '/user/jobs')}
+          >
+            查看差距
+          </button>
+        </div>
+
+        <div className="dash-action-card">
+          <div className="dash-action-kicker">下一步提升匹配度</div>
+          <div className="dash-action-title">
+            {targetScore ? `当前 ${Math.round(targetScore)}%` : '先建立基准'}
+          </div>
+          <div className="dash-action-desc">
+            {data.learning_path
+              ? `完成学习和测评后，画像与岗位匹配度会重新计算。`
+              : '先绑定目标岗位并生成学习计划，才能形成可解释的闭环。'}
+          </div>
+          <button className="hd-btn small highlight" onClick={() => navigate(nextAction.path)}>
+            <NextActionIcon size={14} style={{ marginRight: 6 }} />
+            {nextAction.label}
+          </button>
         </div>
       </div>
 

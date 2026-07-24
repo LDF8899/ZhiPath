@@ -42,6 +42,37 @@ export default function AdminDashboard() {
     { icon: IconGradCap, label: '考试记录', value: stats?.examCount || 0, color: '#9334e6', bg: '#f3e8fd', link: '/admin/exams' },
     { icon: IconNewspaper, label: '资讯数', value: stats?.newsCount || 0, color: '#e8710a', bg: '#fef3e8', link: '/admin/news' },
   ];
+  const quality = stats?.quality;
+  const qualityCards = quality ? [
+    {
+      label: '岗位来源质量',
+      value: `${quality.jobSource.enterpriseRate}%`,
+      desc: `企业岗位 ${quality.jobSource.enterpriseJobCount} · 平台岗位 ${quality.jobSource.platformJobCount}`,
+      alert: quality.jobSource.lowConfidenceJobCount > 0 ? `${quality.jobSource.lowConfidenceJobCount} 个低置信 JD` : 'JD 置信度正常',
+      link: '/admin/jobs',
+    },
+    {
+      label: '资源生产质量',
+      value: `${quality.resources.failureRate}%`,
+      desc: `成功 ${quality.resources.success} · 失败 ${quality.resources.failed} · 运行中 ${quality.resources.running}`,
+      alert: quality.resources.failureRate > 10 ? '失败率偏高' : '失败率可控',
+      link: '/admin/settings',
+    },
+    {
+      label: '题库质量',
+      value: quality.questions.avgPassRate == null ? '待统计' : `${quality.questions.avgPassRate}%`,
+      desc: `上架 ${quality.questions.approved} · 待审 ${quality.questions.pending} · 低置信 ${quality.questions.lowConfidence}`,
+      alert: quality.questions.pending > 0 ? '存在待审核题目' : '题库审核完成',
+      link: '/admin/questions',
+    },
+    {
+      label: '投递转化治理',
+      value: `${quality.applications.pendingRate}%`,
+      desc: `待审 ${quality.applications.pending} · 通过 ${quality.applications.approved} · 拒绝 ${quality.applications.rejected}`,
+      alert: quality.applications.pending > 0 ? '需要处理投递' : '暂无待处理投递',
+      link: '/admin/applications',
+    },
+  ] : [];
 
   return (
     <div className="hd-canvas">
@@ -75,6 +106,35 @@ export default function AdminDashboard() {
           );
         })}
       </div>
+
+      {/* Operational quality */}
+      {quality && (
+        <div style={{ marginBottom: 24 }}>
+          <div className="admin-page-header" style={{ marginBottom: 12 }}>
+            <div>
+              <h2 className="admin-page-title" style={{ fontSize: 20 }}>运营质量</h2>
+              <p className="admin-page-subtitle">把岗位、资源、题库和投递从 CRUD 升级为可治理指标</p>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+            {qualityCards.map((item) => (
+              <button
+                key={item.label}
+                className="admin-quality-card"
+                onClick={() => navigate(item.link)}
+              >
+                <span className="admin-quality-label">{item.label}</span>
+                <strong>{item.value}</strong>
+                <span>{item.desc}</span>
+                <em>{item.alert}</em>
+              </button>
+            ))}
+          </div>
+          <div className="hd-dashed" style={{ marginTop: 12, font: '13px/1.5 var(--hand)', color: 'var(--pencil)' }}>
+            {quality.instrumentation.note}
+          </div>
+        </div>
+      )}
 
       {/* Quick actions + System status */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>

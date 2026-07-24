@@ -282,6 +282,7 @@ export default function ProgressPage() {
                       <div style={{ marginTop: 6, fontSize: 13, color: 'var(--pencil)' }}>
                         {item.result?.summary || '评价结果已沉淀'}
                       </div>
+                      <ImpactExplanation item={item} />
                       <div className="hd-flex" style={{ gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                         {item.impact?.commitId && <span className="hd-badge">commit #{item.impact.commitId}</span>}
                         <span className="hd-badge">置信度 {Math.round(Number(item.result?.confidence || 0) * 100)}%</span>
@@ -395,6 +396,37 @@ function ComparePanel({ delta, before, after }: { delta: CommitDelta; before: Sk
         showTrend
       />
       <DeltaSummary delta={delta} />
+    </div>
+  );
+}
+
+function ImpactExplanation({ item }: { item: EvaluationListItem }) {
+  const impact = item.impact;
+  if (!impact) {
+    return (
+      <div className="hd-dashed" style={{ marginTop: 8, font: '12px/1.5 var(--hand)', color: 'var(--pencil)' }}>
+        本次评价已记录，等待后续学习动作生成能力影响。
+      </div>
+    );
+  }
+
+  const skillChanges = impact.skillChangesJson || [];
+  const radarChanges = impact.radarChangesJson || [];
+  const skillText = skillChanges.slice(0, 2).map((change) => `${change.name} ${signed(change.delta)}`).join('、');
+  const radarText = radarChanges.slice(0, 2).map((change) => `${change.dimension} ${signed(change.delta)}`).join('、');
+  const matchDelta = Number(impact.matchScoreDelta || impact.metricsChangeJson?.matchScore || 0);
+  const parts = [
+    skillText ? `技能变化：${skillText}` : '',
+    radarText ? `雷达变化：${radarText}` : '',
+    matchDelta ? `岗位匹配 ${signed(matchDelta)}` : '',
+  ].filter(Boolean);
+
+  return (
+    <div className="hd-dashed" style={{ marginTop: 8, font: '12px/1.5 var(--hand)', color: 'var(--ink)' }}>
+      <strong>为什么变化：</strong>
+      {parts.length > 0
+        ? `${parts.join('；')}。这些变化会进入画像和后续岗位匹配计算。`
+        : '本次评价没有显著改变能力分或匹配度，系统仍保留记录用于后续复盘。'}
     </div>
   );
 }

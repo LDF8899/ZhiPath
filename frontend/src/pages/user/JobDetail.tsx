@@ -28,6 +28,7 @@ import MatchBreakdown from '../../components/MatchBreakdown';
 import InteractiveCompanyMap from '../../components/InteractiveCompanyMap';
 import type { Job } from '../../types';
 import { readOnlineJob } from '../../utils/onlineJobCache';
+import { getJobSkillNames, getJobTrustTier } from '../../utils/jobTrust';
 
 interface OnlineCompanyContext {
   companyName: string;
@@ -115,6 +116,38 @@ function scoreColor(score: number): string {
   if (score >= 80) return '#3a7d3a';
   if (score >= 60) return 'var(--data-blue)';
   return 'var(--accent)';
+}
+
+function buildMatchReason({
+  score,
+  jobTitle,
+  matchedSkills,
+  missingSkills,
+  preferredMatched,
+  gapAnalysis,
+  isOnlineJob,
+  trustLabel,
+}: {
+  score: number;
+  jobTitle: string;
+  matchedSkills: string[];
+  missingSkills: string[];
+  preferredMatched: string[];
+  gapAnalysis: Array<{ skill: string; type: string; currentMastery: number }>;
+  isOnlineJob: boolean;
+  trustLabel: string;
+}) {
+  if (isOnlineJob) {
+    const skills = gapAnalysis.length
+      ? gapAnalysis.slice(0, 3).map((item) => `${item.skill} ${item.currentMastery}%`).join('、')
+      : '岗位技能标签';
+    return `${trustLabel}的 ${jobTitle} 按 ${skills} 做快速估算，当前为 ${score}%。它适合用来判断学习方向，不作为平台可投递岗位。`;
+  }
+
+  const matched = matchedSkills.slice(0, 3).join('、') || '已掌握技能较少';
+  const missing = missingSkills.slice(0, 3).join('、') || '暂无关键缺口';
+  const bonus = preferredMatched.length ? `，加分项命中 ${preferredMatched.slice(0, 2).join('、')}` : '';
+  return `已匹配 ${matched}${bonus}；主要缺口是 ${missing}，因此 ${jobTitle} 当前匹配度为 ${score}%。完成缺失技能和测评后，分数会重新计算。`;
 }
 
 export default function JobDetail() {
@@ -269,7 +302,8 @@ export default function JobDetail() {
   /* ── Match analysis data ── */
   const score = matchResult?.totalScore || job.matchScore || 0;
   const isOnlineJob = Number(job.id) < 0 || job.source === 'online';
-  const isAiGenerated = isOnlineJob && (job.searchMeta?.origin === 'ai_generated' || !job.url);
+  const trustTier = getJobTrustTier(job);
+  const isAiGenerated = trustTier.kind === 'ai';
   const matchedSkills: string[] =
     matchResult?.breakdown?.requiredSkills?.matched || [];
   const missingSkills: string[] =
@@ -280,6 +314,29 @@ export default function JobDetail() {
     matchResult?.gapAnalysis || [];
   const canApply = matchResult?.canApply !== false;
   const deliveryThreshold = matchResult?.deliveryThreshold || 60;
+  const learningTargetSkills = isOnlineJob ? getJobSkillNames(job).slice(0, 8) : missingSkills;
+  const matchReason = buildMatchReason({
+    score,
+    jobTitle: job.title,
+    matchedSkills,
+    missingSkills,
+    preferredMatched,
+    gapAnalysis,
+    isOnlineJob,
+    trustLabel: trustTier.label,
+  });
+
+  const handleUseAsLearningTarget = () => {
+    const skills = learningTargetSkills.length > 0 ? learningTargetSkills : [job.title];
+    navigate('/plan/create?type=side', {
+      state: {
+        suggestedPlanName: `${job.title}补齐计划`,
+        suggestedTopics: skills.join('、'),
+        sourceJobTitle: job.title,
+        sourceTrustLabel: trustTier.label,
+      },
+    });
+  };
 
   return (
     <div className="hd-page">
@@ -308,11 +365,9 @@ export default function JobDetail() {
         <div className="hd-header">
           <div className="hd-flex" style={{ gap: 10, alignItems: 'center', minWidth: 0 }}>
             <h1>{job.title}</h1>
-            {isOnlineJob && (
-              <span className="hd-badge accent" style={{ flexShrink: 0 }}>
-                {isAiGenerated ? 'AI 推荐' : '联网岗位'}
-              </span>
-            )}
+            <span className={trustTier.badgeClass} style={{ flexShrink: 0 }}>
+              {trustTier.label}
+            </span>
           </div>
           <div className="hd-flex" style={{ gap: 12 }}>
             <span
@@ -464,7 +519,7 @@ export default function JobDetail() {
                 <IconBuilding size={18} />
                 <h3>公司简介</h3>
                 <span className="hd-badge accent" style={{ marginLeft: 'auto' }}>
-                  {isOnlineJob ? (isAiGenerated ? '推荐摘要' : '来源摘要') : 'AI 整理'}
+                  {isOnlineJob ? (isAiGenerated ? '参考摘要' : '来源摘要') : 'AI 整理'}
                 </span>
               </div>
               <div className="hd-divider" style={{ marginBottom: 16 }} />
@@ -595,6 +650,10 @@ export default function JobDetail() {
                   当前分数按技能标签快速估算；完整匹配分析仅适用于本地岗位库。
                 </div>
               )}
+
+              <div className="hd-dashed" style={{ marginBottom: 16, font: '13px/1.55 var(--hand)', color: 'var(--ink)' }}>
+                <strong>为什么是这个分数：</strong>{matchReason}
+              </div>
 
               {/* 5 因子分解图 */}
               {matchResult?.breakdown && (
@@ -749,9 +808,8 @@ export default function JobDetail() {
                 </div>
                 <div className="hd-divider" style={{ marginBottom: 16 }} />
                 <div className="hd-dashed" style={{ marginBottom: 14, font: '13px/1.5 var(--hand)', color: 'var(--pencil)' }}>
-                  {isAiGenerated
-                    ? '这是联网未命中后的 AI 补充推荐，不代表企业当前正在招聘。'
-                    : `岗位来自 ${job.host || '公开招聘页面'}，请以来源页面信息为准。`}
+                  <strong>{trustTier.label}：</strong>{trustTier.description}
+                  {job.host && trustTier.kind === 'web' ? ` 来源：${job.host}。` : ''}
                 </div>
                 {job.url && (
                   <a
@@ -764,6 +822,14 @@ export default function JobDetail() {
                     <IconSend size={16} />查看原岗位
                   </a>
                 )}
+                <button
+                  className="hd-btn"
+                  style={{ width: '100%', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  onClick={handleUseAsLearningTarget}
+                  disabled={learningTargetSkills.length === 0}
+                >
+                  <IconBook size={16} />作为学习目标
+                </button>
                 <button
                   className="hd-btn secondary"
                   style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}

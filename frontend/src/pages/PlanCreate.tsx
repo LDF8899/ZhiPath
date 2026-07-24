@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { createPlan, getJobs, getMyPlans, getProfile } from '../api/user';
 import type { Job } from '../types';
 import { IconBook, IconBriefcase, IconCheck, IconClock, IconRobot, IconTarget } from '../components/icons';
@@ -31,15 +31,22 @@ function usePcMessage() {
 
 export default function PlanCreate() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const suggested = (location.state || {}) as {
+    suggestedPlanName?: string;
+    suggestedTopics?: string;
+    sourceJobTitle?: string;
+    sourceTrustLabel?: string;
+  };
   const { element: messageElement, show: showMessage } = usePcMessage();
   const [planType, setPlanType] = useState<'main' | 'side'>(searchParams.get('type') === 'side' ? 'side' : 'main');
   const [mode, setMode] = useState<'quick' | 'ai'>('quick');
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [targetJobId, setTargetJobId] = useState(Number(searchParams.get('targetJobId')) || 0);
-  const [planName, setPlanName] = useState('');
-  const [topics, setTopics] = useState('');
+  const [planName, setPlanName] = useState(suggested.suggestedPlanName || '');
+  const [topics, setTopics] = useState(suggested.suggestedTopics || '');
   const [dailyHours, setDailyHours] = useState(2);
   const [importFromExisting, setImportFromExisting] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -147,6 +154,15 @@ export default function PlanCreate() {
             </div>
           ) : (
             <>
+              {suggested.sourceJobTitle && (
+                <div className="pc-job-note" style={{ marginBottom: 14 }}>
+                  <IconTarget size={16} />
+                  <span>
+                    <strong>来自 {suggested.sourceTrustLabel || '岗位参考'}：{suggested.sourceJobTitle}</strong>
+                    <small>当前将它转为自选学习目标，不会直接进入投递流程。</small>
+                  </span>
+                </div>
+              )}
               <div className="pc-section">
                 <label className="pc-label" htmlFor="plan-name">计划名称</label>
                 <input id="plan-name" className="hd-input pc-full-input" value={planName} onChange={(event) => setPlanName(event.target.value)} placeholder="例如：Python 数据分析" />

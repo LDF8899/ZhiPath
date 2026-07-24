@@ -20,6 +20,7 @@ import {
   storeLastJobSearchState,
   storeOnlineJob,
 } from '../../utils/onlineJobCache';
+import { getJobTrustTier } from '../../utils/jobTrust';
 
 /* ──────────────────────────────────────────
    Jobs Page — hand-drawn design system
@@ -527,7 +528,7 @@ function JobCardItem({
 }) {
   const score = job.matchScore || 0;
   const isOnline = (typeof job.id === 'number' && job.id < 0) || job.source === 'online';
-  const isAiGenerated = isOnline && (job.searchMeta?.origin === 'ai_generated' || !job.url);
+  const trustTier = getJobTrustTier(job);
   const matchedFields = job.searchMeta?.matchedFields || [];
 
   /* Match level badge */
@@ -561,9 +562,12 @@ function JobCardItem({
             }}
           >
             {job.title}
-            {isOnline && (
-              <span className="hd-badge accent" style={{ marginLeft: 8, fontSize: 10, verticalAlign: 'middle' }}>
-                {isAiGenerated ? 'AI 推荐' : '联网'}
+            <span className={trustTier.badgeClass} style={{ marginLeft: 8, fontSize: 10, verticalAlign: 'middle' }}>
+              {trustTier.label}
+            </span>
+            {!trustTier.canDirectApply && (
+              <span className="hd-badge" style={{ marginLeft: 6, fontSize: 10, verticalAlign: 'middle' }}>
+                不直接投递
               </span>
             )}
           </div>
@@ -584,7 +588,7 @@ function JobCardItem({
                 {job.location}
               </span>
             )}
-            {isOnline && !isAiGenerated && job.host && (
+            {isOnline && trustTier.kind === 'web' && job.host && (
               <span
                 className="hd-flex"
                 style={{ font: '13px/1 var(--hand)', color: 'var(--pencil)', gap: 4 }}
@@ -631,6 +635,20 @@ function JobCardItem({
           }}
         >
           {job.snippet}
+        </div>
+      )}
+
+      {isOnline && (
+        <div
+          className="hd-dashed"
+          style={{
+            font: '12px/1.45 var(--hand)',
+            color: 'var(--pencil)',
+            marginBottom: 10,
+            padding: '7px 9px',
+          }}
+        >
+          {trustTier.description}
         </div>
       )}
 

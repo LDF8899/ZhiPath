@@ -33,6 +33,10 @@ export default function TaskCenter({
   /* ── 任务拖拽排序 ── */
   const dragTaskIdRef = useRef<number | null>(null);
   const taskOverRef = useRef<number | null>(null);
+  const runningTask = activeTasks.find(task => task.taskStatus === 'running') || null;
+  const nextPendingTask = activeTasks.find(task => task.taskStatus === 'pending') || null;
+  const latestOutput = generatedOutputs[0] || completedOutputs[0] || null;
+  const runningAgent = runningTask ? profiles.find(p => p.agentType === runningTask.agentType) : null;
 
   const handleTaskDragStart = (e: React.DragEvent, taskId: number) => {
     dragTaskIdRef.current = taskId;
@@ -107,8 +111,45 @@ export default function TaskCenter({
       {/* ── 任务队列标题 ── */}
       <div className="office-panel-title">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9h6M9 13h4M9 17h5"/></svg>
-        任务队列
+        任务控制台
         <span className="count">{activeTasks.length}</span>
+      </div>
+
+      <div className="office-control-summary">
+        <div className="control-row primary">
+          <span className="control-label">当前执行</span>
+          <span className="control-value">
+            {runningTask ? runningTask.title : '暂无运行任务'}
+          </span>
+          {runningTask && (
+            <button className="office-btn ghost" onClick={() => onTaskAction('cancel', runningTask.id)}>
+              取消
+            </button>
+          )}
+        </div>
+        <div className="control-meta">
+          <span>{runningAgent ? `${runningAgent.nickname} · ${AGENT_LABELS[runningTask?.agentType || ''] || ''}` : '智能体空闲'}</span>
+          <span>{runningTask ? `进度 ${runningTask.progress || 0}%` : `待命 ${idleCount} 人`}</span>
+        </div>
+        {runningTask && (
+          <div className="control-progress">
+            <div style={{ width: `${runningTask.progress || 0}%` }} />
+          </div>
+        )}
+        <div className="control-next-grid">
+          <div>
+            <span className="control-label">下一个任务</span>
+            <strong>{nextPendingTask?.title || '队列为空'}</strong>
+          </div>
+          <div>
+            <span className="control-label">最近产物</span>
+            <strong>{latestOutput ? latestOutput.title : '暂无产物'}</strong>
+          </div>
+          <div>
+            <span className="control-label">失败待处理</span>
+            <strong>{failedTasks.length}</strong>
+          </div>
+        </div>
       </div>
 
       {/* ── 统计 ── */}

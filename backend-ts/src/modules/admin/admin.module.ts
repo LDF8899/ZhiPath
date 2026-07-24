@@ -10,9 +10,10 @@ import { News } from '../../entities/news.entity';
 import { ExamRecord, ExamQuestion } from '../../entities/exam.entity';
 import { Resume } from '../../entities/resume.entity';
 import { SystemConfig } from '../../entities/system.entity';
+import { GeneratedResource } from '../../entities/generated-resource.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Student, JobPosition, JobApplication, Enterprise, News, ExamRecord, ExamQuestion, Resume, SystemConfig])],
+  imports: [TypeOrmModule.forFeature([User, Student, JobPosition, JobApplication, Enterprise, News, ExamRecord, ExamQuestion, Resume, SystemConfig, GeneratedResource])],
   controllers: [AdminController],
   providers: [AdminService],
 })

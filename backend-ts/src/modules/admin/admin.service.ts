@@ -9,6 +9,7 @@ import { News } from '../../entities/news.entity';
 import { ExamRecord, ExamQuestion } from '../../entities/exam.entity';
 import { Resume } from '../../entities/resume.entity';
 import { SystemConfig } from '../../entities/system.entity';
+import { GeneratedResource } from '../../entities/generated-resource.entity';
 
 /**
  * Admin 服务 — 对齐 Python api/admin/* 所有管理端接口
@@ -26,6 +27,7 @@ export class AdminService {
     @InjectRepository(Resume) private resumeRepo: Repository<Resume>,
     @InjectRepository(SystemConfig) private configRepo: Repository<SystemConfig>,
     @InjectRepository(ExamQuestion) private questionRepo: Repository<ExamQuestion>,
+    @InjectRepository(GeneratedResource) private resourceRepo: Repository<GeneratedResource>,
   ) {}
 
   // ── Dashboard ──
@@ -38,7 +40,80 @@ export class AdminService {
       this.examRepo.count({ where: { status: 1 } }),
       this.newsRepo.count({ where: { status: 1 } }),
     ]);
-    return { userCount, jobCount, studentCount, applicationCount, examCount, newsCount };
+    const quality = await this.getOperationalQuality();
+    return { userCount, jobCount, studentCount, applicationCount, examCount, newsCount, quality };
+  }
+
+  private async getOperationalQuality() {
+    const [
+      enterpriseJobCount,
+      platformJobCount,
+      lowConfidenceJobCount,
+      pendingApplications,
+      approvedApplications,
+      rejectedApplications,
+      questionTotal,
+      questionApproved,
+      questionPending,
+      lowConfidenceQuestions,
+      questionAvgRaw,
+      resourceTotal,
+      resourceSuccess,
+      resourceFailed,
+      resourceRunning,
+    ] = await Promise.all([
+      this.jobRepo.createQueryBuilder('j').where('j.status = 1').andWhere('j.enterprise_id IS NOT NULL').getCount(),
+      this.jobRepo.createQueryBuilder('j').where('j.status = 1').andWhere('(j.enterprise_id IS NULL OR j.enterprise_id = 0)').getCount(),
+      this.jobRepo.createQueryBuilder('j').where('j.status = 1').andWhere('j.confidence_score IS NOT NULL').andWhere('j.confidence_score < :min', { min: 0.6 }).getCount(),
+      this.applicationRepo.count({ where: { status: 1, adminDecision: 0 } }),
+      this.applicationRepo.count({ where: { status: 1, adminDecision: 1 } }),
+      this.applicationRepo.count({ where: { status: 1, adminDecision: 2 } }),
+      this.questionRepo.count(),
+      this.questionRepo.count({ where: { status: 1 } }),
+      this.questionRepo.count({ where: { status: 0 } }),
+      this.questionRepo.createQueryBuilder('q').where('q.confidence_score IS NOT NULL').andWhere('q.confidence_score < :min', { min: 0.6 }).getCount(),
+      this.questionRepo.createQueryBuilder('q').select('AVG(q.pass_rate)', 'avg').where('q.pass_rate IS NOT NULL').getRawOne<{ avg: string | null }>(),
+      this.resourceRepo.count({ where: { status: 1 } }),
+      this.resourceRepo.count({ where: { status: 1, resourceStatus: 'success' } }),
+      this.resourceRepo.count({ where: { status: 1, resourceStatus: 'failed' } }),
+      this.resourceRepo.count({ where: { status: 1, resourceStatus: 'running' } }),
+    ]);
+
+    const activeApplications = pendingApplications + approvedApplications + rejectedApplications;
+    return {
+      jobSource: {
+        platformJobCount,
+        enterpriseJobCount,
+        lowConfidenceJobCount,
+        enterpriseRate: percent(enterpriseJobCount, platformJobCount + enterpriseJobCount),
+      },
+      applications: {
+        pending: pendingApplications,
+        approved: approvedApplications,
+        rejected: rejectedApplications,
+        pendingRate: percent(pendingApplications, activeApplications),
+      },
+      questions: {
+        total: questionTotal,
+        approved: questionApproved,
+        pending: questionPending,
+        lowConfidence: lowConfidenceQuestions,
+        avgPassRate: questionAvgRaw?.avg == null ? null : Math.round(Number(questionAvgRaw.avg) * 100) / 100,
+      },
+      resources: {
+        total: resourceTotal,
+        success: resourceSuccess,
+        failed: resourceFailed,
+        running: resourceRunning,
+        failureRate: percent(resourceFailed, resourceTotal),
+      },
+      instrumentation: {
+        aiFallbackRate: null,
+        searchNoResultRate: null,
+        resourceUsefulRate: null,
+        note: 'AI 兜底率、搜索无结果率、资源有用率需要接入搜索与反馈埋点后计算。',
+      },
+    };
   }
 
   // ── Users ──
@@ -254,4 +329,9 @@ export class AdminService {
     }
     return { total: questions.length, byType, byDifficulty };
   }
+}
+
+function percent(value: number, total: number): number {
+  if (!total) return 0;
+  return Math.round((value / total) * 1000) / 10;
 }

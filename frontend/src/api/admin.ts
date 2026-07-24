@@ -12,6 +12,40 @@ export const getAdminDashboard = () =>
     applicationCount: number;
     examCount: number;
     newsCount: number;
+    quality?: {
+      jobSource: {
+        platformJobCount: number;
+        enterpriseJobCount: number;
+        lowConfidenceJobCount: number;
+        enterpriseRate: number;
+      };
+      applications: {
+        pending: number;
+        approved: number;
+        rejected: number;
+        pendingRate: number;
+      };
+      questions: {
+        total: number;
+        approved: number;
+        pending: number;
+        lowConfidence: number;
+        avgPassRate: number | null;
+      };
+      resources: {
+        total: number;
+        success: number;
+        failed: number;
+        running: number;
+        failureRate: number;
+      };
+      instrumentation: {
+        aiFallbackRate: number | null;
+        searchNoResultRate: number | null;
+        resourceUsefulRate: number | null;
+        note: string;
+      };
+    };
   }>>;
 
 // ── Users ──────────────────────────────────
