@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Brackets } from 'typeorm';
@@ -359,6 +359,18 @@ export class JobsService {
 
   /** 申请岗位 — POST /api/user/jobs/:jobId/apply */
   async applyJob(userId: number, jobId: number) {
+    if (!Number.isInteger(jobId) || jobId <= 0) {
+      throw new BadRequestException('参考岗位不能直接投递，可作为学习目标参考');
+    }
+
+    const job = await this.jobRepo.findOne({ where: { id: jobId, status: 1 } });
+    if (!job) {
+      throw new NotFoundException('岗位不存在或已下线');
+    }
+    if (!this.canDirectApply(job)) {
+      throw new BadRequestException('参考岗位不能直接投递，可作为学习目标参考');
+    }
+
     const existing = await this.applicationRepo.findOne({
       where: { userId: userId, jobId: jobId, status: 1 },
     });
@@ -376,6 +388,11 @@ export class JobsService {
     });
 
     return { message: '申请成功' };
+  }
+
+  private canDirectApply(job: JobPosition): boolean {
+    const source = this.norm(job.source || 'manual');
+    return !['online', 'web', 'ai_generated'].includes(source);
   }
 
   /** 将岗位缺少的技能导入学习计划 — POST /api/user/jobs/:jobId/import-skills */

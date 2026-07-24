@@ -18,6 +18,10 @@ describe('JobsService.searchJobs', () => {
     const jobRepo = {
       findOne: jest.fn(),
     };
+    const applicationRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+      save: jest.fn().mockResolvedValue({ id: 1 }),
+    };
     const branchRepo = {
       findOne: jest.fn(),
     };
@@ -38,7 +42,7 @@ describe('JobsService.searchJobs', () => {
 
     const service = new JobsService(
       jobRepo as any,
-      {} as any,
+      applicationRepo as any,
       {} as any,
       {} as any,
       {} as any,
@@ -52,7 +56,7 @@ describe('JobsService.searchJobs', () => {
       {} as any,
     );
 
-    return { service, jobRepo, branchRepo, commitRepo, snapshotRepo, matchAgent, jobSearch };
+    return { service, jobRepo, applicationRepo, branchRepo, commitRepo, snapshotRepo, matchAgent, jobSearch };
   }
 
   it('uses a default query when online mode is selected without a keyword', async () => {
@@ -128,5 +132,33 @@ describe('JobsService.searchJobs', () => {
     }));
     expect(result.scoreChange.explanation).toContain('React 状态管理 +8');
     expect(result.scoreChange.explanation).toContain('46.1% 到 52.3%');
+  });
+
+  it('allows direct apply for platform jobs', async () => {
+    const { service, jobRepo, applicationRepo } = createService();
+    jobRepo.findOne.mockResolvedValue({ id: 9, title: 'Web 前端实习生', source: 'manual', status: 1 });
+
+    const result = await service.applyJob(7, 9);
+
+    expect(applicationRepo.save).toHaveBeenCalledWith(expect.objectContaining({ userId: 7, jobId: 9 }));
+    expect(result).toEqual({ message: '申请成功' });
+  });
+
+  it('rejects temporary reference jobs before creating an application', async () => {
+    const { service, jobRepo, applicationRepo } = createService();
+
+    await expect(service.applyJob(7, -2000)).rejects.toThrow('参考岗位不能直接投递');
+
+    expect(jobRepo.findOne).not.toHaveBeenCalled();
+    expect(applicationRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects online or AI reference jobs even if they are persisted', async () => {
+    const { service, jobRepo, applicationRepo } = createService();
+    jobRepo.findOne.mockResolvedValue({ id: 12, title: 'AI 参考岗位', source: 'ai_generated', status: 1 });
+
+    await expect(service.applyJob(7, 12)).rejects.toThrow('参考岗位不能直接投递');
+
+    expect(applicationRepo.save).not.toHaveBeenCalled();
   });
 });
