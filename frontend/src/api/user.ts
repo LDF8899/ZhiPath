@@ -323,6 +323,9 @@ function normalizeGeneratedResource(raw: any): GeneratedResource {
   } as GeneratedResource;
 }
 
+export const setGeneratedResourceFeedback = (id: number, useful: boolean) =>
+  client.post(`/user/generated-resources/${id}/feedback`, { useful }) as Promise<ApiResponse<GeneratedResource | null>>;
+
 /** 保存项目经历 */
 export const saveProject = (data: any) =>
   client.post('/user/projects/save', data);

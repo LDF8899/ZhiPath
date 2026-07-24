@@ -21,11 +21,34 @@ export interface OnlineJobCard {
   host?: string;
 }
 
+export interface JobSearchMetricsSnapshot {
+  totalSearches: number;
+  cacheHits: number;
+  webSearchAttempts: number;
+  webSearchNoResult: number;
+  webExtractionNoResult: number;
+  webSuccesses: number;
+  aiFallbacks: number;
+  emptyResults: number;
+  aiFallbackRate: number;
+  searchNoResultRate: number;
+}
+
 @Injectable()
 export class JobSearchService {
   private readonly logger = new Logger(JobSearchService.name);
   private readonly cacheTtlMs = 15 * 60 * 1000;
   private readonly cache = new Map<string, { expiresAt: number; value: OnlineJobCard[] }>();
+  private static readonly metrics = {
+    totalSearches: 0,
+    cacheHits: 0,
+    webSearchAttempts: 0,
+    webSearchNoResult: 0,
+    webExtractionNoResult: 0,
+    webSuccesses: 0,
+    aiFallbacks: 0,
+    emptyResults: 0,
+  };
 
   constructor(
     private llm: LlmService,
@@ -37,15 +60,18 @@ export class JobSearchService {
    * 策略：search-stack 搜索 → LLM 提取 → 失败则 LLM 直接生成
    */
   async search(keyword: string, userSkills: string[] = []): Promise<OnlineJobCard[]> {
+    JobSearchService.metrics.totalSearches += 1;
     const cleanKeyword = (keyword || 'IT').trim();
     const cacheKey = this.getCacheKey(cleanKeyword, userSkills);
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
+      JobSearchService.metrics.cacheHits += 1;
       return this.cloneCards(cached.value);
     }
 
     // ── 路径 A：search-stack 搜索 + LLM 提取 ──
     try {
+      JobSearchService.metrics.webSearchAttempts += 1;
       const results = await this.searchStack.search(
         `${cleanKeyword} 招聘`,
         { count: 8 },
@@ -53,19 +79,35 @@ export class JobSearchService {
       if (results.length > 0) {
         const cards = await this.extractJobsFromResults(results, cleanKeyword, userSkills);
         if (cards.length >= 2) {
+          JobSearchService.metrics.webSuccesses += 1;
           this.logger.log(`[JobSearch] search-stack → ${cards.length} jobs`);
           this.storeCache(cacheKey, cards);
           return this.cloneCards(cards);
         }
+        JobSearchService.metrics.webExtractionNoResult += 1;
+      } else {
+        JobSearchService.metrics.webSearchNoResult += 1;
       }
     } catch (e: any) {
       this.logger.warn(`[JobSearch] search-stack failed: ${e.message}`);
     }
 
     // ── 路径 B：LLM 直接生成 ──
+    JobSearchService.metrics.aiFallbacks += 1;
     const generated = await this.generateJobsWithLLM(cleanKeyword, userSkills);
+    if (generated.length === 0) JobSearchService.metrics.emptyResults += 1;
     this.storeCache(cacheKey, generated);
     return this.cloneCards(generated);
+  }
+
+  static getMetricsSnapshot(): JobSearchMetricsSnapshot {
+    const m = JobSearchService.metrics;
+    const noResult = m.webSearchNoResult + m.webExtractionNoResult + m.emptyResults;
+    return {
+      ...m,
+      aiFallbackRate: percent(m.aiFallbacks, m.totalSearches - m.cacheHits),
+      searchNoResultRate: percent(noResult, m.webSearchAttempts),
+    };
   }
 
   /** 从 search-stack 搜索结果中 LLM 提取结构化岗位 */
@@ -210,4 +252,9 @@ ${skillHint}
       return [];
     }
   }
+}
+
+function percent(value: number, total: number): number {
+  if (!total) return 0;
+  return Math.round((value / total) * 1000) / 10;
 }

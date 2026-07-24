@@ -138,6 +138,17 @@ export class ChatController {
     return success(resource);
   }
 
+  /** POST /api/user/generated-resources/:id/feedback */
+  @Post('generated-resources/:id/feedback')
+  async feedbackGeneratedResource(
+    @CurrentUser('sub') userId: number,
+    @Param('id') id: string,
+    @Body() body: { useful: boolean },
+  ) {
+    const resource = await this.generatedResources.setFeedback(userId, parseInt(id, 10), Boolean(body.useful));
+    return success(resource);
+  }
+
   @Get('video-task/:taskId')
   async getVideoTask(@Param('taskId') taskId: string) {
     const task = await ActionExecutorService.getVideoTaskStatic(this.redis, taskId);

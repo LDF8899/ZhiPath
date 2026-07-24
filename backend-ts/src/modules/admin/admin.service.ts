@@ -10,6 +10,7 @@ import { ExamRecord, ExamQuestion } from '../../entities/exam.entity';
 import { Resume } from '../../entities/resume.entity';
 import { SystemConfig } from '../../entities/system.entity';
 import { GeneratedResource } from '../../entities/generated-resource.entity';
+import { JobSearchService } from '../../services/job-search.service';
 
 /**
  * Admin 服务 — 对齐 Python api/admin/* 所有管理端接口
@@ -61,6 +62,7 @@ export class AdminService {
       resourceSuccess,
       resourceFailed,
       resourceRunning,
+      resourceFeedbackRaw,
     ] = await Promise.all([
       this.jobRepo.createQueryBuilder('j').where('j.status = 1').andWhere('j.enterprise_id IS NOT NULL').getCount(),
       this.jobRepo.createQueryBuilder('j').where('j.status = 1').andWhere('(j.enterprise_id IS NULL OR j.enterprise_id = 0)').getCount(),
@@ -77,9 +79,18 @@ export class AdminService {
       this.resourceRepo.count({ where: { status: 1, resourceStatus: 'success' } }),
       this.resourceRepo.count({ where: { status: 1, resourceStatus: 'failed' } }),
       this.resourceRepo.count({ where: { status: 1, resourceStatus: 'running' } }),
+      this.resourceRepo.createQueryBuilder('r')
+        .select(`SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(r.preview_meta, '$.feedbackUseful')) = 'true' THEN 1 ELSE 0 END)`, 'useful')
+        .addSelect(`SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(r.preview_meta, '$.feedbackUseful')) = 'false' THEN 1 ELSE 0 END)`, 'notUseful')
+        .where('r.status = 1')
+        .getRawOne<{ useful: string | null; notUseful: string | null }>(),
     ]);
 
     const activeApplications = pendingApplications + approvedApplications + rejectedApplications;
+    const usefulFeedback = Number(resourceFeedbackRaw?.useful || 0);
+    const notUsefulFeedback = Number(resourceFeedbackRaw?.notUseful || 0);
+    const feedbackTotal = usefulFeedback + notUsefulFeedback;
+    const searchMetrics = JobSearchService.getMetricsSnapshot();
     return {
       jobSource: {
         platformJobCount,
@@ -106,12 +117,19 @@ export class AdminService {
         failed: resourceFailed,
         running: resourceRunning,
         failureRate: percent(resourceFailed, resourceTotal),
+        usefulFeedback,
+        notUsefulFeedback,
+        usefulRate: percent(usefulFeedback, feedbackTotal),
       },
       instrumentation: {
-        aiFallbackRate: null,
-        searchNoResultRate: null,
-        resourceUsefulRate: null,
-        note: 'AI 兜底率、搜索无结果率、资源有用率需要接入搜索与反馈埋点后计算。',
+        aiFallbackRate: searchMetrics.aiFallbackRate,
+        searchNoResultRate: searchMetrics.searchNoResultRate,
+        resourceUsefulRate: percent(usefulFeedback, feedbackTotal),
+        searchSampleSize: searchMetrics.totalSearches,
+        resourceFeedbackSampleSize: feedbackTotal,
+        note: feedbackTotal > 0
+          ? '搜索指标为当前服务进程运行期统计；资源有用率来自用户反馈。'
+          : '搜索指标为当前服务进程运行期统计；资源有用率等待用户反馈样本。',
       },
     };
   }

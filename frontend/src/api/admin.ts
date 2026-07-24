@@ -38,11 +38,16 @@ export const getAdminDashboard = () =>
         failed: number;
         running: number;
         failureRate: number;
+        usefulFeedback: number;
+        notUsefulFeedback: number;
+        usefulRate: number;
       };
       instrumentation: {
-        aiFallbackRate: number | null;
-        searchNoResultRate: number | null;
-        resourceUsefulRate: number | null;
+        aiFallbackRate: number;
+        searchNoResultRate: number;
+        resourceUsefulRate: number;
+        searchSampleSize: number;
+        resourceFeedbackSampleSize: number;
         note: string;
       };
     };

@@ -108,6 +108,21 @@ export class GeneratedResourceService {
     return this.resourceRepo.findOne({ where: { id, userId, status: 1 } });
   }
 
+  async setFeedback(userId: number, id: number, useful: boolean): Promise<GeneratedResource | null> {
+    const resource = await this.getById(userId, id);
+    if (!resource) return null;
+    const previewMeta = {
+      ...(resource.previewMeta || {}),
+      feedbackUseful: useful,
+      feedbackAt: Date.now(),
+    };
+    await this.resourceRepo.update(resource.id, {
+      previewMeta: previewMeta as GeneratedResource['previewMeta'],
+      updateTime: Date.now(),
+    });
+    return this.getById(userId, id);
+  }
+
   async upsertFromTask(userId: number, task: AgentTask, result?: any): Promise<GeneratedResource> {
     const normalized = this.normalizeTask(userId, task, result ?? task.result);
     return this.upsert(normalized);

@@ -1,8 +1,9 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import type { AgentProfile, AgentTask } from './types';
 import type { GeneratedResource } from '../../types';
 import { makeAnimalSVG } from './AnimalSVG';
 import { AGENT_LABELS } from '../../hooks/useAgentOffice';
+import { setGeneratedResourceFeedback } from '../../api/user';
 
 interface TaskCenterProps {
   profiles: AgentProfile[];
@@ -33,6 +34,7 @@ export default function TaskCenter({
   /* ── 任务拖拽排序 ── */
   const dragTaskIdRef = useRef<number | null>(null);
   const taskOverRef = useRef<number | null>(null);
+  const [feedbackState, setFeedbackState] = useState<Record<number, boolean>>({});
   const runningTask = activeTasks.find(task => task.taskStatus === 'running') || null;
   const nextPendingTask = activeTasks.find(task => task.taskStatus === 'pending') || null;
   const latestOutput = generatedOutputs[0] || completedOutputs[0] || null;
@@ -104,6 +106,19 @@ export default function TaskCenter({
     currentTasks.splice(insertIdx, 0, moved);
 
     onTaskReorder(currentTasks.map(t => t.id));
+  };
+
+  const handleResourceFeedback = async (resourceId: number, useful: boolean) => {
+    setFeedbackState((prev) => ({ ...prev, [resourceId]: useful }));
+    try {
+      await setGeneratedResourceFeedback(resourceId, useful);
+    } catch {
+      setFeedbackState((prev) => {
+        const next = { ...prev };
+        delete next[resourceId];
+        return next;
+      });
+    }
   };
 
   return (
@@ -253,6 +268,7 @@ export default function TaskCenter({
         <div className="office-output-list">
           {generatedOutputs.length > 0 ? generatedOutputs.map(resource => {
             const agent = profiles.find(p => p.agentType === resource.agentType);
+            const feedbackUseful = feedbackState[resource.id] ?? resource.previewMeta?.feedbackUseful;
             return (
               <div key={`resource-${resource.id}`} className="office-output-card">
                 <div className="out-header">
@@ -268,6 +284,23 @@ export default function TaskCenter({
                 <div className="out-result">
                   {formatGeneratedPreview(resource)}
                 </div>
+                {resource.resourceStatus === 'success' && (
+                  <div className="out-feedback">
+                    <span>质量反馈</span>
+                    <button
+                      className={feedbackUseful === true ? 'active' : ''}
+                      onClick={() => handleResourceFeedback(resource.id, true)}
+                    >
+                      有用
+                    </button>
+                    <button
+                      className={feedbackUseful === false ? 'active negative' : ''}
+                      onClick={() => handleResourceFeedback(resource.id, false)}
+                    >
+                      无用
+                    </button>
+                  </div>
+                )}
               </div>
             );
           }) : completedOutputs.length > 0 ? completedOutputs.map(task => {

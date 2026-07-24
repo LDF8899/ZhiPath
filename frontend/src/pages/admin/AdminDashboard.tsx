@@ -72,6 +72,27 @@ export default function AdminDashboard() {
       alert: quality.applications.pending > 0 ? '需要处理投递' : '暂无待处理投递',
       link: '/admin/applications',
     },
+    {
+      label: 'AI 兜底率',
+      value: `${quality.instrumentation.aiFallbackRate}%`,
+      desc: `搜索样本 ${quality.instrumentation.searchSampleSize} · 当前服务进程统计`,
+      alert: quality.instrumentation.aiFallbackRate > 30 ? '联网岗位覆盖不足' : '联网搜索覆盖稳定',
+      link: '/admin/jobs',
+    },
+    {
+      label: '搜索无结果率',
+      value: `${quality.instrumentation.searchNoResultRate}%`,
+      desc: `搜索样本 ${quality.instrumentation.searchSampleSize} · 含抽取失败`,
+      alert: quality.instrumentation.searchNoResultRate > 20 ? '需要优化搜索词和来源' : '搜索召回正常',
+      link: '/admin/jobs',
+    },
+    {
+      label: '资源有用率',
+      value: quality.instrumentation.resourceFeedbackSampleSize > 0 ? `${quality.instrumentation.resourceUsefulRate}%` : '待反馈',
+      desc: `有用 ${quality.resources.usefulFeedback} · 无用 ${quality.resources.notUsefulFeedback}`,
+      alert: quality.instrumentation.resourceFeedbackSampleSize > 0 ? '来自智能体办公室反馈' : '等待用户反馈样本',
+      link: '/admin/settings',
+    },
   ] : [];
 
   return (
