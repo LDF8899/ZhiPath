@@ -16,16 +16,29 @@ import {
   IconRobot,
   IconChevronDown,
   IconDocument,
+  IconChart,
 } from '../components/icons';
 
-const navItems = [
-  { key: '/user/chat', icon: IconChat, label: 'AI 助教' },
-  { key: '/user/home', icon: IconHome, label: '主页' },
-  { key: '/user/learning', icon: IconBook, label: '学习路径' },
-  { key: '/user/jobs', icon: IconBriefcase, label: '岗位' },
-  { key: '/user/exams', icon: IconGradCap, label: '考试' },
-  { key: '/user/wrong-answers', icon: IconDocument, label: '错题本' },
-  { key: '/user/agent-office', icon: IconRobot, label: '智能体办公室' },
+const navSections = [
+  {
+    label: '黄金路径',
+    items: [
+      { key: '/user/home', icon: IconHome, label: '行动中枢' },
+      { key: '/user/jobs', icon: IconBriefcase, label: '目标岗位' },
+      { key: '/user/learning', icon: IconBook, label: '学习计划' },
+      { key: '/user/agent-office', icon: IconRobot, label: '生成资源' },
+      { key: '/user/exams', icon: IconGradCap, label: '测评' },
+      { key: '/user/progress', icon: IconChart, label: '画像变化' },
+      { key: '/user/resume', icon: IconDocument, label: '简历建议' },
+    ],
+  },
+  {
+    label: '辅助工具',
+    items: [
+      { key: '/user/chat', icon: IconChat, label: 'AI 助教' },
+      { key: '/user/wrong-answers', icon: IconDocument, label: '错题本' },
+    ],
+  },
 ];
 
 export default function UserLayout() {
@@ -63,25 +76,42 @@ export default function UserLayout() {
 
   const sidebarNav = (
     <ul className="hd-sidebar-nav">
-      {navItems.map((item) => {
-        const Icon = item.icon;
-        return (
-          <li key={item.key}>
-            <button
-              onClick={() => {
-                navigate(item.key);
-                setSidebarOpen(false);
-              }}
-              className={`hd-sidebar-item ${isActive(item.key) ? 'active' : ''}`}
-            >
-              <span className="hd-sidebar-icon">
-                <Icon size={18} />
-              </span>
-              {item.label}
-            </button>
-          </li>
-        );
-      })}
+      {navSections.map((section) => (
+        <li key={section.label} style={{ listStyle: 'none' }}>
+          <div
+            style={{
+              padding: '10px 14px 5px',
+              font: '700 11px/1 var(--mono)',
+              letterSpacing: '0.08em',
+              color: 'var(--pencil)',
+              opacity: 0.72,
+            }}
+          >
+            {section.label}
+          </div>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <li key={item.key}>
+                  <button
+                    onClick={() => {
+                      navigate(item.key);
+                      setSidebarOpen(false);
+                    }}
+                    className={`hd-sidebar-item ${isActive(item.key) ? 'active' : ''}`}
+                  >
+                    <span className="hd-sidebar-icon">
+                      <Icon size={18} />
+                    </span>
+                    {item.label}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </li>
+      ))}
     </ul>
   );
 
