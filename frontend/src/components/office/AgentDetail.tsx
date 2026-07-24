@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { makeAnimalSVG } from './AnimalSVG';
 import type { AgentProfile, AgentTask } from './types';
 import { AGENT_LABELS } from '../../hooks/useAgentOffice';
+import { ProfessionalIcon } from '../icons';
 
 interface AgentDetailProps {
   /** 当前选中的员工 ID，null 时不展示 */
@@ -119,14 +120,16 @@ export default function AgentDetail({
             style={{ flex: 1 }}
             onClick={handleDispatchToChat}
           >
-            💬 派遣到对话
+            <ProfessionalIcon name="chat" size={15} style={{ marginRight: 6, verticalAlign: -3 }} />
+            派遣到对话
           </button>
           <button
             className="office-btn secondary"
             style={{ flex: 1 }}
             onClick={handleDirectUse}
           >
-            ⚡ 直接使用
+            <ProfessionalIcon name="zap" size={15} style={{ marginRight: 6, verticalAlign: -3 }} />
+            直接使用
           </button>
         </div>
 

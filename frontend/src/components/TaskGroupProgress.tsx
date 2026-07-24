@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useTaskGroup, type GroupTask, type TaskStatus } from '../hooks/useTaskGroup';
+import { ProfessionalIcon, type ProfessionalIconName } from './icons';
 
 interface Props {
   groupId: string;
@@ -8,12 +9,12 @@ interface Props {
 }
 
 /** 状态图标 */
-const STATUS_ICON: Record<TaskStatus, string> = {
-  pending: '⏳',
-  running: '⚙️',
-  completed: '✅',
-  failed: '❌',
-  cancelled: '⛔',
+const STATUS_ICON: Record<TaskStatus, ProfessionalIconName> = {
+  pending: 'clock',
+  running: 'settings',
+  completed: 'check',
+  failed: 'x',
+  cancelled: 'warning',
 };
 
 /** 状态颜色 */
@@ -126,7 +127,7 @@ function TaskItem({ task }: { task: GroupTask }) {
     <div className="flex items-center gap-3 rounded-lg bg-gray-50 px-3 py-2">
       {/* 状态图标 */}
       <span className={`text-sm ${STATUS_COLOR[task.status]}`}>
-        {STATUS_ICON[task.status]}
+        <ProfessionalIcon name={STATUS_ICON[task.status]} size={14} />
       </span>
 
       {/* 任务信息 */}

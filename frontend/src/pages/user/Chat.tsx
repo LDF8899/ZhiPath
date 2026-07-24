@@ -21,6 +21,7 @@ import {
   IconCheck,
   IconLightbulb,
   IconRefresh,
+  IconArrowLeft,
 } from '../../components/icons';
 import JobCard from '../../components/JobCard';
 import ProgressCard from '../../components/ProgressCard';
@@ -171,7 +172,7 @@ export default function Chat() {
         updated[lastIdx] = { ...updated[lastIdx], actions: [...(updated[lastIdx].actions || []), ...newActions] };
         store.setMainMessages(curId, updated);
 
-        showToast(`📎 ${skill_name} 资源已就绪`, 'success');
+        showToast(`${skill_name} 资源已就绪`, 'success');
       } catch {}
     };
 
@@ -597,7 +598,7 @@ export default function Chat() {
 
               {/* 拖拽提示 */}
               <div className="chat-empty-drag-hint">
-                <span className="chat-empty-drag-icon">👈</span>
+                <span className="chat-empty-drag-icon"><IconArrowLeft size={22} /></span>
                 <span>从右侧拖入智能体，或直接打字</span>
               </div>
 
@@ -788,7 +789,7 @@ function ActionRenderer({ action }: { action: ChatAction }) {
           onKeyDown={(e) => { if (planId && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); navigate(`/user/learning/${planId}`); } }}
         >
           <IconCheck size={16} />
-          <span>学习路径「{typeof action.data?.planName === 'string' ? action.data.planName : ''}」已生成 ✨</span>
+          <span>学习路径「{typeof action.data?.planName === 'string' ? action.data.planName : ''}」已生成</span>
           {planId && <span style={{ marginLeft: 4, fontSize: 12, opacity: 0.6 }}>点击查看 →</span>}
         </div>
       );

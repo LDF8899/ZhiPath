@@ -4,6 +4,7 @@ import type { GeneratedResource } from '../../types';
 import { makeAnimalSVG } from './AnimalSVG';
 import { AGENT_LABELS } from '../../hooks/useAgentOffice';
 import { setGeneratedResourceFeedback } from '../../api/user';
+import { ProfessionalIcon } from '../icons';
 
 interface TaskCenterProps {
   profiles: AgentProfile[];
@@ -247,8 +248,12 @@ export default function TaskCenter({
               <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
                 {task.taskStatus === 'pending' && (
                   <>
-                    <button className="office-btn ghost" style={{ padding: '4px 8px', fontSize: 11 }} onClick={() => onTaskAction('urgent', task.id)} title="标记紧急">🔥</button>
-                    <button className="office-btn ghost" style={{ padding: '4px 8px', fontSize: 11 }} onClick={() => onTaskAction('skip', task.id)} title="跳过">⏭</button>
+                    <button className="office-btn ghost" style={{ padding: '4px 8px', fontSize: 11 }} onClick={() => onTaskAction('urgent', task.id)} title="标记紧急">
+                      <ProfessionalIcon name="fire" size={14} />
+                    </button>
+                    <button className="office-btn ghost" style={{ padding: '4px 8px', fontSize: 11 }} onClick={() => onTaskAction('skip', task.id)} title="跳过">
+                      <ProfessionalIcon name="refresh" size={14} />
+                    </button>
                   </>
                 )}
                 {['pending', 'running'].includes(task.taskStatus) && (
@@ -394,7 +399,8 @@ export default function TaskCenter({
                   </div>
                   {task.errorMessage && (
                     <div className="out-result" style={{ color: 'var(--accent)' }}>
-                      ❌ {task.errorMessage}
+                      <ProfessionalIcon name="x" size={13} style={{ marginRight: 4, verticalAlign: -2 }} />
+                      {task.errorMessage}
                     </div>
                   )}
                   <div className="failed-task-actions">

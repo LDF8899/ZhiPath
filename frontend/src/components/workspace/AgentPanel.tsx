@@ -9,11 +9,28 @@ import {
   getAgentProfiles,
   getGeneratedResources,
 } from '../../api/user';
+import { ProfessionalIcon, type ProfessionalIconName } from '../icons';
 import type { AgentProfile, AgentTask } from '../office/types';
 import type { GeneratedResource, ResourceItem } from '../../types';
 
 type Tab = 'room' | 'tasks' | 'resources';
 type ResourceSubTab = 'lecture' | 'graph' | 'quiz' | 'video';
+
+const RESOURCE_SUB_TABS: Array<{ key: ResourceSubTab; label: string; icon: ProfessionalIconName }> = [
+  { key: 'lecture', label: '文档', icon: 'document' },
+  { key: 'graph', label: '图谱', icon: 'graph' },
+  { key: 'quiz', label: '题目', icon: 'edit' },
+  { key: 'video', label: '视频', icon: 'film' },
+];
+
+const RESOURCE_ICON_BY_TYPE: Record<string, ProfessionalIconName> = {
+  lecture: 'document',
+  quiz: 'edit',
+  coding: 'code',
+  animation: 'film',
+  diagram: 'graph',
+  video: 'film',
+};
 
 /**
  * 智能体融合面板 — 替代 ChatSidebar
@@ -91,13 +108,13 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
           <h3>智能体办公室</h3>
           <div className="office-tab-bar">
             <button className={`office-tab ${tab === 'room' ? 'active' : ''}`} onClick={() => setTab('room')}>
-              🏠 房间
+              <ProfessionalIcon name="home" size={14} /> 房间
             </button>
             <button className={`office-tab ${tab === 'tasks' ? 'active' : ''}`} onClick={() => setTab('tasks')}>
-              📋 任务 {activeTasks.length > 0 && <span className="office-tab-badge">{activeTasks.length}</span>}
+              <ProfessionalIcon name="document" size={14} /> 任务 {activeTasks.length > 0 && <span className="office-tab-badge">{activeTasks.length}</span>}
             </button>
             <button className={`office-tab ${tab === 'resources' ? 'active' : ''}`} onClick={() => { setTab('resources'); loadResources(); }}>
-              📦 资源 {resources.length > 0 && <span className="office-tab-badge">{resources.length}</span>}
+              <ProfessionalIcon name="package" size={14} /> 资源 {resources.length > 0 && <span className="office-tab-badge">{resources.length}</span>}
             </button>
           </div>
         </div>
@@ -108,7 +125,7 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
             {/* 迷你房间 */}
             <div className="agent-panel-scene">
               <div className="agent-panel-wall">
-                <div className="agent-panel-poster">🎯 智途办公室</div>
+                <div className="agent-panel-poster"><ProfessionalIcon name="target" size={14} /> 智途办公室</div>
                 <div className="agent-panel-window">
                   <div className="agent-panel-cloud" />
                 </div>
@@ -123,7 +140,7 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
                     <div key={key} className={`agent-panel-workstation ${isActive ? 'active' : ''}`}>
                       <div className="agent-panel-desk">
                         <div className={`agent-panel-monitor ${status === 'working' ? 'working' : ''}`}>
-                          {status === 'working' ? '⚡' : '💤'}
+                          <ProfessionalIcon name={status === 'working' ? 'zap' : 'sleep'} size={16} />
                         </div>
                       </div>
                       <div className="agent-panel-chair">
@@ -169,7 +186,8 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
                     <AnimalAvatar type={config.animal} color={config.color} size={24} status={status} />
                     <span className="agent-panel-name">{config.name}</span>
                     <span className={`agent-panel-status ${status}`}>
-                      {status === 'working' ? '⚡ 工作中' : '💤 空闲'}
+                      <ProfessionalIcon name={status === 'working' ? 'zap' : 'sleep'} size={12} />
+                      {status === 'working' ? '工作中' : '空闲'}
                     </span>
                   </div>
                 );
@@ -183,7 +201,7 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
           <div className="agent-panel-tasks">
             {activeTasks.length === 0 && backendTasks.filter(t => t.taskStatus === 'running' || t.taskStatus === 'pending').length === 0 ? (
               <div className="agent-panel-empty">
-                <span style={{ fontSize: 28 }}>😴</span>
+                <ProfessionalIcon name="sleep" size={28} />
                 <p>暂无进行中的任务</p>
                 <p className="agent-panel-hint">在对话中发送指令，智能体会自动开始工作</p>
               </div>
@@ -240,8 +258,9 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
           <div className="agent-panel-resources">
             {/* 子标签 */}
             <div className="office-subtab-bar">
-              {([['lecture', '📄 文档'], ['graph', '🕸️ 图谱'], ['quiz', '📝 题目'], ['video', '🎬 视频']] as [ResourceSubTab, string][]).map(([key, label]) => (
+              {RESOURCE_SUB_TABS.map(({ key, label, icon }) => (
                 <button key={key} className={`office-subtab ${resSubTab === key ? 'active' : ''}`} onClick={() => setResSubTab(key)}>
+                  <ProfessionalIcon name={icon} size={13} />
                   {label}
                 </button>
               ))}
@@ -261,7 +280,7 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
                 if (filtered.length === 0) {
                   return (
                     <div className="agent-panel-empty">
-                      <span style={{ fontSize: 28 }}>{resSubTab === 'lecture' ? '📄' : resSubTab === 'graph' ? '🕸️' : resSubTab === 'quiz' ? '📝' : '🎬'}</span>
+                      <ProfessionalIcon name={RESOURCE_SUB_TABS.find(item => item.key === resSubTab)?.icon || 'document'} size={28} />
                       <p>暂无{resSubTab === 'lecture' ? '文档' : resSubTab === 'graph' ? '图谱' : resSubTab === 'quiz' ? '题目' : '视频'}资源</p>
                       <p className="agent-panel-hint">在对话中生成资源后会自动出现在这里</p>
                     </div>
@@ -272,7 +291,7 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
                   <div key={item.id} className="agent-panel-res-item" onClick={() => setExpandedRes(expandedRes === item.id ? null : item.id)}>
                     <div className="agent-panel-res-header">
                       <span className="agent-panel-res-icon">
-                        {item.type === 'lecture' ? '📄' : item.type === 'quiz' ? '📝' : item.type === 'coding' ? '💻' : item.type === 'animation' ? '🎬' : item.type === 'diagram' ? '🕸️' : '🎥'}
+                        <ProfessionalIcon name={RESOURCE_ICON_BY_TYPE[item.type] || 'film'} size={18} />
                       </span>
                       <div className="agent-panel-res-info">
                         <span className="agent-panel-res-title">{item.title}</span>

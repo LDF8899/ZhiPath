@@ -194,10 +194,10 @@ export const mockChatSessions: ChatSession[] = [
 
 /** 快捷操作 */
 export const quickActions = [
-  { label: '今天学什么', icon: '📚', prompt: '今天学什么' },
-  { label: '推荐岗位', icon: '💼', prompt: '推荐适合我的岗位' },
-  { label: '学习路径', icon: '🗺️', prompt: '查看我的学习路径' },
-  { label: '出几道题', icon: '📝', prompt: '出几道 React 题' },
-  { label: '匹配度分析', icon: '📊', prompt: '我的匹配度怎么样' },
-  { label: '学习资源', icon: '🔗', prompt: '推荐学习资源' },
+  { label: '今天学什么', iconName: 'book', prompt: '今天学什么' },
+  { label: '推荐岗位', iconName: 'briefcase', prompt: '推荐适合我的岗位' },
+  { label: '学习路径', iconName: 'map', prompt: '查看我的学习路径' },
+  { label: '出几道题', iconName: 'edit', prompt: '出几道 React 题' },
+  { label: '匹配度分析', iconName: 'chart', prompt: '我的匹配度怎么样' },
+  { label: '学习资源', iconName: 'link', prompt: '推荐学习资源' },
 ];

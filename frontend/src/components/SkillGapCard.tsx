@@ -1,4 +1,5 @@
 import '../styles/hand-draw.css';
+import { ProfessionalIcon } from './icons';
 
 interface SkillGapData {
   jobTitle?: string;
@@ -31,7 +32,8 @@ export default function SkillGapCard({ data }: { data: SkillGapData }) {
   return (
     <div className="hd-card">
       <div style={{ fontWeight: 600, marginBottom: 8 }}>
-        🎯 {data.jobTitle || '目标岗位'} 匹配度分析
+        <ProfessionalIcon name="target" size={16} style={{ marginRight: 6, verticalAlign: -3 }} />
+        {data.jobTitle || '目标岗位'} 匹配度分析
       </div>
 
       {/* 匹配度条 */}
@@ -53,9 +55,9 @@ export default function SkillGapCard({ data }: { data: SkillGapData }) {
       </div>
 
       <div style={{ display: 'flex', gap: 16, fontSize: 13, marginBottom: 8 }}>
-        <span>✅ 已掌握 <b>{data.matched ?? 0}</b></span>
-        <span>📈 待学习 <b>{data.gap ?? 0}</b></span>
-        <span>📋 共需 <b>{data.totalRequired ?? 0}</b> 项技能</span>
+        <span><ProfessionalIcon name="check" size={13} style={{ marginRight: 4, verticalAlign: -2 }} />已掌握 <b>{data.matched ?? 0}</b></span>
+        <span><ProfessionalIcon name="chart" size={13} style={{ marginRight: 4, verticalAlign: -2 }} />待学习 <b>{data.gap ?? 0}</b></span>
+        <span><ProfessionalIcon name="document" size={13} style={{ marginRight: 4, verticalAlign: -2 }} />共需 <b>{data.totalRequired ?? 0}</b> 项技能</span>
       </div>
 
       {gapList.length > 0 && (
@@ -77,7 +79,8 @@ export default function SkillGapCard({ data }: { data: SkillGapData }) {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
             {matchedList.map((s, i) => (
               <span key={i} className="hd-tag" style={{ background: '#e8f5e9', color: '#2e7d32', fontSize: 11, padding: '2px 8px', borderRadius: 4 }}>
-                ✅ {s}
+                <ProfessionalIcon name="check" size={11} style={{ marginRight: 4, verticalAlign: -2 }} />
+                {s}
               </span>
             ))}
           </div>

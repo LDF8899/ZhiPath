@@ -24,7 +24,7 @@ import type { DashboardData } from '../../types';
 function getGreeting(name: string): string {
   const hour = new Date().getHours();
   if (hour < 6) return `夜深了，${name || '同学'}，注意休息`;
-  if (hour < 12) return `早上好，${name || '同学'} ☀`;
+  if (hour < 12) return `早上好，${name || '同学'}`;
   if (hour < 18) return `下午好，${name || '同学'}`;
   return `晚上好，${name || '同学'}`;
 }

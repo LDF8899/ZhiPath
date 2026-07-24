@@ -1,5 +1,6 @@
 import AnimalAvatar from './AnimalAvatar';
 import { useOfficeStore } from '../../stores/office';
+import { ProfessionalIcon } from '../icons';
 
 export default function TaskProgress() {
   const { tasks, getAgentConfig } = useOfficeStore();
@@ -10,7 +11,7 @@ export default function TaskProgress() {
   return (
     <div className="task-progress-panel">
       <h4 className="progress-title">
-        <span className="progress-icon">📋</span>
+        <span className="progress-icon"><ProfessionalIcon name="document" size={15} /></span>
         进行中的任务
       </h4>
       <div className="progress-list">

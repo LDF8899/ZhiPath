@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { sendChat } from '../api/user';
 import { useChatStore } from '../stores/chat';
+import { ProfessionalIcon } from './icons';
 import '../styles/hand-draw.css';
 
 /** 路由 → 页面类型映射 */
@@ -170,7 +171,7 @@ export default function AIFloatingChat() {
           onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
           title="AI 助手"
         >
-          💬
+          <ProfessionalIcon name="chat" size={24} />
         </button>
       )}
 

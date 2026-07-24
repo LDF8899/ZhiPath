@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { makeAnimalSVG } from './AnimalSVG';
+import { ProfessionalIcon, type ProfessionalIconName } from '../icons';
 
 interface DispatchMenuProps {
   agentKey: string;           // agentType: 'path' | 'exam' | 'video' | 'lecture' 等
@@ -152,18 +153,18 @@ export default function AgentDispatchMenu({
         </div>
 
         {/* 通用菜单项 */}
-        <MenuItem icon="💬" label="派遣到对话" onClick={handleDispatchToChat} />
-        {onDetail && <MenuItem icon="📊" label="查看详情" onClick={handleDetail} />}
-        {onDirectUse && <MenuItem icon="⚡" label="直接使用" onClick={handleDirectUse} />}
-        {onEdit && <MenuItem icon="✏️" label="编辑形象" onClick={handleEdit} />}
+        <MenuItem icon="chat" label="派遣到对话" onClick={handleDispatchToChat} />
+        {onDetail && <MenuItem icon="chart" label="查看详情" onClick={handleDetail} />}
+        {onDirectUse && <MenuItem icon="zap" label="直接使用" onClick={handleDirectUse} />}
+        {onEdit && <MenuItem icon="edit" label="编辑形象" onClick={handleEdit} />}
 
         {/* 上下文菜单项：知识图谱节点 */}
         {contextNodeId && (
           <>
             <div style={{ height: 1, background: 'var(--rule, #e8e4de)', margin: '4px 12px' }} />
-            <MenuItem icon="📚" label="为此技能生成学习计划" onClick={handleGenerateLearningPlan} />
-            <MenuItem icon="📝" label="为此技能出考试题" onClick={handleGenerateExam} />
-            <MenuItem icon="🎬" label="为此技能生成教学视频" onClick={handleGenerateVideo} />
+            <MenuItem icon="book" label="为此技能生成学习计划" onClick={handleGenerateLearningPlan} />
+            <MenuItem icon="edit" label="为此技能出考试题" onClick={handleGenerateExam} />
+            <MenuItem icon="film" label="为此技能生成教学视频" onClick={handleGenerateVideo} />
           </>
         )}
 
@@ -171,7 +172,7 @@ export default function AgentDispatchMenu({
         {contextPathId !== undefined && (
           <>
             <div style={{ height: 1, background: 'var(--rule, #e8e4de)', margin: '4px 12px' }} />
-            <MenuItem icon="🎓" label="绑定为路径导师" onClick={handleBindPathMentor} />
+            <MenuItem icon="grad" label="绑定为路径导师" onClick={handleBindPathMentor} />
           </>
         )}
       </div>
@@ -180,7 +181,7 @@ export default function AgentDispatchMenu({
 }
 
 /* ── 菜单项子组件 ── */
-function MenuItem({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+function MenuItem({ icon, label, onClick }: { icon: ProfessionalIconName; label: string; onClick: () => void }) {
   return (
     <div
       onClick={onClick}
@@ -192,7 +193,7 @@ function MenuItem({ icon, label, onClick }: { icon: string; label: string; onCli
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--rule, #f5f2ed)')}
       onMouseLeave={e => (e.currentTarget.style.background = '')}
     >
-      <span style={{ fontSize: 16 }}>{icon}</span>
+      <ProfessionalIcon name={icon} size={16} />
       <span>{label}</span>
     </div>
   );

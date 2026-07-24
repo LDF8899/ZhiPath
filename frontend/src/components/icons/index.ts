@@ -65,3 +65,6 @@ export {
   // Media
   IconFilm,
 } from "./HandIcons";
+
+export { default as ProfessionalIcon } from './ProfessionalIcon';
+export type { ProfessionalIconName } from './ProfessionalIcon';

@@ -116,12 +116,12 @@ function buildRecoveredResumeHtml(content: Record<string, any> | null | undefine
   .campus-title{font:600 14px/1 var(--font-body);color:var(--ink)}
   .campus-desc{font-size:13px;color:var(--body-color);line-height:1.65}
   .eval-list{list-style:none;padding:0}.eval-list li{font-size:13px;line-height:1.7;color:var(--body-color);padding-left:18px;position:relative;margin-bottom:5px}
-  .eval-list li::before{content:"✦";position:absolute;left:0;top:0;color:var(--primary);font-size:10px}
+  .eval-list li::before{content:"";position:absolute;left:1px;top:.65em;width:6px;height:6px;background:var(--primary);border-radius:2px}
   @media(max-width:800px){.header{padding:24px;flex-wrap:wrap;gap:18px}.content{padding:20px}.name{font-size:28px}.skill-grid{grid-template-columns:1fr}}
 </style></head>
 <body><div class="page">
 <div class="header">
-  <div class="photo-area">📷</div>
+  <div class="photo-area"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="18" rx="2"/><circle cx="8" cy="9" r="2"/><path d="M21 16l-5-5-6 6-3-3-5 5"/></svg></div>
   <div class="header-info">
     <div class="name">${escapeHtml(pi.name || '未填写姓名')}</div>
     ${job ? `<div class="job-intent">求职方向：${escapeHtml(job.title || '')}${job.company ? ` · ${escapeHtml(job.company)}` : ''}</div>` : ''}
@@ -591,7 +591,10 @@ function ResumeCard({
             /* ── Edit Mode ── */
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div className="hd-flex-between">
-                <span style={{ font: '700 14px/1 var(--hand-bold)', color: 'var(--accent)' }}>✏️ 编辑 HTML</span>
+                <span style={{ font: '700 14px/1 var(--hand-bold)', color: 'var(--accent)' }}>
+                  <IconEdit size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                  编辑 HTML
+                </span>
                 <div className="hd-flex" style={{ gap: 6 }}>
                   <button className="hd-btn small" onClick={onSaveEdit} disabled={saving}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -621,7 +624,10 @@ function ResumeCard({
             /* ── Preview Mode ── */
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div className="hd-flex-between">
-                <span style={{ font: '700 14px/1 var(--hand-bold)', color: 'var(--pencil)' }}>📄 简历预览</span>
+                <span style={{ font: '700 14px/1 var(--hand-bold)', color: 'var(--pencil)' }}>
+                  <IconDocument size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                  简历预览
+                </span>
                 <button className="hd-btn small secondary" onClick={() => onStartEdit(displayHtml)} disabled={!displayHtml}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                     <IconEdit size={14} /> 编辑

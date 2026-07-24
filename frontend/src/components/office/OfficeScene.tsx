@@ -2,6 +2,7 @@ import AgentStation from './AgentStation';
 import TaskProgress from './TaskProgress';
 import { useOfficeStore } from '../../stores/office';
 import { AGENT_CONFIGS } from './types';
+import { ProfessionalIcon } from '../icons';
 
 const SCENE_AGENTS: Record<string, string[]> = {
   village: ['generate_path', 'chat', 'recommend_jobs'],
@@ -23,7 +24,7 @@ export default function OfficeScene() {
   return (
     <div className="office-scene" style={{ background: sceneConfig.bg }}>
       <div className="scene-header">
-        <span className="scene-name">🏢 {sceneConfig.name}</span>
+        <span className="scene-name"><ProfessionalIcon name="building" size={16} /> {sceneConfig.name}</span>
       </div>
       <div className="scene-grid">
         {agentIds.map(agentId => {

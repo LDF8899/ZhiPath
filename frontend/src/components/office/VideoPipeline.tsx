@@ -1,9 +1,11 @@
+import { ProfessionalIcon, type ProfessionalIconName } from '../icons';
+
 const PIPELINE_STAGES = [
-  { id: 'script', label: '脚本', icon: '🐼' },
-  { id: 'render', label: '渲染', icon: '🎬' },
-  { id: 'tts', label: '配音', icon: '🎙️' },
-  { id: 'compose', label: '合成', icon: '🎬' },
-];
+  { id: 'script', label: '脚本', iconName: 'edit' },
+  { id: 'render', label: '渲染', iconName: 'film' },
+  { id: 'tts', label: '配音', iconName: 'chat' },
+  { id: 'compose', label: '合成', iconName: 'film' },
+] satisfies Array<{ id: string; label: string; iconName: ProfessionalIconName }>;
 
 interface VideoPipelineProps {
   taskId: string;
@@ -16,7 +18,7 @@ export default function VideoPipeline({ taskId, currentStage, progress }: VideoP
   
   return (
     <div className="video-pipeline">
-      <h4 className="pipeline-title">🎬 视频制作</h4>
+      <h4 className="pipeline-title"><ProfessionalIcon name="film" size={15} /> 视频制作</h4>
       <div className="pipeline-stages">
         {PIPELINE_STAGES.map((stage, i) => {
           const isCompleted = i < currentStageIndex;
@@ -28,7 +30,7 @@ export default function VideoPipeline({ taskId, currentStage, progress }: VideoP
               className={`pipeline-stage ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''}`}
             >
               <div className="stage-icon">
-                {isCompleted ? '✓' : stage.icon}
+                {isCompleted ? <ProfessionalIcon name="check" size={16} /> : <ProfessionalIcon name={stage.iconName} size={16} />}
               </div>
               <span className="stage-label">{stage.label}</span>
               {isActive && (

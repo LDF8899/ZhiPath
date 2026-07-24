@@ -8,6 +8,7 @@ import AgentDetail from '../../components/office/AgentDetail';
 import TaskCenter from '../../components/office/TaskCenter';
 import OfficeModals from '../../components/office/OfficeModals';
 import AgentAvatarConcepts from '../../components/office/AgentAvatarConcepts';
+import { ProfessionalIcon } from '../../components/icons';
 import '../../styles/office.css';
 
 /* ═══════════════════════════════════════════════
@@ -121,8 +122,14 @@ export default function AgentOffice() {
             {/* 墙壁 */}
             <div className="office-wall">
               <div className="office-light-ray" />
-              <div className="office-poster">🎯 今日目标<br/>完成 3 个匹配任务</div>
-              <div className="office-poster2">☕ 休息一下~</div>
+              <div className="office-poster">
+                <ProfessionalIcon name="target" size={16} />
+                今日目标<br/>完成 3 个匹配任务
+              </div>
+              <div className="office-poster2">
+                <ProfessionalIcon name="coffee" size={16} />
+                休息一下
+              </div>
               <div className="office-whiteboard">
                 <div className="office-whiteboard-line" />
                 <div className="office-whiteboard-line" />
@@ -306,7 +313,7 @@ export default function AgentOffice() {
                     </div>
                   )) : (
                     <div style={{ font: '12px/1.4 var(--hand)', color: 'var(--pencil)', opacity: 0.4, padding: 8 }}>
-                      所有员工都已上岗 ✨
+                      所有员工都已上岗
                     </div>
                   )}
                 </div>

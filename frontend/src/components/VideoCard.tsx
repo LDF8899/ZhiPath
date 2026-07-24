@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { IconFilm, IconCheck, IconWarning, IconClock } from './icons';
+import { IconFilm, IconCheck, IconWarning, IconClock, IconRefresh, IconX } from './icons';
 import { getVideoTaskStatus, createVideoTask } from '../api/user';
 
 interface Props {
@@ -153,7 +153,13 @@ export default function VideoCard({ data }: Props) {
             borderRadius: 4,
             padding: '1px 6px',
           }}>
-            {status === 'completed' ? '✓ 完成' : status === 'expired' ? '⏰ 过期' : '✗ 失败'}
+            {status === 'completed' ? (
+              <><IconCheck size={12} style={{ marginRight: 4, verticalAlign: -2 }} />完成</>
+            ) : status === 'expired' ? (
+              <><IconClock size={12} style={{ marginRight: 4, verticalAlign: -2 }} />过期</>
+            ) : (
+              <><IconX size={12} style={{ marginRight: 4, verticalAlign: -2 }} />失败</>
+            )}
           </span>
         )}
       </div>
@@ -289,7 +295,8 @@ export default function VideoCard({ data }: Props) {
               cursor: 'pointer',
             }}
           >
-            🔄 重新生成
+            <IconRefresh size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+            重新生成
           </button>
         </div>
       )}

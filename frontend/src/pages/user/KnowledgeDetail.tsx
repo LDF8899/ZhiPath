@@ -41,6 +41,7 @@ import {
   IconTarget,
   IconRefresh,
   IconImage,
+  ProfessionalIcon,
 } from '../../components/icons';
 
 /* ──────────────────────────────────────────
@@ -645,7 +646,7 @@ export default function KnowledgeDetail() {
           const skillName = decodeURIComponent(skill!);
           const fresh = await getKnowledge(skillName);
           if (fresh.code === 200 && fresh.data) setData(fresh.data);
-          showToast('智能体任务完成，内容已更新 ✨');
+          showToast('智能体任务完成，内容已更新');
         } else if (task.taskStatus === 'failed') {
           clearInterval(timer);
           setPollingTaskId(null);
@@ -1081,7 +1082,8 @@ export default function KnowledgeDetail() {
                       </div>
                       {!c.setup && !codeEditors[i] && (
                         <div style={{ font: '12px/1.4 var(--hand)', color: 'var(--pencil)', marginBottom: 8 }}>
-                          💡 点击下方「查看参考答案」查看完整代码，然后自己动手写一写
+                          <IconLightbulb size={13} style={{ marginRight: 4, verticalAlign: -2 }} />
+                          点击下方「查看参考答案」查看完整代码，然后自己动手写一写
                         </div>
                       )}
                       <div className="hd-flex" style={{ marginBottom: 10 }}>
@@ -1204,13 +1206,14 @@ export default function KnowledgeDetail() {
                     onClick={handleGenerateCode}
                     disabled={generatingCode}
                   >
-                    {generatingCode ? '生成中...' : '⚡ 直接生成'}
+                    {generatingCode ? '生成中...' : <><ProfessionalIcon name="zap" size={14} style={{ marginRight: 4, verticalAlign: -2 }} />直接生成</>}
                   </button>
                   <button
                     className="hd-btn secondary"
                     onClick={() => handleDispatchToOffice('code', '代码案例')}
                   >
-                    🏢 派发到办公室
+                    <ProfessionalIcon name="building" size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                    派发到办公室
                   </button>
                 </div>
               </div>
@@ -1359,13 +1362,14 @@ export default function KnowledgeDetail() {
                     onClick={handleGenerateReading}
                     disabled={generatingReading}
                   >
-                    {generatingReading ? '生成中...' : '⚡ 直接生成'}
+                    {generatingReading ? '生成中...' : <><ProfessionalIcon name="zap" size={14} style={{ marginRight: 4, verticalAlign: -2 }} />直接生成</>}
                   </button>
                   <button
                     className="hd-btn secondary"
                     onClick={() => handleDispatchToOffice('reading', '拓展阅读')}
                   >
-                    🏢 派发到办公室
+                    <ProfessionalIcon name="building" size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                    派发到办公室
                   </button>
                 </div>
               </div>
@@ -1396,13 +1400,15 @@ export default function KnowledgeDetail() {
                 <p>点击按钮开始评估</p>
                 <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
                   <button className="hd-btn" onClick={handleLoadAssess}>
-                    ⚡ 直接评估
+                    <ProfessionalIcon name="zap" size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                    直接评估
                   </button>
                   <button
                     className="hd-btn secondary"
                     onClick={() => handleDispatchToOffice('assess', '学习评估')}
                   >
-                    🏢 派发到办公室
+                    <ProfessionalIcon name="building" size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                    派发到办公室
                   </button>
                 </div>
               </div>
@@ -1666,7 +1672,11 @@ function MmSection({
           <div style={{ fontFamily: 'var(--hand)', fontSize: 12, color: 'var(--pencil)' }}>{hint}</div>
         </div>
         <button className="hd-btn small" onClick={onGenerate} disabled={generating}>
-          {generating ? '生成中...' : has ? '↻ 重新生成' : '⚡ 生成'}
+          {generating ? '生成中...' : has ? (
+            <><IconRefresh size={14} style={{ marginRight: 4, verticalAlign: -2 }} />重新生成</>
+          ) : (
+            <><ProfessionalIcon name="zap" size={14} style={{ marginRight: 4, verticalAlign: -2 }} />生成</>
+          )}
         </button>
       </div>
       {has ? (
