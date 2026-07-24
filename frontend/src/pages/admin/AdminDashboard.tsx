@@ -62,7 +62,9 @@ export default function AdminDashboard() {
       label: '题目正确率',
       value: quality.questions.avgScore == null ? '待统计' : `${quality.questions.avgScore}%`,
       desc: `样本 ${quality.questions.scoredExamCount} · 通过率 ${quality.questions.examPassRate}% · 低置信 ${quality.questions.lowConfidence}`,
-      alert: quality.questions.complaintRate == null ? '投诉率待接入题目反馈' : `投诉率 ${quality.questions.complaintRate}%`,
+      alert: quality.questions.complaintSampleSize > 0
+        ? `投诉率 ${quality.questions.complaintRate}% · ${quality.questions.complaintCount}/${quality.questions.complaintSampleSize}`
+        : '等待题目反馈样本',
       link: '/admin/questions',
     },
     {

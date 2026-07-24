@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { startExam, submitExam } from '../../api/user';
+import { reportExamQuestionFeedback, startExam, submitExam } from '../../api/user';
 import '../../styles/hand-draw.css';
 import {
   IconArrowLeft,
@@ -37,6 +37,7 @@ export default function ExamTake() {
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [questionFeedback, setQuestionFeedback] = useState<Record<string, 'helpful' | 'complaint'>>({});
 
   // Timer
   const [seconds, setSeconds] = useState(0);
@@ -131,6 +132,25 @@ export default function ExamTake() {
     }
   };
 
+  const handleQuestionFeedback = async (examRecordId: number, questionId: string | number, type: 'helpful' | 'complaint') => {
+    const key = String(questionId);
+    setQuestionFeedback((prev) => ({ ...prev, [key]: type }));
+    try {
+      await reportExamQuestionFeedback(
+        examRecordId,
+        key,
+        type,
+        type === 'complaint' ? '用户认为题目或答案存在问题' : '用户认为解析有帮助',
+      );
+    } catch {
+      setQuestionFeedback((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
+  };
+
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60);
     const sec = s % 60;
@@ -213,6 +233,7 @@ export default function ExamTake() {
                   setCurrent(0);
                   setSubmitted(false);
                   setResult(null);
+                  setQuestionFeedback({});
                   setSeconds(0);
                 }}
               >
@@ -328,6 +349,8 @@ export default function ExamTake() {
                 const questionId = q.id || i.toString();
                 const userAnswer = answers[questionId];
                 const isCorrect = userAnswer === q.answer;
+                const feedback = questionFeedback[String(questionId)];
+                const examRecordId = Number(result.id || result.examRecordId || 0);
 
                 return (
                   <div key={i} className="hd-card" style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -348,6 +371,23 @@ export default function ExamTake() {
                       {q.explanation && (
                         <div style={{ fontFamily: 'var(--hand)', fontSize: 12, color: 'var(--rule)', marginTop: 4 }}>
                           {q.explanation}
+                        </div>
+                      )}
+                      {examRecordId > 0 && (
+                        <div className="question-feedback-actions">
+                          <span>题目反馈</span>
+                          <button
+                            className={feedback === 'helpful' ? 'active' : ''}
+                            onClick={() => handleQuestionFeedback(examRecordId, questionId, 'helpful')}
+                          >
+                            解析有用
+                          </button>
+                          <button
+                            className={feedback === 'complaint' ? 'active negative' : ''}
+                            onClick={() => handleQuestionFeedback(examRecordId, questionId, 'complaint')}
+                          >
+                            题目有问题
+                          </button>
                         </div>
                       )}
                     </div>

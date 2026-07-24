@@ -52,6 +52,24 @@ export class ExamsController {
     return success(result);
   }
 
+  /** POST /api/user/exams/:examId/questions/:questionId/feedback */
+  @Post('exams/:examId/questions/:questionId/feedback')
+  async feedbackQuestion(
+    @CurrentUser() user: any,
+    @Param('examId') examId: string,
+    @Param('questionId') questionId: string,
+    @Body() body: { type: 'helpful' | 'complaint'; reason?: string },
+  ) {
+    const result = await this.examsService.recordQuestionFeedback(
+      user.sub,
+      Number(examId),
+      questionId,
+      body.type,
+      body.reason,
+    );
+    return success(result);
+  }
+
   /** GET /api/user/exams/:examId/take — 开始考试：随机抽题+选项乱序（§24.1） */
   @Get('exams/:examId/take')
   async startExam(

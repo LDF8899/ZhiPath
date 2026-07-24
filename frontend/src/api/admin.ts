@@ -41,6 +41,7 @@ export const getAdminDashboard = () =>
         scoredExamCount: number;
         complaintRate: number | null;
         complaintSampleSize: number;
+        complaintCount: number;
       };
       resources: {
         total: number;

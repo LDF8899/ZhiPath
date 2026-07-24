@@ -71,6 +71,7 @@ export class QuickTestService {
     answers: Record<string, any>,
     questions: any[],
   ): Promise<{
+    examRecordId: number;
     score: number;
     passed: boolean;
     correctCount: number;
@@ -157,6 +158,7 @@ export class QuickTestService {
     });
 
     return {
+      examRecordId: examRecord.id,
       score,
       passed,
       correctCount,

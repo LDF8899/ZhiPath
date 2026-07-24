@@ -757,6 +757,49 @@ export class ExamsService {
     return record.id;
   }
 
+  async recordQuestionFeedback(
+    userId: number,
+    examId: number,
+    questionId: string,
+    type: 'helpful' | 'complaint',
+    reason?: string,
+  ) {
+    if (!['helpful', 'complaint'].includes(type)) throw new Error('反馈类型无效');
+    const record = await this.examRepo.findOne({ where: { id: examId, userId, status: 1 } });
+    if (!record) throw new Error('考试记录不存在');
+
+    const wrongAnalysis = record.wrongAnalysis || {};
+    const feedbackList = Array.isArray(wrongAnalysis.questionFeedback)
+      ? wrongAnalysis.questionFeedback
+      : [];
+    const normalizedQuestionId = String(questionId);
+    const nextFeedback = {
+      questionId: normalizedQuestionId,
+      type,
+      reason: reason || null,
+      isComplaint: type === 'complaint',
+      feedbackAt: Date.now(),
+    };
+    const nextList = [
+      ...feedbackList.filter((item: any) => String(item?.questionId) !== normalizedQuestionId),
+      nextFeedback,
+    ];
+
+    record.wrongAnalysis = {
+      ...wrongAnalysis,
+      questionFeedback: nextList,
+    };
+    record.updateTime = Date.now();
+    await this.examRepo.save(record);
+
+    return {
+      examId: record.id,
+      questionId: normalizedQuestionId,
+      type,
+      feedbackCount: nextList.length,
+    };
+  }
+
   // ══════════════════════════════════════════════════════════
   //  功能2：错题 → 自动补强学习任务
   // ══════════════════════════════════════════════════════════

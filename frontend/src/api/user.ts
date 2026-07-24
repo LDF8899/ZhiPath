@@ -254,6 +254,14 @@ export const submitExam = (data: {
 }) =>
   client.post('/user/exams/submit', data) as Promise<ApiResponse<any>>;
 
+export const reportExamQuestionFeedback = (
+  examId: number,
+  questionId: string | number,
+  type: 'helpful' | 'complaint',
+  reason?: string,
+) =>
+  client.post(`/user/exams/${examId}/questions/${encodeURIComponent(String(questionId))}/feedback`, { type, reason }) as Promise<ApiResponse<any>>;
+
 /** 获取错题本 */
 export const getWrongAnswers = (skillName?: string) =>
   client.get('/user/exams/wrong-answers', { params: skillName ? { skillName } : {} }) as Promise<ApiResponse<any>>;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getQuickTestQuestions, submitQuickTest } from '../../api/user';
+import { getQuickTestQuestions, reportExamQuestionFeedback, submitQuickTest } from '../../api/user';
 import '../../styles/hand-draw.css';
 
 /* ── SVG icons ─────────────────────────────────────────── */
@@ -61,6 +61,7 @@ export default function QuickTest() {
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [result, setResult] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [questionFeedback, setQuestionFeedback] = useState<Record<string, 'helpful' | 'complaint'>>({});
 
   const startTest = async () => {
     setLoading(true);
@@ -109,7 +110,27 @@ export default function QuickTest() {
     setAnswers({});
     setCurrent(0);
     setResult(null);
+    setQuestionFeedback({});
     setPhase('intro');
+  };
+
+  const handleQuestionFeedback = async (examRecordId: number, questionId: string | number, type: 'helpful' | 'complaint') => {
+    const key = String(questionId);
+    setQuestionFeedback(prev => ({ ...prev, [key]: type }));
+    try {
+      await reportExamQuestionFeedback(
+        examRecordId,
+        key,
+        type,
+        type === 'complaint' ? '用户认为速测题目或答案存在问题' : '用户认为速测解析有帮助',
+      );
+    } catch {
+      setQuestionFeedback(prev => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
   };
 
   /* ── Intro screen ─────────────────────────────────── */
@@ -408,28 +429,50 @@ export default function QuickTest() {
                 <h3>答题详情</h3>
               </div>
               <div className="hd-flex-col" style={{ gap: 10 }}>
-                {result.results.map((r: any, i: number) => (
-                  <div key={i} className="hd-card">
-                    <div className="hd-flex" style={{ gap: 10, alignItems: 'flex-start' }}>
-                      <span style={{ color: r.correct ? '#3a7d3a' : 'var(--accent)', flexShrink: 0, marginTop: 2 }}>
-                        {r.correct ? <IconCheck /> : <IconX />}
-                      </span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ marginBottom: 4 }}>
-                          {questions[i]?.title || `第 ${i + 1} 题`}
-                        </div>
-                        {r.explanation && (
-                          <div style={{ fontSize: 13, color: 'var(--pencil)' }}>
-                            {r.explanation}
+                {result.results.map((r: any, i: number) => {
+                  const questionId = r.questionId || questions[i]?.id || i;
+                  const feedback = questionFeedback[String(questionId)];
+                  const examRecordId = Number(result.examRecordId || result.id || 0);
+                  return (
+                    <div key={i} className="hd-card">
+                      <div className="hd-flex" style={{ gap: 10, alignItems: 'flex-start' }}>
+                        <span style={{ color: r.correct ? '#3a7d3a' : 'var(--accent)', flexShrink: 0, marginTop: 2 }}>
+                          {r.correct ? <IconCheck /> : <IconX />}
+                        </span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ marginBottom: 4 }}>
+                            {questions[i]?.title || `第 ${i + 1} 题`}
                           </div>
-                        )}
+                          {r.explanation && (
+                            <div style={{ fontSize: 13, color: 'var(--pencil)' }}>
+                              {r.explanation}
+                            </div>
+                          )}
+                          {examRecordId > 0 && (
+                            <div className="question-feedback-actions">
+                              <span>题目反馈</span>
+                              <button
+                                className={feedback === 'helpful' ? 'active' : ''}
+                                onClick={() => handleQuestionFeedback(examRecordId, questionId, 'helpful')}
+                              >
+                                解析有用
+                              </button>
+                              <button
+                                className={feedback === 'complaint' ? 'active negative' : ''}
+                                onClick={() => handleQuestionFeedback(examRecordId, questionId, 'complaint')}
+                              >
+                                题目有问题
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <span className={`hd-badge ${r.correct ? 'green' : 'red'}`}>
+                          {r.correct ? '正确' : '错误'}
+                        </span>
                       </div>
-                      <span className={`hd-badge ${r.correct ? 'green' : 'red'}`}>
-                        {r.correct ? '正确' : '错误'}
-                      </span>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

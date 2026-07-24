@@ -1063,6 +1063,34 @@
 .dash-task-check.active {
   border-color: var(--accent);
 }
+.question-feedback-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font: 11px/1 var(--mono);
+  color: var(--pencil);
+}
+.question-feedback-actions button {
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.58);
+  padding: 4px 8px;
+  font: 12px/1 var(--hand);
+  color: var(--pencil);
+  cursor: pointer;
+}
+.question-feedback-actions button.active {
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--paper);
+  font-weight: 700;
+}
+.question-feedback-actions button.negative {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 /* Quick action grid */
 .dash-quick-grid {

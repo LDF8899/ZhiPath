@@ -59,6 +59,7 @@ export class AdminService {
       lowConfidenceQuestions,
       questionAvgRaw,
       examQualityRaw,
+      examFeedbackRecords,
       resourceTotal,
       resourceSuccess,
       resourceFailed,
@@ -83,6 +84,11 @@ export class AdminService {
         .where('e.status = 1')
         .andWhere('e.score IS NOT NULL')
         .getRawOne<{ avgScore: string | null; passed: string | null; total: string | null }>(),
+      this.examRepo.createQueryBuilder('e')
+        .select(['e.id', 'e.wrongAnalysis'])
+        .where('e.status = 1')
+        .andWhere('e.wrong_analysis IS NOT NULL')
+        .getMany(),
       this.resourceRepo.count({ where: { status: 1 } }),
       this.resourceRepo.count({ where: { status: 1, resourceStatus: 'success' } }),
       this.resourceRepo.count({ where: { status: 1, resourceStatus: 'failed' } }),
@@ -102,6 +108,7 @@ export class AdminService {
     const scoredExamCount = Number(examQualityRaw?.total || 0);
     const passedExamCount = Number(examQualityRaw?.passed || 0);
     const reviewedApplications = approvedApplications + rejectedApplications;
+    const questionFeedback = this.countQuestionFeedback(examFeedbackRecords);
     return {
       jobSource: {
         platformJobCount,
@@ -134,8 +141,9 @@ export class AdminService {
         avgScore: examQualityRaw?.avgScore == null ? null : Math.round(Number(examQualityRaw.avgScore) * 10) / 10,
         examPassRate: percent(passedExamCount, scoredExamCount),
         scoredExamCount,
-        complaintRate: null,
-        complaintSampleSize: 0,
+        complaintRate: percent(questionFeedback.complaints, questionFeedback.total),
+        complaintSampleSize: questionFeedback.total,
+        complaintCount: questionFeedback.complaints,
       },
       resources: {
         total: resourceTotal,
@@ -154,10 +162,24 @@ export class AdminService {
         searchSampleSize: searchMetrics.totalSearches,
         resourceFeedbackSampleSize: feedbackTotal,
         note: feedbackTotal > 0
-          ? '搜索指标为当前服务进程运行期统计；资源有用率来自用户反馈；题目投诉率需接入题目反馈事件后计算。'
-          : '搜索指标为当前服务进程运行期统计；资源有用率等待用户反馈样本；题目投诉率需接入题目反馈事件后计算。',
+          ? '搜索指标为当前服务进程运行期统计；资源有用率和题目投诉率来自用户反馈。'
+          : '搜索指标为当前服务进程运行期统计；资源有用率等待用户反馈样本；题目投诉率来自考试结果页反馈。',
       },
     };
+  }
+
+  private countQuestionFeedback(records: ExamRecord[]) {
+    let total = 0;
+    let complaints = 0;
+    for (const record of records) {
+      const feedbackList = record.wrongAnalysis?.questionFeedback;
+      if (!Array.isArray(feedbackList)) continue;
+      for (const item of feedbackList) {
+        total++;
+        if (item?.isComplaint || item?.type === 'complaint') complaints++;
+      }
+    }
+    return { total, complaints };
   }
 
   // ── Users ──
