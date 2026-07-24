@@ -90,4 +90,27 @@ describe('ResumeAgentService HTML generation', () => {
     expect(html).toContain('后端');
     expect(html).toMatch(/^<!DOCTYPE html>/);
   });
+
+  it('builds target-job resume advice from matched and missing skills', () => {
+    const service = createService('{}');
+    const advice = (service as any).buildResumeAdvice(
+      {
+        title: 'Web 前端实习生',
+        company: '示例科技',
+        requiredSkills: [{ name: 'React' }, { name: 'TypeScript' }],
+        preferredSkills: [{ name: 'Vite' }],
+      },
+      [
+        { name: 'React', masteryPct: 72 },
+        { name: 'Vite', masteryPct: 60 },
+      ],
+      [],
+    );
+
+    expect(advice.matchedSkills).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'React', masteryPct: 72 }),
+    ]));
+    expect(advice.missingSkills).toContain('TypeScript');
+    expect(advice.actionItems.join('')).toContain('TypeScript');
+  });
 });

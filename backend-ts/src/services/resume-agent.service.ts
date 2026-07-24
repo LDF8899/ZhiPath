@@ -86,6 +86,7 @@ export class ResumeAgentService {
       workExperience: (student as any).workExperience || [],
       campusExperience: (student as any).campusExperience || [],
       awards: (student as any).awards || [],
+      resumeAdvice: this.buildResumeAdvice(targetJob, skills, (student as any).projects || []),
     };
 
     // 5. 构建模板数据 + 调用 LLM 优化文案 → 渲染 HTML
@@ -196,6 +197,7 @@ export class ResumeAgentService {
         masteryPct: s.masteryPct,
         source: s.source,
       })),
+      resumeAdvice: this.buildResumeAdvice(targetJob, skills, baseContent.projects || []),
     };
 
     const templateData = await this.buildTemplateData(resumeContent, targetJob);
@@ -412,6 +414,71 @@ export class ResumeAgentService {
       category,
       items: `熟练${names.join('、')}等技术，具备实际项目开发经验。`,
     }));
+  }
+
+  private buildResumeAdvice(targetJob: JobPosition | null, skills: any[], projects: any[]) {
+    if (!targetJob) {
+      return {
+        target: null,
+        matchedSkills: [],
+        missingSkills: [],
+        actionItems: [
+          '先选择一个目标岗位，再生成岗位版简历。',
+          '补充 1-2 个与目标方向相关的项目经历。',
+          '把技能掌握证据沉淀到测评、项目或代码记录中。',
+        ],
+      };
+    }
+
+    const skillMap = new Map(
+      (skills || []).map((skill) => [this.normSkill(skill.name), Number(skill.masteryPct ?? skill.mastery ?? skill.effectiveMastery ?? 0)]),
+    );
+    const required = this.skillNames(targetJob.requiredSkills || []);
+    const preferred = this.skillNames(targetJob.preferredSkills || []);
+    const matchedSkills = [...required, ...preferred]
+      .filter((name, index, arr) => name && arr.findIndex((item) => this.normSkill(item) === this.normSkill(name)) === index)
+      .filter((name) => (skillMap.get(this.normSkill(name)) || 0) > 0)
+      .slice(0, 8)
+      .map((name) => ({ name, masteryPct: Math.round(skillMap.get(this.normSkill(name)) || 0) }));
+    const missingSkills = required
+      .filter((name) => (skillMap.get(this.normSkill(name)) || 0) <= 0)
+      .slice(0, 6);
+    const projectCount = Array.isArray(projects) ? projects.length : 0;
+    const strongest = matchedSkills.slice(0, 3).map((item) => item.name).join('、');
+    const missing = missingSkills.slice(0, 3).join('、');
+
+    const actionItems = [
+      strongest
+        ? `把 ${strongest} 放到技能区和项目描述前半段，突出与「${targetJob.title}」的直接相关性。`
+        : `当前简历缺少与「${targetJob.title}」直接对应的技能证据，先补齐核心技能后再生成岗位版。`,
+      missing
+        ? `优先补齐 ${missing}，完成测评或项目后再更新简历。`
+        : '必须技能已基本覆盖，下一步强化项目成果和职责表述。',
+      projectCount > 0
+        ? '项目经历中补充技术选型、个人职责、结果指标，避免只写功能清单。'
+        : '至少补充 1 个与目标岗位相关的项目经历，否则岗位版简历说服力不足。',
+    ];
+
+    return {
+      target: {
+        title: targetJob.title,
+        company: targetJob.company || '',
+      },
+      matchedSkills,
+      missingSkills,
+      actionItems,
+    };
+  }
+
+  private skillNames(skills: Array<{ name?: string } | string>) {
+    return (skills || [])
+      .map((skill: any) => typeof skill === 'string' ? skill : skill?.name || '')
+      .map((name) => String(name).trim())
+      .filter(Boolean);
+  }
+
+  private normSkill(value: unknown) {
+    return String(value || '').trim().toLowerCase();
   }
 
   // ── HTML 模板渲染 ──────────────────────────────────

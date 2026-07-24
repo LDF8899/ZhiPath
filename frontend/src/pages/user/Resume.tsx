@@ -465,6 +465,7 @@ function ResumeCard({
   const isBase = resume.isBase === 1;
   const hasJob = !!resume.targetJobId;
   const skills: any[] = resume.content?.skills || [];
+  const advice = resume.content?.resumeAdvice || null;
   const storedHtml = resumeDetail?.htmlContent ?? resume.htmlContent;
   const recoveredPreview = !isUsableResumeHtml(storedHtml);
   const displayHtml = recoveredPreview
@@ -547,6 +548,37 @@ function ResumeCard({
       {resume.reviewComment && (
         <div className="hd-dashed" style={{ fontSize: 13, color: 'var(--accent)' }}>
           审核意见：{resume.reviewComment}
+        </div>
+      )}
+
+      {advice && (
+        <div className="hd-dashed" style={{ fontSize: 13, color: 'var(--ink)', background: 'var(--paper-tint)' }}>
+          <div style={{ font: '700 14px/1.3 var(--hand-bold)', marginBottom: 8, color: 'var(--accent)' }}>
+            简历建议{advice.target?.title ? ` · ${advice.target.title}` : ''}
+          </div>
+          {advice.matchedSkills?.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {advice.matchedSkills.slice(0, 5).map((skill: any) => (
+                <span key={skill.name} className="hd-badge green">
+                  命中 {skill.name}{skill.masteryPct ? ` ${skill.masteryPct}%` : ''}
+                </span>
+              ))}
+            </div>
+          )}
+          {advice.missingSkills?.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {advice.missingSkills.slice(0, 5).map((skill: string) => (
+                <span key={skill} className="hd-badge red">待补 {skill}</span>
+              ))}
+            </div>
+          )}
+          {advice.actionItems?.length > 0 && (
+            <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+              {advice.actionItems.slice(0, 3).map((item: string, index: number) => (
+                <li key={index}>{item}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
