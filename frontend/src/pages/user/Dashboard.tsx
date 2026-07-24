@@ -303,6 +303,7 @@ export default function Dashboard() {
         ? { label: '继续今日任务', path: '/user/learning', icon: IconBook }
         : { label: '做一次快速测试', path: '/user/quick-test', icon: IconGradCap };
   const NextActionIcon = nextAction.icon;
+  const goldenPath = data.golden_path;
 
   /* 星期标签 */
   const weekDays = ['一', '二', '三', '四', '五', '六', '日'];
@@ -457,6 +458,41 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {goldenPath && (
+        <section className="dash-golden-path" aria-label="MVP 黄金路径进度">
+          <div className="dash-golden-head">
+            <div>
+              <div className="dash-action-kicker">MVP 黄金路径</div>
+              <h3>从目标岗位到简历建议的可验收闭环</h3>
+            </div>
+            <div className="dash-golden-score">
+              <strong>{goldenPath.completedCount}/{goldenPath.totalCount}</strong>
+              <span>{goldenPath.completionRate}%</span>
+            </div>
+          </div>
+          <div className="dash-golden-rail">
+            {goldenPath.steps.map((step, index) => (
+              <button
+                key={step.key}
+                className={`dash-golden-step ${step.completed ? 'done' : ''} ${step.current ? 'current' : ''}`}
+                onClick={() => navigate(step.path)}
+                title={step.summary}
+              >
+                <span className="dash-golden-dot">{step.completed ? <IconCheck size={12} /> : index + 1}</span>
+                <span className="dash-golden-label">{step.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="dash-golden-next">
+            <span>当前卡点：{goldenPath.nextAction.label}</span>
+            <em>{goldenPath.nextAction.summary}</em>
+            <button className="hd-btn small secondary" onClick={() => navigate(goldenPath.nextAction.path)}>
+              继续推进
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* ═══════════════════════════════════════
           KPI — 有手绘感的数据卡

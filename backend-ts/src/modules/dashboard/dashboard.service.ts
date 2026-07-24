@@ -7,6 +7,8 @@ import { LearningTask } from '../../entities/learning-tasks.entity';
 import { JobPosition, JobApplication } from '../../entities/job.entity';
 import { News } from '../../entities/news.entity';
 import { ExamRecord } from '../../entities/exam.entity';
+import { GeneratedResource } from '../../entities/generated-resource.entity';
+import { Resume } from '../../entities/resume.entity';
 import { TaskSchedulerService } from '../../services/task-scheduler.service';
 import { MatchAgentService } from '../../services/match-agent.service';
 
@@ -26,6 +28,8 @@ export class DashboardService {
     @InjectRepository(News) private newsRepo: Repository<News>,
     @InjectRepository(ExamRecord) private examRepo: Repository<ExamRecord>,
     @InjectRepository(JobApplication) private jobAppRepo: Repository<JobApplication>,
+    @InjectRepository(GeneratedResource) private resourceRepo: Repository<GeneratedResource>,
+    @InjectRepository(Resume) private resumeRepo: Repository<Resume>,
     private taskScheduler: TaskSchedulerService,
     private matchAgent: MatchAgentService,
   ) {}
@@ -185,8 +189,12 @@ export class DashboardService {
     }));
 
     // 7. 统计
-    const examCount = await this.examRepo.count({ where: { userId, status: 1 } });
-    const jobCount = await this.jobAppRepo.count({ where: { userId, status: 1 } });
+    const [examCount, jobCount, resourceSuccessCount, resumeCount] = await Promise.all([
+      this.examRepo.count({ where: { userId, status: 1 } }),
+      this.jobAppRepo.count({ where: { userId, status: 1 } }),
+      this.resourceRepo.count({ where: { userId, status: 1, resourceStatus: 'success' } }),
+      this.resumeRepo.count({ where: { userId, status: 1 } }),
+    ]);
 
     // 从 pathData 统计总技能数和已完成数
     let totalSkills = 0;
@@ -220,6 +228,17 @@ export class DashboardService {
         .map((t) => t.planDate)
         .filter(Boolean),
     );
+    const goldenPath = this.buildGoldenPath({
+      student: studentData,
+      targetJob,
+      learningPath,
+      todayTasks,
+      totalSkills,
+      doneSkills,
+      examCount,
+      resourceSuccessCount,
+      resumeCount,
+    });
 
     return {
       student: studentData,
@@ -236,6 +255,105 @@ export class DashboardService {
       },
       today_tasks: todayTasks,
       recent_news: news,
+      golden_path: goldenPath,
     };
   }
+
+  private buildGoldenPath(input: {
+    student: any;
+    targetJob: any;
+    learningPath: any;
+    todayTasks: any[];
+    totalSkills: number;
+    doneSkills: number;
+    examCount: number;
+    resourceSuccessCount: number;
+    resumeCount: number;
+  }) {
+    const hasTargetJob = Boolean(input.targetJob);
+    const hasLearningPlan = Boolean(input.learningPath);
+    const hasSkillProgress = input.doneSkills > 0 || input.examCount > 0;
+    const steps = [
+      {
+        key: 'onboarding',
+        label: 'Onboarding',
+        path: '/onboarding',
+        completed: Boolean(input.student?.onboardingCompleted),
+        summary: input.student?.onboardingCompleted ? '基础画像已建立' : '先补齐专业、方向、技能和学习时间',
+      },
+      {
+        key: 'target_job',
+        label: '目标岗位',
+        path: '/user/jobs',
+        completed: hasTargetJob,
+        summary: hasTargetJob ? input.targetJob.title : '选择一个岗位作为学习主线',
+      },
+      {
+        key: 'gap_analysis',
+        label: '差距分析',
+        path: hasTargetJob ? `/user/jobs/${input.targetJob.id}` : '/user/jobs',
+        completed: hasTargetJob,
+        summary: hasTargetJob ? `当前匹配度 ${Math.round(Number(input.targetJob.matchScore || 0))}%` : '选定岗位后查看技能差距',
+      },
+      {
+        key: 'learning_plan',
+        label: '学习计划',
+        path: hasLearningPlan ? '/user/learning' : '/plan/create',
+        completed: hasLearningPlan,
+        summary: hasLearningPlan ? `${input.learningPath.planName} · ${input.totalSkills} 个能力点` : '围绕目标岗位生成主线计划',
+      },
+      {
+        key: 'generate_resource',
+        label: '生成资源',
+        path: '/user/agent-office',
+        completed: input.resourceSuccessCount > 0,
+        summary: input.resourceSuccessCount > 0 ? `已生成 ${input.resourceSuccessCount} 个资源` : '用智能体生成讲义、题目或代码案例',
+      },
+      {
+        key: 'assessment',
+        label: '测评',
+        path: '/user/quick-test',
+        completed: input.examCount > 0,
+        summary: input.examCount > 0 ? `已完成 ${input.examCount} 次测评` : '完成一次速测建立能力证据',
+      },
+      {
+        key: 'profile_change',
+        label: '画像变化',
+        path: '/user/progress',
+        completed: hasSkillProgress,
+        summary: hasSkillProgress ? `已掌握 ${input.doneSkills}/${input.totalSkills} 个能力点` : '测评或学习完成后沉淀画像变化',
+      },
+      {
+        key: 'match_change',
+        label: '岗位匹配变化',
+        path: hasTargetJob ? `/user/jobs/${input.targetJob.id}` : '/user/jobs',
+        completed: hasTargetJob && hasSkillProgress,
+        summary: hasTargetJob && hasSkillProgress ? '画像变化已进入岗位匹配计算' : '画像更新后复查岗位匹配度',
+      },
+      {
+        key: 'resume_advice',
+        label: '简历建议',
+        path: '/user/resume',
+        completed: input.resumeCount > 0,
+        summary: input.resumeCount > 0 ? `已有 ${input.resumeCount} 份简历版本` : '把目标岗位差距转成简历优化建议',
+      },
+    ];
+    const current = steps.find((step) => !step.completed) || null;
+    const completedCount = steps.filter((step) => step.completed).length;
+    return {
+      steps: steps.map((step) => ({ ...step, current: current?.key === step.key })),
+      completedCount,
+      totalCount: steps.length,
+      completionRate: percent(completedCount, steps.length),
+      currentKey: current?.key || null,
+      nextAction: current
+        ? { label: current.label, path: current.path, summary: current.summary }
+        : { label: '复盘并投递', path: '/user/jobs', summary: '黄金路径已完成，可以进入岗位投递和面试准备' },
+    };
+  }
+}
+
+function percent(value: number, total: number): number {
+  if (!total) return 0;
+  return Math.round((value / total) * 1000) / 10;
 }

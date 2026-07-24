@@ -797,6 +797,111 @@
   font: 13px/1.55 var(--hand);
   color: var(--pencil);
 }
+.dash-golden-path {
+  margin-top: 14px;
+  border: 2px solid var(--pencil);
+  border-radius: 10px;
+  background: var(--paper);
+  padding: 14px;
+  box-shadow: 3px 4px 0 -1px rgba(43,38,32,0.08);
+}
+.dash-golden-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.dash-golden-head h3 {
+  margin: 4px 0 0;
+  font: 800 18px/1.25 var(--serif);
+  color: var(--ink);
+}
+.dash-golden-score {
+  min-width: 72px;
+  text-align: right;
+  color: var(--ink);
+}
+.dash-golden-score strong {
+  display: block;
+  font: 800 24px/1 var(--serif);
+}
+.dash-golden-score span {
+  font: 11px/1 var(--mono);
+  color: var(--pencil);
+}
+.dash-golden-rail {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(84px, 1fr));
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.dash-golden-step {
+  border: 1.5px dashed var(--rule);
+  border-radius: 8px;
+  background: transparent;
+  min-height: 72px;
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--pencil);
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.dash-golden-step:hover {
+  background: var(--paper-tint);
+  border-color: var(--pencil);
+  transform: translateY(-1px);
+}
+.dash-golden-step.done {
+  border-style: solid;
+  border-color: var(--green);
+  color: var(--green);
+}
+.dash-golden-step.current {
+  border-style: solid;
+  border-color: var(--accent);
+  background: rgba(216,72,43,0.06);
+  color: var(--accent);
+}
+.dash-golden-dot {
+  width: 24px;
+  height: 24px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 11px/1 var(--mono);
+  flex-shrink: 0;
+}
+.dash-golden-label {
+  font: 12px/1.25 var(--hand-bold);
+  color: var(--ink);
+  text-align: center;
+}
+.dash-golden-next {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font: 13px/1.45 var(--hand);
+  color: var(--pencil);
+}
+.dash-golden-next span {
+  font-family: var(--hand-bold);
+  color: var(--ink);
+}
+.dash-golden-next em {
+  font-style: normal;
+  flex: 1;
+  min-width: 180px;
+}
 
 /* Enhanced KPI card */
 .dash-kpi {

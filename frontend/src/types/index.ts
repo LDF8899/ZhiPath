@@ -206,6 +206,27 @@ export interface DashboardData {
   };
   today_tasks: TodayTask[];
   recent_news: NewsItem[];
+  golden_path?: GoldenPathProgress;
+}
+
+export interface GoldenPathProgress {
+  steps: Array<{
+    key: string;
+    label: string;
+    path: string;
+    completed: boolean;
+    current: boolean;
+    summary: string;
+  }>;
+  completedCount: number;
+  totalCount: number;
+  completionRate: number;
+  currentKey: string | null;
+  nextAction: {
+    label: string;
+    path: string;
+    summary: string;
+  };
 }
 
 /** 今日任务 */

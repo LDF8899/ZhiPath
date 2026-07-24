@@ -8,11 +8,13 @@ import { LearningTask } from '../../entities/learning-tasks.entity';
 import { JobPosition, JobApplication } from '../../entities/job.entity';
 import { News } from '../../entities/news.entity';
 import { ExamRecord } from '../../entities/exam.entity';
+import { GeneratedResource } from '../../entities/generated-resource.entity';
+import { Resume } from '../../entities/resume.entity';
 import { TaskSchedulerModule } from '../task-scheduler/task-scheduler.module';
 import { MatchModule } from '../match/match.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Student, LearningPlan, LearningTask, JobPosition, News, ExamRecord, JobApplication]), TaskSchedulerModule, MatchModule],
+  imports: [TypeOrmModule.forFeature([Student, LearningPlan, LearningTask, JobPosition, News, ExamRecord, JobApplication, GeneratedResource, Resume]), TaskSchedulerModule, MatchModule],
   controllers: [DashboardController],
   providers: [DashboardService],
 })
