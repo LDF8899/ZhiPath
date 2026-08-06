@@ -766,6 +766,33 @@ CREATE TABLE `knowledge_base_v3`  (
 -- ----------------------------
 
 -- ----------------------------
+-- Table structure for evidence_chunks
+-- ----------------------------
+DROP TABLE IF EXISTS `evidence_chunks`;
+CREATE TABLE `evidence_chunks`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id` bigint NOT NULL COMMENT '关联用户',
+  `source_type` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '证据来源：project/file_qa/evaluation/learning_commit/agent_output/resume',
+  `source_id` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '来源唯一ID，如 project:45 / file_qa:1:1720000000',
+  `chunk_index` int NOT NULL DEFAULT 0 COMMENT '第几个分块',
+  `title` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '证据标题',
+  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '原文片段',
+  `content_hash` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '内容哈希，用于去重',
+  `skill_tags` json NULL COMMENT '技能标签',
+  `job_target_id` bigint NULL DEFAULT NULL COMMENT '关联目标岗位',
+  `confidence` decimal(4, 2) NOT NULL DEFAULT 0.70 COMMENT '证据可信度',
+  `visibility` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'private' COMMENT 'private=仅本人 school_aggregate=可聚合',
+  `vector_status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending' COMMENT 'pending/indexed/failed',
+  `status` tinyint NOT NULL DEFAULT 1 COMMENT '1=正常 0=删除',
+  `create_time` bigint NULL DEFAULT NULL COMMENT '创建时间戳ms',
+  `update_time` bigint NULL DEFAULT NULL COMMENT '更新时间戳ms',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_user_source`(`user_id`, `source_type`, `source_id`) USING BTREE,
+  INDEX `idx_user_skill`(`user_id`, `skill_tags`) USING BTREE,
+  INDEX `idx_status`(`status`) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '个人证据索引（Evidence RAG）' ROW_FORMAT = Dynamic;
+
+-- ----------------------------
 -- Table structure for learning_branches_v3
 -- ----------------------------
 DROP TABLE IF EXISTS `learning_branches_v3`;

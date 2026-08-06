@@ -354,6 +354,7 @@ export default function Chat() {
           agent: res.data.agent,
           timestamp: Date.now(),
           actions: res.data.actions,
+          evidence: res.data.evidence,
         };
         const newSessionId = res.data.sessionId;
 
@@ -721,6 +722,37 @@ export default function Chat() {
                         <ActionRenderer action={action} />
                       </div>
                     ))}
+
+                    {/* Evidence RAG（P0）：引用证据区域 */}
+                    {msg.evidence && msg.evidence.length > 0 && (
+                      <div
+                        className="chat-evidence"
+                        style={{
+                          marginTop: 8,
+                          padding: '8px 10px',
+                          background: 'var(--bg-secondary, #faf8f4)',
+                          border: '1px dashed var(--rule)',
+                          borderRadius: 8,
+                        }}
+                      >
+                        <div style={{ font: '11px/1 var(--mono)', color: 'var(--pencil)', letterSpacing: '0.08em', marginBottom: 6 }}>
+                          引用证据（{msg.evidence.length}）
+                        </div>
+                        <div className="hd-flex-col" style={{ gap: 5 }}>
+                          {msg.evidence.map((ev) => (
+                            <div key={ev.chunkId} style={{ fontSize: 12, lineHeight: 1.5 }}>
+                              <span className="hd-pill" style={{ fontSize: 10, marginRight: 6, color: '#3a7d3a' }}>
+                                {ev.sourceType === 'project' ? '项目' : ev.sourceType === 'file_qa' ? '文件' : ev.sourceType}
+                              </span>
+                              <b style={{ font: '12px/1 var(--hand)' }}>{ev.title}</b>
+                              <div style={{ font: '11px/1.5 var(--hand)', color: 'var(--pencil)', marginTop: 2 }}>
+                                {ev.snippet}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

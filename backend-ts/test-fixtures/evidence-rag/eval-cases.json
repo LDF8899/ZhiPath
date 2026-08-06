@@ -1,0 +1,83 @@
+[
+  {
+    "caseId": "react_project_001",
+    "userId": 9001,
+    "seedEvidence": [
+      {
+        "sourceType": "project",
+        "sourceId": "project:就业数据分析看板",
+        "title": "项目证据：校园就业数据分析看板",
+        "content": "我使用 React、TypeScript、ECharts 完成校园就业数据分析看板，负责筛选器、图表联动和 CSV 导出，支持按专业和年级查看就业去向。",
+        "skillTags": ["React", "TypeScript", "ECharts"]
+      },
+      {
+        "sourceType": "file_qa",
+        "sourceId": "file_qa:React 学习笔记",
+        "title": "文件证据：React 学习笔记",
+        "content": "React Hooks 核心：useState 管理组件状态，useEffect 处理副作用，自定义 Hook 复用逻辑。问题：如何在项目中使用 Hooks 管理状态？回答：把状态提升到组件顶层，用 useEffect 监听依赖变化。",
+        "skillTags": ["React", "Hooks"]
+      }
+    ],
+    "queries": [
+      {
+        "query": "我有什么 React 项目证据？",
+        "expectedSourceTypes": ["project"],
+        "expectedKeywords": ["就业数据分析看板", "React", "ECharts"],
+        "mustNotContain": ["Python 爬虫"]
+      },
+      {
+        "query": "React Hooks 笔记里怎么管理状态",
+        "expectedSourceTypes": ["file_qa"],
+        "expectedKeywords": ["useState", "Hooks"],
+        "mustNotContain": ["Node.js"]
+      }
+    ]
+  },
+  {
+    "caseId": "python_backend_002",
+    "userId": 9002,
+    "seedEvidence": [
+      {
+        "sourceType": "project",
+        "sourceId": "project:招聘数据爬虫",
+        "title": "项目证据：招聘数据爬虫",
+        "content": "使用 Python 和 Scrapy 爬取招聘网站数据，清洗后存入 MySQL，编写 API 供前端查询，支持关键词过滤和分页。",
+        "skillTags": ["Python", "Scrapy", "MySQL"]
+      },
+      {
+        "sourceType": "evaluation",
+        "sourceId": "evaluation:接口联调",
+        "title": "测评证据：接口联调",
+        "content": "接口联调测评：RESTful API 设计 8/10，错误处理 7/10，整体通过。",
+        "skillTags": ["接口联调", "API"]
+      }
+    ],
+    "queries": [
+      {
+        "query": "我的 Python 爬虫项目技术栈",
+        "expectedSourceTypes": ["project"],
+        "expectedKeywords": ["Scrapy", "MySQL"],
+        "mustNotContain": ["React"]
+      },
+      {
+        "query": "接口联调测评成绩",
+        "expectedSourceTypes": ["evaluation"],
+        "expectedKeywords": ["接口联调", "8/10"],
+        "mustNotContain": ["爬虫"]
+      }
+    ]
+  },
+  {
+    "caseId": "no_evidence_003",
+    "userId": 9003,
+    "seedEvidence": [],
+    "queries": [
+      {
+        "query": "我有哪些机器学习项目？",
+        "expectedSourceTypes": [],
+        "expectedKeywords": [],
+        "mustNotContain": []
+      }
+    ]
+  }
+]

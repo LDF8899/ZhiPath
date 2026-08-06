@@ -151,6 +151,14 @@ export const getTodayActions = () =>
 export const getSkillEvidence = (skillName: string) =>
   client.get(`/user/skills/${encodeURIComponent(skillName)}/evidence`) as Promise<ApiResponse<SkillEvidence>>;
 
+/** 证据检索（Evidence RAG P0）— 个人证据语义/关键词召回 */
+export const searchEvidence = (params: { query?: string; skill?: string; sourceType?: string; limit?: number } = {}) =>
+  client.get('/user/evidence/search', { params }) as Promise<ApiResponse<any>>;
+
+/** 证据索引状态汇总（Evidence RAG P0）— Projects 页展示索引状态 */
+export const getEvidenceSummary = () =>
+  client.get('/user/evidence/summary') as Promise<ApiResponse<any>>;
+
 /** 阶段成长报告（P2-2）— 7/30 天学习、技能、测评、匹配变化 */
 export const getGrowthReport = (days: number = 30) =>
   client.get('/user/growth-report', { params: { days } }) as Promise<ApiResponse<any>>;

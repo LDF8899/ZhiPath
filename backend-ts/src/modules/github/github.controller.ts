@@ -6,12 +6,13 @@ import { CurrentUser } from '../../common/current-user.decorator';
 import { success } from '../../common/api-response';
 import { Student } from '../../entities/student.entity';
 import { ProfileService } from '../../services/profile.service';
+import { EvidenceRagService } from '../../services/evidence-rag.service';
 
 /**
  * GitHub / 项目经历控制器 — 对齐 Python api/user/github.py
  *
  * POST /api/user/github/analyze — 分析 GitHub 仓库
- * POST /api/user/projects/save  — 保存项目经历
+ * POST /api/user/projects/save  — 保存项目经历（project / file_qa 证据统一入口）
  */
 @Controller('user')
 @UseGuards(AuthGuard)
@@ -19,6 +20,7 @@ export class GitHubController {
   constructor(
     @InjectRepository(Student) private studentRepo: Repository<Student>,
     private profileService: ProfileService,
+    private evidenceRag: EvidenceRagService,
   ) {}
 
   /** POST /api/user/github/analyze — 分析 GitHub 仓库 */
@@ -87,6 +89,27 @@ export class GitHubController {
     await this.profileService.addProjectEvidence(userId, project).catch((e) => {
       console.warn('[GitHub] Sync project evidence to Mongo failed:', e.message);
     });
+
+    // Evidence RAG 索引（P0）：project / file_qa 证据入库，失败不阻塞保存
+    // sourceId 按类型+名称生成，重复保存同内容时由 contentHash 去重（方案 §5.4）
+    const sourceType = (project.evidenceType === 'file_qa' ? 'file_qa' : 'project') as 'project' | 'file_qa';
+    const sourceId = `${sourceType}:${project.name}`;
+    const contentParts = [
+      project.name,
+      project.description,
+      project.question ? `问题：${project.question}` : '',
+      project.contentPreview,
+      ...(project.highlights || []),
+    ];
+    this.evidenceRag
+      .ingest(userId, {
+        sourceType,
+        sourceId,
+        title: `${sourceType === 'file_qa' ? '文件证据' : '项目证据'}：${project.name}`,
+        content: contentParts.filter(Boolean).join('\n'),
+        skillTags: tech,
+      })
+      .catch((e) => console.warn('[EvidenceRag] ingest failed:', e.message));
 
     // 自动将 tech 中的新技能加入 skills
     if (tech.length) {

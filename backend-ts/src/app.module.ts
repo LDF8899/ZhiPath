@@ -17,6 +17,7 @@ import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 import { ProgressModule } from './modules/progress/progress.module';
 import { GitHubModule } from './modules/github/github.module';
+import { EvidenceModule } from './modules/evidence/evidence.module';
 import { SkillModule } from './modules/skill/skill.module';
 import { PlannerModule } from './modules/planner/planner.module';
 import { MatchModule } from './modules/match/match.module';
@@ -56,6 +57,7 @@ import { EvaluationModule } from './modules/evaluation/evaluation.module';
     KnowledgeModule,
     ProgressModule,
     GitHubModule,
+    EvidenceModule,
     SkillModule,
     PlannerModule,
     MatchModule,

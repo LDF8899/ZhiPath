@@ -51,12 +51,22 @@ export default function Projects() {
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  // Evidence RAG（P0）：证据索引状态（sourceId → vectorStatus）
+  const [evidenceBySource, setEvidenceBySource] = useState<Record<string, string>>({});
 
   const loadProjects = async () => {
     setLoading(true);
     try {
-      const res = await getProfile();
-      setProjects(Array.isArray(res.data?.projects) ? res.data.projects : []);
+      const [profileRes, summaryRes] = await Promise.all([
+        getProfile(),
+        getEvidenceSummary().catch(() => null),
+      ]);
+      setProjects(Array.isArray(profileRes.data?.projects) ? profileRes.data.projects : []);
+      const map: Record<string, string> = {};
+      for (const item of summaryRes?.data?.bySource || []) {
+        map[item.sourceId] = item.vectorStatus;
+      }
+      setEvidenceBySource(map);
     } catch (err: any) {
       showToast(err?.message || '项目经历加载失败', 'error');
     } finally {
@@ -161,7 +171,11 @@ export default function Projects() {
         ) : projects.length > 0 ? (
           <div className="hd-flex-col" style={{ gap: 14 }}>
             {projects.map((project, index) => (
-              <ProjectCard key={`${project.name}-${index}`} project={project} />
+              <ProjectCard
+                key={`${project.name}-${index}`}
+                project={project}
+                vectorStatus={evidenceBySource[`${project.evidenceType === 'file_qa' ? 'file_qa' : 'project'}:${project.name}`] || ''}
+              />
             ))}
           </div>
         ) : (
@@ -191,10 +205,18 @@ function Field({ label, full, children }: { label: string; full?: boolean; child
   );
 }
 
-function ProjectCard({ project }: { project: ProjectEvidence }) {
+function ProjectCard({ project, vectorStatus }: { project: ProjectEvidence; vectorStatus?: string }) {
   const tech = Array.isArray(project.tech) && project.tech.length ? project.tech : project.techStack || [];
   const githubUrl = project.githubUrl || project.github_url;
   const isFileEvidence = project.source === 'uploaded_file' || project.evidenceType === 'file_qa';
+
+  // Evidence RAG（P0）：索引状态 badge
+  const statusBadge = (() => {
+    if (vectorStatus === 'indexed') return <span className="hd-badge green"><IconCheck size={12} /> 已索引</span>;
+    if (vectorStatus === 'pending') return <span className="hd-badge" style={{ color: '#e65100' }}>待索引</span>;
+    if (vectorStatus === 'failed') return <span className="hd-badge red">索引失败</span>;
+    return null;
+  })();
 
   return (
     <article className="hd-card">
@@ -209,6 +231,7 @@ function ProjectCard({ project }: { project: ProjectEvidence }) {
         </div>
         <div className="hd-flex" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {isFileEvidence && <span className="hd-badge green"><IconDocument size={12} /> 文件证据</span>}
+          {statusBadge}
           {githubUrl && (
             <a href={githubUrl} target="_blank" rel="noopener noreferrer" className="hd-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, font: '14px/1 var(--hand)' }}>
               <IconExternalLink size={16} /> GitHub

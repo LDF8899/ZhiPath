@@ -29,6 +29,7 @@ import { PlannerModule } from '../planner/planner.module';
 import { MultimodalModule } from '../multimodal/multimodal.module';
 import { AgentsModule } from '../agents/agents.module';
 import { EventsModule } from '../events/events.module';
+import { EvidenceModule } from '../evidence/evidence.module';
 
 /**
  * Chat 模块 — Phase 6 核心模块
@@ -47,6 +48,7 @@ import { EventsModule } from '../events/events.module';
     MultimodalModule,
     AgentsModule,
     EventsModule,
+    EvidenceModule,
   ],
   controllers: [ChatController],
   providers: [

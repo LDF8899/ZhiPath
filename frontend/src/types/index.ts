@@ -550,6 +550,14 @@ export interface ChatMessage {
   agent?: string;
   timestamp: number;
   actions?: ChatAction[];
+  /** Evidence RAG（P0）：回答引用的个人证据 */
+  evidence?: Array<{
+    chunkId: number;
+    sourceType: string;
+    title: string;
+    snippet: string;
+    score: number;
+  }>;
 }
 
 /** 对话会话 */

@@ -6,6 +6,7 @@ import { LlmService } from '../../services/llm.service';
 import { ProfileService } from '../../services/profile.service';
 import { TutorPromptService } from './tutor-prompt.service';
 import { ActionExecutorService } from './action-executor.service';
+import { EvidenceRagService } from '../../services/evidence-rag.service';
 
 /**
  * Agent 引擎 — 对齐 Python graph/compiler.py chat_node
@@ -22,6 +23,7 @@ export class AgentEngineService {
     private profileService: ProfileService,
     private tutorPromptService: TutorPromptService,
     private actionExecutor: ActionExecutorService,
+    private evidenceRag: EvidenceRagService,
   ) {}
 
   /** 智能聊天节点 — 对齐 Python chat_node()
@@ -36,7 +38,7 @@ export class AgentEngineService {
     messages: Array<{ role: string; content: string }>,
     pageContext?: string,
     chatSessionId?: string,
-  ): Promise<{ reply: string; actions: any[]; agent: string }> {
+  ): Promise<{ reply: string; actions: any[]; agent: string; evidence?: any[] }> {
     // 1. 读取用户画像
     let profile: any = null;
     let student: any = null;
@@ -56,9 +58,26 @@ export class AgentEngineService {
     // 2. 构建 system prompt
     const systemPrompt = this.tutorPromptService.buildTutorPrompt(profile, student, pageContext);
 
-    // 3. 构建消息列表
+    // 2.5 Evidence RAG（P0）：检索个人证据注入上下文，供回答引用
+    const latestUserMessage = [...messages].reverse().find((message) => message.role === 'user')?.content || '';
+    let evidenceItems: any[] = [];
+    let evidenceContext = '';
+    try {
+      evidenceItems = await this.evidenceRag.search(userId, latestUserMessage, { limit: 5 });
+      evidenceContext = this.evidenceRag.buildContext(evidenceItems);
+    } catch (e) {
+      console.warn('[AgentEngine] evidence search failed:', e.message);
+    }
+
+    // 3. 构建消息列表（证据上下文放在 system 之后）
     const chatMessages = [
       { role: 'system', content: systemPrompt },
+      ...(evidenceContext
+        ? [{
+            role: 'system' as const,
+            content: `以下是该用户保存过的个人证据（可能相关，也可能不相关）：\n${evidenceContext}\n回答用户问题时，如涉及个人经历/项目/文件内容，必须只引用上述证据，并在相关句子末尾用 [证据#ID] 标注来源；证据不足以回答时明确说明“暂无相关证据”，不得编造。`,
+          }]
+        : []),
       ...messages,
     ];
 
@@ -77,7 +96,6 @@ export class AgentEngineService {
     try {
       const actions = this.actionExecutor.extractActions(reply);
       if (actions.length > 0) {
-        const latestUserMessage = [...messages].reverse().find((message) => message.role === 'user')?.content || '';
         const results = await this.actionExecutor.executeActions(actions, userId, {
           source: 'chat',
           chatSessionId,
@@ -98,6 +116,14 @@ export class AgentEngineService {
       reply: clean,
       actions: actionResults,
       agent: 'chat',
+      // 引用证据（P0）：供前端展示“引用证据”区域
+      evidence: evidenceItems.map((item) => ({
+        chunkId: item.chunkId,
+        sourceType: item.sourceType,
+        title: item.title,
+        snippet: item.snippet,
+        score: item.score,
+      })),
     };
   }
 }
