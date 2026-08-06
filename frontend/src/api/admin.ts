@@ -193,3 +193,13 @@ export const reviewAdminQuestion = (id: number, status: number) =>
 /** 题目统计 */
 export const getAdminQuestionStats = (skillName?: string) =>
   client.get('/admin/questions/stats', { params: { skillName } }) as Promise<ApiResponse<any>>;
+
+// ── 就业准备度看板（P2-1）────────────────────────
+
+/** 就业准备度看板 — 目标岗位分布 / 技能缺口 / 任务完成率 / 测评达标率 / 准备度分层 */
+export const getEmploymentDashboard = (params?: { major?: string; grade?: string; school?: string; class?: string }) =>
+  client.get('/admin/employment-dashboard', { params }) as Promise<ApiResponse<any>>;
+
+/** 就业准备度学生明细 CSV 导出 */
+export const exportEmploymentCsv = (params?: { major?: string; grade?: string; school?: string; class?: string }) =>
+  client.get('/admin/employment-dashboard/export', { params, responseType: 'blob' }) as Promise<any>;

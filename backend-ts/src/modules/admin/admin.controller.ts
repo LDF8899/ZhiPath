@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { AdminService } from './admin.service';
 import { AuthGuard } from '../../common/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -150,6 +151,34 @@ export class AdminController {
   }
 
   // ── Settings ──
+  /** 就业准备度看板（P2-1）— 目标岗位分布 / 技能缺口 / 任务完成率 / 测评达标率 / 准备度分层 */
+  @Get('employment-dashboard')
+  async getEmploymentDashboard(
+    @Query('major') major?: string,
+    @Query('grade') grade?: string,
+    @Query('school') school?: string,
+    @Query('class') className?: string,
+  ) {
+    const result = await this.adminService.getEmploymentDashboard({ major, grade, school, class: className });
+    return success(result);
+  }
+
+  /** 就业准备度学生明细 CSV 导出（P2-1） */
+  @Get('employment-dashboard/export')
+  async exportEmploymentCsv(
+    @Res() res: Response,
+    @Query('major') major?: string,
+    @Query('grade') grade?: string,
+    @Query('school') school?: string,
+    @Query('class') className?: string,
+  ) {
+    const csv = await this.adminService.exportEmploymentCsv({ major, grade, school, class: className });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="employment-readiness-${Date.now()}.csv"`);
+    res.send('\uFEFF' + csv); // BOM 便于 Excel 识别 UTF-8
+  }
+
+  /** 获取用户所有简历 */
   @Get('settings')
   async getSettings() {
     return success(await this.adminService.getSettings());

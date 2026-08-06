@@ -10,6 +10,7 @@ import {
   IconNewspaper,
   IconGradCap,
   IconSettings,
+  IconTarget,
 } from '../components/icons';
 import { useAuthStore } from '../stores/auth';
 
@@ -19,6 +20,7 @@ import { useAuthStore } from '../stores/auth';
 
 const navItems = [
   { key: '/admin/dashboard', icon: IconChart, label: '看板' },
+  { key: '/admin/employment', icon: IconTarget, label: '就业准备度' },
   { key: '/admin/users', icon: IconUser, label: '用户管理' },
   { key: '/admin/jobs', icon: IconBriefcase, label: '岗位管理' },
   { key: '/admin/applications', icon: IconDocument, label: '申请审核' },

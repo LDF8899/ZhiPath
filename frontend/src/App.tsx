@@ -39,6 +39,7 @@ import AdminExams from './pages/admin/AdminExams'
 import AdminQuestions from './pages/admin/AdminQuestions'
 import AdminResumes from './pages/admin/AdminResumes'
 import AdminSettings from './pages/admin/AdminSettings'
+import AdminEmployment from './pages/admin/AdminEmployment'
 
 // Global components
 import AIFloatingChat from './components/AIFloatingChat'
@@ -110,6 +111,7 @@ export default function App() {
           <Route path="exams" element={<AdminExams />} />
           <Route path="questions" element={<AdminQuestions />} />
           <Route path="resumes" element={<AdminResumes />} />
+          <Route path="employment" element={<AdminEmployment />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
 

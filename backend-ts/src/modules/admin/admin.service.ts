@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { User } from '../../entities/user.entity';
 import { Student } from '../../entities/student.entity';
 import { JobPosition, JobApplication } from '../../entities/job.entity';
@@ -10,6 +10,10 @@ import { ExamRecord, ExamQuestion } from '../../entities/exam.entity';
 import { Resume } from '../../entities/resume.entity';
 import { SystemConfig } from '../../entities/system.entity';
 import { GeneratedResource } from '../../entities/generated-resource.entity';
+import { UserSkill } from '../../entities/user-skills.entity';
+import { LearningTask } from '../../entities/learning-tasks.entity';
+import { EvaluationResult } from '../../entities/evaluation-result.entity';
+import { LearningPlan } from '../../entities/learning.entity';
 import { JobSearchService } from '../../services/job-search.service';
 
 /**
@@ -29,6 +33,10 @@ export class AdminService {
     @InjectRepository(SystemConfig) private configRepo: Repository<SystemConfig>,
     @InjectRepository(ExamQuestion) private questionRepo: Repository<ExamQuestion>,
     @InjectRepository(GeneratedResource) private resourceRepo: Repository<GeneratedResource>,
+    @InjectRepository(UserSkill) private userSkillRepo: Repository<UserSkill>,
+    @InjectRepository(LearningTask) private taskRepo: Repository<LearningTask>,
+    @InjectRepository(EvaluationResult) private evalResultRepo: Repository<EvaluationResult>,
+    @InjectRepository(LearningPlan) private planRepo: Repository<LearningPlan>,
   ) {}
 
   // ── Dashboard ──
@@ -394,6 +402,223 @@ export class AdminService {
       byDifficulty[String(q.difficulty)] = (byDifficulty[String(q.difficulty)] || 0) + 1;
     }
     return { total: questions.length, byType, byDifficulty };
+  }
+
+  // ── 就业准备度看板（P2-1）────────────────────────
+
+  /**
+   * 就业准备度看板 — GET /api/admin/employment-dashboard
+   *
+   * 对齐《ZhiPath_产品业务升级方案》P2-1：
+   *   - 学生目标岗位分布
+   *   - 技能缺口 Top 10
+   *   - 学习任务完成率
+   *   - 测评达标率
+   *   - 求职准备度分层（>=80 高 / 60-79 中 / <60 低，依据主线计划匹配度）
+   *
+   * 支持按专业/年级/学校/班级过滤（班级按学号前 4 位聚类）。
+   * 聚合接口，不引入 BI 系统。
+   */
+  async getEmploymentDashboard(filters: { major?: string; grade?: string; school?: string; class?: string } = {}) {
+    // 1. 筛选学生
+    const students = await this.loadFilteredStudents(filters);
+    const userIds = students.map((s) => Number(s.userId)).filter((id) => id > 0);
+
+    // 2. 可选筛选项（全部学生聚合，用于渲染下拉）
+    const allStudents = await this.studentRepo.find({ where: { status: 1 } });
+    const majors = [...new Set(allStudents.map((s) => s.major || '').filter(Boolean))].sort();
+    const grades = [...new Set(allStudents.map((s) => s.grade || '').filter(Boolean))].sort();
+    const schools = [...new Set(allStudents.map((s) => s.school || '').filter(Boolean))].sort();
+    const classes = [...new Set(allStudents.map((s) => this.classOf(s.studentNo)).filter(Boolean))].sort();
+
+    // 3. 并行聚合
+    const [skills, tasks, evalResults, plans, jobs] = await Promise.all([
+      userIds.length > 0 ? this.userSkillRepo.find({ where: { userId: In(userIds), status: 1 } }) : [],
+      userIds.length > 0 ? this.taskRepo.find({ where: { userId: In(userIds), isActive: 1 } }) : [],
+      userIds.length > 0 ? this.evalResultRepo.find({ where: { userId: In(userIds), status: 1 } }) : [],
+      userIds.length > 0 ? this.planRepo.find({ where: { userId: In(userIds), status: 1 } }) : [],
+      (() => {
+        const ids = [...new Set(students.map((s) => Number(s.targetJobId)).filter(Boolean))];
+        return ids.length > 0 ? this.jobRepo.find({ where: { id: In(ids), status: 1 } }) : Promise.resolve([]);
+      })(),
+    ]);
+    const jobTitleMap = new Map<number, string>(jobs.map((j) => [Number(j.id), j.title || '']));
+
+    // 4. 目标岗位分布
+    const jobCountMap = new Map<number, number>();
+    for (const s of students) {
+      const jobId = Number(s.targetJobId);
+      if (jobId > 0) jobCountMap.set(jobId, (jobCountMap.get(jobId) || 0) + 1);
+    }
+    const withTargetJob = students.filter((s) => Number(s.targetJobId) > 0).length;
+    const targetJobDistribution = [...jobCountMap.entries()]
+      .map(([jobId, count]) => ({
+        jobId,
+        jobTitle: jobTitleMap.get(jobId) || '岗位已下架',
+        count,
+        pct: percent(count, students.length),
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // 5. 技能缺口 Top 10（掌握度 < 60 的技能；每生每技能取最高掌握度）
+    const bestMastery = new Map<string, Map<number, number>>();
+    for (const sk of skills) {
+      const name = (sk.skillName || '').trim();
+      if (!name) continue;
+      const uid = Number(sk.userId);
+      if (!bestMastery.has(name)) bestMastery.set(name, new Map());
+      const prev = bestMastery.get(name)!.get(uid) || 0;
+      bestMastery.get(name)!.set(uid, Math.max(prev, Number(sk.masteryPct) || 0));
+    }
+    const skillGaps = [...bestMastery.entries()]
+      .map(([skill, userMap]) => {
+        const gapUsers = [...userMap.entries()].filter(([, mastery]) => mastery < 60);
+        const avgMastery = gapUsers.length > 0
+          ? Math.round(gapUsers.reduce((sum, [, m]) => sum + m, 0) / gapUsers.length * 10) / 10
+          : 0;
+        return { skill, studentCount: gapUsers.length, avgMastery };
+      })
+      .filter((g) => g.studentCount > 0)
+      .sort((a, b) => b.studentCount - a.studentCount)
+      .slice(0, 10);
+
+    // 6. 学习任务完成率
+    const DONE_STATUSES = ['done', 'exam_done', 'lecture_done', 'practice_done', 'code_done'];
+    const taskDone = tasks.filter((t) => DONE_STATUSES.includes(t.taskStatus)).length;
+    const taskTotal = tasks.length;
+
+    // 7. 测评达标率
+    const evalPassed = evalResults.filter(
+      (r) => r.passed === 1 || Number(r.normalizedScore ?? r.score ?? 0) >= 60,
+    ).length;
+    const evalTotal = evalResults.length;
+
+    // 8. 求职准备度分层（取每生最新主线计划匹配度，无计划按 0）
+    const matchByUser = new Map<number, number>();
+    for (const p of plans) {
+      const uid = Number(p.userId);
+      const score = Number(p.matchScore || 0);
+      const prev = matchByUser.get(uid) ?? -1;
+      if (score >= prev) matchByUser.set(uid, score);
+    }
+    const readiness = { high: 0, medium: 0, low: 0 };
+    for (const s of students) {
+      const score = matchByUser.get(Number(s.userId)) || 0;
+      if (score >= 80) readiness.high++;
+      else if (score >= 60) readiness.medium++;
+      else readiness.low++;
+    }
+
+    return {
+      filters: { majors, grades, schools, classes },
+      overview: {
+        studentCount: students.length,
+        withTargetJob,
+        targetJobRate: percent(withTargetJob, students.length),
+        avgTaskCompletion: percent(taskDone, taskTotal),
+        examPassRate: percent(evalPassed, evalTotal),
+        readiness,
+        readinessTotal: students.length,
+      },
+      targetJobDistribution,
+      skillGaps,
+      taskCompletion: { done: taskDone, total: taskTotal, rate: percent(taskDone, taskTotal) },
+      examPass: { passed: evalPassed, total: evalTotal, rate: percent(evalPassed, evalTotal) },
+    };
+  }
+
+  /**
+   * 就业准备度学生明细 CSV — GET /api/admin/employment-dashboard/export
+   */
+  async exportEmploymentCsv(filters: { major?: string; grade?: string; school?: string; class?: string } = {}) {
+    const students = await this.loadFilteredStudents(filters);
+    const userIds = students.map((s) => Number(s.userId)).filter((id) => id > 0);
+
+    const [skills, tasks, evalResults, plans, jobs] = await Promise.all([
+      userIds.length > 0 ? this.userSkillRepo.find({ where: { userId: In(userIds), status: 1 } }) : [],
+      userIds.length > 0 ? this.taskRepo.find({ where: { userId: In(userIds), isActive: 1 } }) : [],
+      userIds.length > 0 ? this.evalResultRepo.find({ where: { userId: In(userIds), status: 1 } }) : [],
+      userIds.length > 0 ? this.planRepo.find({ where: { userId: In(userIds), status: 1 } }) : [],
+      (() => {
+        const ids = [...new Set(students.map((s) => Number(s.targetJobId)).filter(Boolean))];
+        return ids.length > 0 ? this.jobRepo.find({ where: { id: In(ids), status: 1 } }) : Promise.resolve([]);
+      })(),
+    ]);
+    const jobTitleMap = new Map<number, string>(jobs.map((j) => [Number(j.id), j.title || '']));
+    const DONE_STATUSES = ['done', 'exam_done', 'lecture_done', 'practice_done', 'code_done'];
+
+    const taskByUser = new Map<number, { done: number; total: number }>();
+    for (const t of tasks) {
+      const uid = Number(t.userId);
+      const cur = taskByUser.get(uid) || { done: 0, total: 0 };
+      cur.total++;
+      if (DONE_STATUSES.includes(t.taskStatus)) cur.done++;
+      taskByUser.set(uid, cur);
+    }
+    const evalByUser = new Map<number, { passed: number; total: number }>();
+    for (const r of evalResults) {
+      const uid = Number(r.userId);
+      const cur = evalByUser.get(uid) || { passed: 0, total: 0 };
+      cur.total++;
+      if (r.passed === 1 || Number(r.normalizedScore ?? r.score ?? 0) >= 60) cur.passed++;
+      evalByUser.set(uid, cur);
+    }
+    const matchByUser = new Map<number, number>();
+    for (const p of plans) {
+      const uid = Number(p.userId);
+      const score = Number(p.matchScore || 0);
+      const prev = matchByUser.get(uid) ?? -1;
+      if (score >= prev) matchByUser.set(uid, score);
+    }
+
+    const esc = (v: unknown) => {
+      const str = String(v ?? '');
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const lines = [
+      ['学号', '姓名', '专业', '年级', '班级', '目标岗位', '技能数', '任务完成率', '测评达标率', '匹配度', '准备度'].map(esc).join(','),
+    ];
+    for (const s of students) {
+      const uid = Number(s.userId);
+      const skillCount = skills.filter((sk) => Number(sk.userId) === uid).length;
+      const task = taskByUser.get(uid) || { done: 0, total: 0 };
+      const evalInfo = evalByUser.get(uid) || { passed: 0, total: 0 };
+      const matchScore = matchByUser.get(uid) || 0;
+      const readinessLevel = matchScore >= 80 ? '高' : matchScore >= 60 ? '中' : '低';
+      lines.push([
+        s.studentNo || '',
+        s.name || '',
+        s.major || '',
+        s.grade || '',
+        this.classOf(s.studentNo),
+        jobTitleMap.get(Number(s.targetJobId)) || (Number(s.targetJobId) > 0 ? '岗位已下架' : ''),
+        skillCount,
+        percent(task.done, task.total),
+        percent(evalInfo.passed, evalInfo.total),
+        matchScore,
+        readinessLevel,
+      ].map(esc).join(','));
+    }
+    return lines.join('\r\n');
+  }
+
+  /** 按过滤条件加载学生列表（班级按学号前缀匹配） */
+  private async loadFilteredStudents(filters: { major?: string; grade?: string; school?: string; class?: string } = {}): Promise<Student[]> {
+    const where: Record<string, any> = { status: 1 };
+    if (filters.major) where.major = filters.major;
+    if (filters.grade) where.grade = filters.grade;
+    if (filters.school) where.school = filters.school;
+    const students = await this.studentRepo.find({ where });
+    if (filters.class) {
+      const cls = filters.class.trim();
+      return students.filter((s) => this.classOf(s.studentNo) === cls);
+    }
+    return students;
+  }
+
+  /** 班级标识：学号前 4 位（学号规范时即班级号） */
+  private classOf(studentNo?: string | null): string {
+    return (studentNo || '').trim().slice(0, 4);
   }
 }
 
