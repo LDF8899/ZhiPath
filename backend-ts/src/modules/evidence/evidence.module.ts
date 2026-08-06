@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EvidenceChunk } from '../../entities/evidence-chunk.entity';
+import { Student } from '../../entities/student.entity';
 import { EvidenceRagService } from '../../services/evidence-rag.service';
 import { ChromaService } from '../../services/chroma.service';
 import { EvidenceController } from './evidence.controller';
@@ -12,7 +13,7 @@ import { EvidenceController } from './evidence.controller';
  * POST /api/user/evidence/reindex — 重建证据索引
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([EvidenceChunk])],
+  imports: [TypeOrmModule.forFeature([EvidenceChunk, Student])],
   controllers: [EvidenceController],
   providers: [EvidenceRagService, ChromaService],
   exports: [EvidenceRagService, ChromaService],

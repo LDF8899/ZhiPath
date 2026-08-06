@@ -55,7 +55,7 @@ async function main() {
         update_time bigint NULL DEFAULT NULL COMMENT '更新时间戳ms',
         PRIMARY KEY (id) USING BTREE,
         INDEX idx_user_source (user_id, source_type, source_id) USING BTREE,
-        INDEX idx_user_skill (user_id, skill_tags) USING BTREE,
+        INDEX idx_user_created (user_id, create_time) USING BTREE,
         INDEX idx_status (status) USING BTREE
       ) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '个人证据索引（Evidence RAG）' ROW_FORMAT = Dynamic
     `);

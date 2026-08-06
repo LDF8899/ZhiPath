@@ -12,7 +12,7 @@ import { BaseEntity } from '../common/base.entity';
  */
 @Entity('evidence_chunks')
 @Index(['userId', 'sourceType', 'sourceId'])
-@Index(['userId', 'skillTags'])
+@Index(['userId', 'createTime'])
 export class EvidenceChunk extends BaseEntity {
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
