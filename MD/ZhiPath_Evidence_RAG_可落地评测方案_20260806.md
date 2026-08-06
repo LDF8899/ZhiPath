@@ -253,19 +253,29 @@ P0 不新增复杂模型编排，采用三层降级：
 
 | 优先级 | 方案 | 说明 |
 | --- | --- | --- |
-| 1 | OpenAI-compatible embedding | 如果已有兼容服务，直接复用 |
-| 2 | Ollama embedding | 本地部署可控，适合演示 |
-| 3 | 关键词召回降级 | Chroma / embedding 不可用时不阻塞主流程 |
+| 1 | Local hash embedding | 默认启用，零模型依赖，保证 Chroma 写入和召回先跑通 |
+| 2 | OpenAI-compatible embedding | 如果已有兼容服务，直接复用 |
+| 3 | Ollama embedding | 本地部署可控，但需要单独准备 embedding 模型 |
+| 4 | 关键词召回降级 | Chroma / embedding 不可用时不阻塞主流程 |
 
 建议环境变量：
 
 ```env
-EMBEDDING_PROVIDER=ollama
-EMBEDDING_MODEL=nomic-embed-text
-EMBEDDING_BASE_URL=http://localhost:11434/v1
 CHROMA_URL=http://localhost:8000
-EVIDENCE_RAG_ENABLED=true
+CHROMA_COLLECTION=zhipath_user_evidence
+CHROMA_TIMEOUT_MS=3000
+EMBEDDING_PROVIDER=hash
+EMBEDDING_DIMENSIONS=384
+EMBEDDING_MODEL=nomic-embed-text
+EMBEDDING_BASE_URL=
+EMBEDDING_API_KEY=
 ```
+
+当前实现说明：
+
+1. `hash` 是本地轻量向量化兜底，主要用于让 Evidence RAG 在无外部 embedding 模型时也能真实写入 Chroma。
+2. Chroma v0.5 REST API 写入和查询需要 collection UUID，`ChromaService` 会按 collection name 自动查询或创建，再缓存 UUID。
+3. 如果要升级为模型 embedding，只需要把 `EMBEDDING_PROVIDER` 改成对应 provider，并配置 `EMBEDDING_BASE_URL` / `EMBEDDING_MODEL`。
 
 ### 6.4 Chunk 策略
 

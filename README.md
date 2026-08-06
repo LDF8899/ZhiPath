@@ -118,6 +118,16 @@ NEWS_SEARXNG_URL=http://127.0.0.1:8080
 NEWS_SEARXNG_ENGINES=bing,baidu
 
 AMAP_WEB_SERVICE_KEY=your_amap_web_service_key
+
+# Evidence RAG / Chroma
+CHROMA_URL=http://localhost:8000
+CHROMA_COLLECTION=zhipath_user_evidence
+CHROMA_TIMEOUT_MS=3000
+EMBEDDING_PROVIDER=hash
+EMBEDDING_DIMENSIONS=384
+EMBEDDING_MODEL=nomic-embed-text
+EMBEDDING_BASE_URL=
+EMBEDDING_API_KEY=
 ```
 
 不要提交真实 API Key。
@@ -168,6 +178,7 @@ npm run migrate:git-v2
 npm run migrate:learning-portfolio
 npm run migrate:evaluation-spine
 node scripts/migrate-agent-output.js
+node scripts/migrate-evidence-rag.js
 ```
 
 仅在确认要清空旧学习轨迹并重建 Git 学习基线时执行：
