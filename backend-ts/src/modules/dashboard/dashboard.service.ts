@@ -11,6 +11,8 @@ import { GeneratedResource } from '../../entities/generated-resource.entity';
 import { Resume } from '../../entities/resume.entity';
 import { TaskSchedulerService } from '../../services/task-scheduler.service';
 import { MatchAgentService } from '../../services/match-agent.service';
+import { SkillService } from '../../services/skill.service';
+import { EvaluationResult } from '../../entities/evaluation-result.entity';
 
 /**
  * Dashboard 服务 — 聚合 Dashboard 页所需全部数据
@@ -30,8 +32,10 @@ export class DashboardService {
     @InjectRepository(JobApplication) private jobAppRepo: Repository<JobApplication>,
     @InjectRepository(GeneratedResource) private resourceRepo: Repository<GeneratedResource>,
     @InjectRepository(Resume) private resumeRepo: Repository<Resume>,
+    @InjectRepository(EvaluationResult) private evalResultRepo: Repository<EvaluationResult>,
     private taskScheduler: TaskSchedulerService,
     private matchAgent: MatchAgentService,
+    private skillService: SkillService,
   ) {}
 
   /** GET /api/user/dashboard */
@@ -257,6 +261,210 @@ export class DashboardService {
       recent_news: news,
       golden_path: goldenPath,
     };
+  }
+
+  /**
+   * 今日行动推荐 — GET /api/user/today-actions（P0-2）
+   *
+   * 对齐《ZhiPath_产品业务升级方案》P0-2 / §6.3：
+   *  - 返回 1 个主任务（main）+ 最多 2 个辅助任务（subs）
+   *  - 每个任务带推荐原因（reason）、预计影响（estimatedImpact）、证据沉淀说明
+   *  - 规则优先级：岗位必备缺口 > 未完成任务 > 测评薄弱点 > 项目证据 > 复习
+   *  - 新用户兜底：无目标岗位 → 引导选择岗位；无计划 → 引导创建计划
+   *
+   * 任务来源先用规则排序，不依赖大模型（方案 §9.2）。
+   */
+  async getTodayActions(userId: number) {
+    // ── 兜底 1：没有目标岗位 → 主任务引导选岗 ──
+    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const targetJobId = student?.targetJobId || null;
+
+    if (!targetJobId) {
+      return {
+        main: {
+          id: 0,
+          title: '选择目标岗位，开始差距分析',
+          taskType: 'onboarding',
+          estimatedMin: 5,
+          reason: '有了目标岗位，系统才能告诉你差什么、先补什么。',
+          estimatedImpact: 0,
+          impactLabel: '',
+          evidence: '绑定后生成岗位差距卡和今日任务',
+          path: '/user/jobs',
+        },
+        subs: [],
+      };
+    }
+
+    const job = await this.jobRepo.findOne({ where: { id: targetJobId, status: 1 } });
+    if (!job) {
+      return {
+        main: {
+          id: 0,
+          title: '重新选择目标岗位',
+          taskType: 'onboarding',
+          estimatedMin: 5,
+          reason: '原目标岗位已下架，重新选定后继续差距分析。',
+          estimatedImpact: 0,
+          impactLabel: '',
+          evidence: '绑定后生成岗位差距卡和今日任务',
+          path: '/user/jobs',
+        },
+        subs: [],
+      };
+    }
+
+    // ── 有效技能画像（用于缺口计算，失败时降级为空画像）──
+    let effectiveSkills: Array<{ name: string; masteryPct: number }> = [];
+    try {
+      effectiveSkills = await this.skillService.getEffectiveSkills(userId);
+    } catch {
+      effectiveSkills = [];
+    }
+    const skillMap = new Map(
+      effectiveSkills.map((s) => [s.name.toLowerCase(), s.masteryPct || 0]),
+    );
+
+    // ── 岗位必备缺口（按缺口深度排序：掌握度/门槛 最小者优先）──
+    const required = (job.requiredSkills || []).map((s: any) => ({
+      name: typeof s === 'string' ? s : s.name || '',
+      minLevel: Number(typeof s === 'string' ? 60 : s.minLevel ?? 60) || 60,
+    }));
+    const preferred = (job.preferredSkills || []).map((s: any) =>
+      typeof s === 'string' ? s : s.name || '',
+    );
+    const gaps = required
+      .filter((s) => s.name && !((skillMap.get(s.name.toLowerCase()) ?? 0) >= s.minLevel))
+      .map((s) => ({
+        name: s.name,
+        minLevel: s.minLevel,
+        mastery: skillMap.get(s.name.toLowerCase()) ?? 0,
+      }))
+      .sort((a, b) => {
+        const gapA = (a.minLevel - a.mastery) / Math.max(1, a.minLevel);
+        const gapB = (b.minLevel - b.mastery) / Math.max(1, b.minLevel);
+        return gapB - gapA;
+      });
+
+    const mainGap = gaps[0] || null;
+    const subCandidates: any[] = [];
+
+    // ── 辅助候选 1：学习计划中未完成的任务（继续推进）──
+    let pendingTodayTask: { id: number; title: string; taskType: string; status: string; estimatedMin: number } | null = null;
+    try {
+      const schedulerResult = await this.taskScheduler.getTodayTasks(userId);
+      const allTasks = [...schedulerResult.mainTasks, ...schedulerResult.sideTasks];
+      const pending =
+        allTasks.find((t) => !['done', 'exam_done', 'lecture_done', 'practice_done', 'code_done'].includes(t.taskStatus)) || null;
+      pendingTodayTask = pending
+        ? {
+            id: pending.id,
+            title: pending.skillName,
+            taskType: pending.taskType,
+            status: pending.taskStatus,
+            estimatedMin: pending.estimatedMin || 25,
+          }
+        : null;
+    } catch {
+      pendingTodayTask = null;
+    }
+    if (pendingTodayTask) {
+      subCandidates.push({
+        id: pendingTodayTask.id,
+        title: pendingTodayTask.title,
+        taskType: 'continue',
+        estimatedMin: pendingTodayTask.estimatedMin || 25,
+        reason: '学习计划中的未完成任务，继续推进保持节奏。',
+        estimatedImpact: 1,
+        impactLabel: '匹配度预计 +1%',
+        evidence: '完成后更新任务状态并记录学习 commit',
+        path: '/user/learning',
+      });
+    }
+
+    // ── 辅助候选 2：最近测评薄弱点（速测验证）──
+    let weakPoint: { skill: string; score: number } | null = null;
+    try {
+      const recentResults = await this.evalResultRepo.find({
+        where: { userId },
+        order: { createTime: 'DESC' },
+        take: 30,
+      });
+      // 优先取最近失败项，其次取任意低分项
+      const weak =
+        recentResults.find(
+          (r) => r.skillName && r.passed === 0 && Number(r.normalizedScore ?? 0) < 60,
+        ) ||
+        recentResults.find(
+          (r) => r.skillName && Number(r.normalizedScore ?? 0) < 60,
+        );
+      if (weak) weakPoint = { skill: weak.skillName, score: Number(weak.normalizedScore) };
+    } catch {
+      weakPoint = null;
+    }
+    if (weakPoint && !subCandidates.some((s) => s.title.includes(weakPoint!.skill))) {
+      subCandidates.push({
+        id: 0,
+        title: `速测验证 ${weakPoint.skill}`,
+        taskType: 'quick-test',
+        estimatedMin: 10,
+        reason: `上次测评中 ${weakPoint.skill} 表现偏弱（${weakPoint.score} 分），建议速测验证是否掌握。`,
+        estimatedImpact: 2,
+        impactLabel: '匹配度预计 +2%',
+        evidence: '完成后测评结果进入技能证据链',
+        path: '/user/quick-test',
+      });
+    }
+
+    // ── 主任务：最低掌握度的必备缺口 → 学习；无缺口 → 项目/复习兜底 ──
+    let main: any;
+    if (mainGap) {
+      const gapPct = mainGap.minLevel - mainGap.mastery;
+      const impact = Math.min(5, Math.max(1, Math.round(gapPct / 20)));
+      main = {
+        id: 0,
+        title: `学习 ${mainGap.name} 并完成练习`,
+        taskType: 'learning',
+        estimatedMin: 25,
+        reason: `目标岗位要求 ${mainGap.name}（门槛 ${mainGap.minLevel}%），你当前掌握度 ${mainGap.mastery}%。`,
+        estimatedImpact: impact,
+        impactLabel: `匹配度预计 +${impact}%`,
+        evidence: '完成后生成学习 commit 和技能 delta',
+        path: '/user/learning',
+      };
+    } else {
+      // 必备已覆盖：优先补加分项 → 项目证据
+      const preferredGap = preferred.find(
+        (s: string) => !skillMap.has(s.toLowerCase()),
+      );
+      if (preferredGap) {
+        main = {
+          id: 0,
+          title: `做一个小项目：体现 ${preferredGap}`,
+          taskType: 'project',
+          estimatedMin: 45,
+          reason: `必备技能已覆盖，用项目补齐加分项 ${preferredGap} 并沉淀简历证据。`,
+          estimatedImpact: 4,
+          impactLabel: '匹配度预计 +4%',
+          evidence: '完成后项目经历可绑定技能并写入简历',
+          path: '/user/projects',
+        };
+      } else {
+        main = {
+          id: 0,
+          title: '复习已学技能并做一次速测',
+          taskType: 'review',
+          estimatedMin: 15,
+          reason: '核心技能已达标，低成本复习保持学习活跃度与匹配度。',
+          estimatedImpact: 1,
+          impactLabel: '匹配度预计 +1%',
+          evidence: '完成后刷新学习活跃度并记录 commit',
+          path: '/user/quick-test',
+        };
+      }
+    }
+
+    return { main, subs: subCandidates.slice(0, 2) };
   }
 
   private buildGoldenPath(input: {

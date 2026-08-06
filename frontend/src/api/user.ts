@@ -21,6 +21,7 @@ import type {
   RadarDimension,
   EvaluationListItem,
   GapCard,
+  TodayActions,
 } from '../types';
 
 /** 登录 */
@@ -140,6 +141,10 @@ export const getJobMatch = (id: number) =>
 /** 岗位差距卡 — 匹配度 + Top3 缺口 + 推荐动作 + 预计影响（P0-1） */
 export const getGapCard = (jobId: number) =>
   client.get(`/user/jobs/${jobId}/gap-card`) as Promise<ApiResponse<GapCard>>;
+
+/** 今日行动推荐 — 1 主任务 + 最多 2 辅助任务，含原因与预计影响（P0-2） */
+export const getTodayActions = () =>
+  client.get('/user/today-actions') as Promise<ApiResponse<TodayActions>>;
 
 /** 申请岗位 */
 export const applyJob = (id: number) =>

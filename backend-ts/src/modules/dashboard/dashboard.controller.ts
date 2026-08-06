@@ -19,4 +19,11 @@ export class DashboardController {
     const result = await this.dashboardService.getDashboard(userId);
     return success(result);
   }
+
+  /** GET /api/user/today-actions — 今日行动推荐（P0-2）：1 主任务 + 最多 2 辅助任务 */
+  @Get('today-actions')
+  async getTodayActions(@CurrentUser() user: any) {
+    const result = await this.dashboardService.getTodayActions(user.sub);
+    return success(result);
+  }
 }

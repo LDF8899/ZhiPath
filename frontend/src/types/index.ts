@@ -116,6 +116,24 @@ export interface GapCard {
   message: string;
 }
 
+/** 今日行动推荐（P0-2）— GET /api/user/today-actions */
+export interface TodayAction {
+  id: number;
+  title: string;
+  taskType: 'learning' | 'continue' | 'quick-test' | 'project' | 'review' | 'onboarding';
+  estimatedMin: number;
+  reason: string;
+  estimatedImpact: number;
+  impactLabel: string;
+  evidence: string;
+  path: string;
+}
+
+export interface TodayActions {
+  main: TodayAction;
+  subs: TodayAction[];
+}
+
 /** 学习路径 */
 export interface LearningPath {
   id: number;

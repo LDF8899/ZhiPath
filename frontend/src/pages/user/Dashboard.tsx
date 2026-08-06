@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getDashboard, getBestMatch } from '../../api/user';
+import { getDashboard, getBestMatch, getTodayActions } from '../../api/user';
 import { useSSE } from '../../hooks/useSSE';
 import { useMatchScoreToast, useCelebration, StreakBanner } from '../../components/MatchScoreToast';
 import PlanWelcomeModal from '../../components/PlanWelcomeModal';
@@ -19,7 +19,7 @@ import {
   IconGradCap,
   IconTarget,
 } from '../../components/icons';
-import type { DashboardData } from '../../types';
+import type { DashboardData, TodayActions } from '../../types';
 
 /* ── 问候语 ── */
 function getGreeting(name: string): string {
@@ -191,6 +191,8 @@ export default function Dashboard() {
   const [bestMatch, setBestMatch] = useState<{ jobId: number; jobTitle: string; matchScore: number } | null>(null);
   // 目标岗位差距卡给出的匹配度（比 bestMatch 更贴近用户目标岗位）
   const [gapCardScore, setGapCardScore] = useState<number | null>(null);
+  // 今日行动推荐（P0-2）：1 主任务 + 最多 2 辅助任务
+  const [todayActions, setTodayActions] = useState<TodayActions | null>(null);
   const prevMatchRef = useRef<number>(0);
 
   // 计划欢迎弹窗 — 首次进入时显示
@@ -225,11 +227,13 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [dashRes, matchRes] = await Promise.all([
+      const [dashRes, matchRes, actionsRes] = await Promise.all([
         getDashboard(),
         getBestMatch().catch(() => null),
+        getTodayActions().catch(() => null),
       ]);
       setData(dashRes.data);
+      setTodayActions(actionsRes?.data || null);
       if (dashRes.data.learning_path) {
         setSelectedPlanId(dashRes.data.learning_path.id);
       }
@@ -290,6 +294,12 @@ export default function Dashboard() {
   const totalTasks = data.today_tasks.length;
   const taskPct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
   const primaryTask = data.today_tasks.find(t => t.status !== 'done' && t.status !== 'exam_done') || null;
+  // 今日行动推荐（P0-2）：主任务优先于排期任务展示
+  const actionMain = todayActions?.main || null;
+  // 辅助任务：过滤掉与今日排期列表重复的 continue 任务（同 id 且未完成）
+  const actionSubs = (todayActions?.subs || []).filter(s =>
+    !(s.id > 0 && data.today_tasks.some(t => t.id === s.id && t.status !== 'done' && t.status !== 'exam_done'))
+  );
   const targetScore = data.target_job
     ? (gapCardScore ?? bestMatch?.matchScore ?? data.learning_path?.matchScore ?? 0)
     : (bestMatch?.matchScore ?? data.learning_path?.matchScore ?? 0);
@@ -413,18 +423,49 @@ export default function Dashboard() {
         <div className="dash-action-card primary">
           <div className="dash-action-kicker">今日最重要任务</div>
           <div className="dash-action-title">
-            {primaryTask ? primaryTask.title : '今日学习任务已完成'}
+            {actionMain ? actionMain.title : (primaryTask ? primaryTask.title : '今日学习任务已完成')}
           </div>
           <div className="dash-action-desc">
-            {primaryTask
-              ? `${STATUS_LABEL[primaryTask.status] || '待完成'} · 预计 ${primaryTask.estimatedMin || 25} 分钟`
-              : '可以进入速测或简历页，把学习结果转成下一步行动。'}
+            {actionMain
+              ? `${actionMain.reason}${actionMain.impactLabel ? `（${actionMain.impactLabel}）` : ''}`
+              : primaryTask
+                ? `${STATUS_LABEL[primaryTask.status] || '待完成'} · 预计 ${primaryTask.estimatedMin || 25} 分钟`
+                : '可以进入速测或简历页，把学习结果转成下一步行动。'}
           </div>
-          <button className="hd-btn small" onClick={() => navigate(primaryTask ? '/user/learning' : '/user/quick-test')}>
+          {actionMain?.evidence && (
+            <div style={{ font: '11px/1.4 var(--hand)', color: '#3a7d3a', marginTop: 4 }}>
+              ✓ {actionMain.evidence}
+            </div>
+          )}
+          <button
+            className="hd-btn small"
+            onClick={() => navigate(actionMain ? actionMain.path : (primaryTask ? '/user/learning' : '/user/quick-test'))}
+          >
             <IconArrowRight size={14} style={{ marginRight: 6 }} />
-            {primaryTask ? '开始处理' : '进入速测'}
+            {actionMain
+              ? (actionMain.taskType === 'onboarding' ? '去选择' : '开始处理')
+              : (primaryTask ? '开始处理' : '进入速测')}
           </button>
         </div>
+
+        {/* 辅助任务（最多 2 个） */}
+        {actionSubs.length > 0 && (
+          <div className="hd-flex" style={{ gap: 12, flexWrap: 'wrap' }}>
+            {actionSubs.map((s, i) => (
+              <div key={`${s.title}-${i}`} className="dash-action-card" style={{ flex: '1 1 220px', minWidth: 220 }}>
+                <div className="dash-action-kicker">辅助任务 {i + 1}</div>
+                <div className="dash-action-title" style={{ fontSize: 15 }}>{s.title}</div>
+                <div className="dash-action-desc">
+                  {s.reason}{s.impactLabel ? `（${s.impactLabel}）` : ''}
+                </div>
+                <button className="hd-btn small secondary" onClick={() => navigate(s.path)}>
+                  <IconArrowRight size={12} style={{ marginRight: 5 }} />
+                  去完成
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {data.target_job ? (
           <div className="dash-action-card" style={{ padding: 14 }}>

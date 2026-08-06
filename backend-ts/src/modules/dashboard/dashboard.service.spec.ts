@@ -12,6 +12,8 @@ import { GeneratedResource } from '../../entities/generated-resource.entity';
 import { Resume } from '../../entities/resume.entity';
 import { TaskSchedulerService } from '../../services/task-scheduler.service';
 import { MatchAgentService } from '../../services/match-agent.service';
+import { SkillService } from '../../services/skill.service';
+import { EvaluationResult } from '../../entities/evaluation-result.entity';
 
 /** 创建 mock Repository */
 function mockRepo() {
@@ -35,6 +37,8 @@ describe('DashboardService', () => {
   let resumeRepo: ReturnType<typeof mockRepo>;
   let taskScheduler: { getTodayTasks: jest.Mock };
   let matchAgent: { calculateMatch: jest.Mock };
+  let evalResultRepo: ReturnType<typeof mockRepo>;
+  let skillService: { getEffectiveSkills: jest.Mock };
 
   beforeEach(async () => {
     studentRepo = mockRepo();
@@ -48,6 +52,8 @@ describe('DashboardService', () => {
     resumeRepo = mockRepo();
     taskScheduler = { getTodayTasks: jest.fn().mockRejectedValue(new Error('fallback')) };
     matchAgent = { calculateMatch: jest.fn().mockRejectedValue(new Error('fallback')) };
+    evalResultRepo = mockRepo();
+    skillService = { getEffectiveSkills: jest.fn().mockResolvedValue([]) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -61,8 +67,10 @@ describe('DashboardService', () => {
         { provide: getRepositoryToken(JobApplication), useValue: jobAppRepo },
         { provide: getRepositoryToken(GeneratedResource), useValue: resourceRepo },
         { provide: getRepositoryToken(Resume), useValue: resumeRepo },
+        { provide: getRepositoryToken(EvaluationResult), useValue: evalResultRepo },
         { provide: TaskSchedulerService, useValue: taskScheduler },
         { provide: MatchAgentService, useValue: matchAgent },
+        { provide: SkillService, useValue: skillService },
       ],
     }).compile();
 
@@ -384,6 +392,138 @@ describe('DashboardService', () => {
     it('today_tasks 返回任务表中的待办', async () => {
       const result = await service.getDashboard(100);
       expect(result.today_tasks).toHaveLength(8);
+    });
+  });
+
+  describe('getTodayActions - 无目标岗位兜底', () => {
+    beforeEach(() => {
+      studentRepo.findOne.mockResolvedValue({
+        id: 1, userId: 100, targetJobId: null, skills: [],
+      });
+    });
+
+    it('主任务引导选择目标岗位，无辅助任务', async () => {
+      const result = await service.getTodayActions(100);
+
+      expect(result.main.taskType).toBe('onboarding');
+      expect(result.main.title).toContain('选择目标岗位');
+      expect(result.main.path).toBe('/user/jobs');
+      expect(result.main.reason).toBeTruthy();
+      expect(result.subs).toEqual([]);
+      expect(jobRepo.findOne).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getTodayActions - 有目标岗位', () => {
+    beforeEach(() => {
+      studentRepo.findOne.mockResolvedValue({
+        id: 1, userId: 100, targetJobId: 5, skills: [],
+      });
+      jobRepo.findOne.mockResolvedValue({
+        id: 5, title: '前端开发实习生',
+        requiredSkills: [
+          { name: 'React Hooks', weight: 1, minLevel: 70 },
+          { name: '接口联调', weight: 1, minLevel: 60 },
+        ],
+        preferredSkills: [{ name: 'TypeScript', weight: 0.5, minLevel: 50 }],
+      });
+    });
+
+    it('主任务来自岗位必备缺口，含原因与预计影响', async () => {
+      skillService.getEffectiveSkills.mockResolvedValue([
+        { name: 'React', masteryPct: 20 },
+      ]);
+
+      const result = await service.getTodayActions(100);
+
+      expect(result.main.taskType).toBe('learning');
+      expect(result.main.title).toContain('React Hooks');
+      expect(result.main.reason).toContain('React Hooks');
+      expect(result.main.reason).toContain('70%');
+      expect(result.main.estimatedImpact).toBeGreaterThan(0);
+      expect(result.main.impactLabel).toContain('+');
+      expect(result.main.path).toBe('/user/learning');
+      expect(result.main.evidence).toContain('commit');
+    });
+
+    it('辅助任务包含未完成排期任务和测评薄弱点', async () => {
+      skillService.getEffectiveSkills.mockResolvedValue([]);
+      taskScheduler.getTodayTasks.mockResolvedValue({
+        mainTasks: [
+          { id: 11, skillName: '接口联调', taskType: 'main', taskStatus: 'pending', estimatedMin: 40 },
+        ],
+        sideTasks: [],
+      });
+      evalResultRepo.find.mockResolvedValue([
+        { id: 1, skillName: 'React Hooks', passed: 0, normalizedScore: 45 },
+      ]);
+
+      const result = await service.getTodayActions(100);
+
+      expect(result.main.taskType).toBe('learning');
+      // 主任务之外最多 2 个辅助任务：continue + quick-test
+      expect(result.subs).toHaveLength(2);
+      expect(result.subs[0].taskType).toBe('continue');
+      expect(result.subs[0].id).toBe(11);
+      expect(result.subs[0].reason).toContain('未完成');
+      expect(result.subs[1].taskType).toBe('quick-test');
+      expect(result.subs[1].title).toContain('React Hooks');
+      expect(result.subs[1].reason).toContain('45');
+    });
+
+    it('辅助任务去重：薄弱点与未完成任务相同时不重复推荐', async () => {
+      skillService.getEffectiveSkills.mockResolvedValue([]);
+      taskScheduler.getTodayTasks.mockResolvedValue({
+        mainTasks: [
+          { id: 12, skillName: 'React Hooks', taskType: 'main', taskStatus: 'pending', estimatedMin: 30 },
+        ],
+        sideTasks: [],
+      });
+      evalResultRepo.find.mockResolvedValue([
+        { id: 1, skillName: 'React Hooks', passed: 0, normalizedScore: 40 },
+      ]);
+
+      const result = await service.getTodayActions(100);
+
+      // continue 任务标题包含 React Hooks，quick-test 被去重
+      expect(result.subs).toHaveLength(1);
+      expect(result.subs[0].taskType).toBe('continue');
+    });
+
+    it('必备技能已覆盖时主任务转为项目证据任务', async () => {
+      skillService.getEffectiveSkills.mockResolvedValue([
+        { name: 'React Hooks', masteryPct: 80 },
+        { name: '接口联调', masteryPct: 70 },
+      ]);
+
+      const result = await service.getTodayActions(100);
+
+      expect(result.main.taskType).toBe('project');
+      expect(result.main.title).toContain('TypeScript');
+      expect(result.main.estimatedImpact).toBe(4);
+      expect(result.main.path).toBe('/user/projects');
+    });
+
+    it('全部覆盖时主任务为复习速测', async () => {
+      skillService.getEffectiveSkills.mockResolvedValue([
+        { name: 'React Hooks', masteryPct: 80 },
+        { name: '接口联调', masteryPct: 70 },
+        { name: 'TypeScript', masteryPct: 60 },
+      ]);
+
+      const result = await service.getTodayActions(100);
+
+      expect(result.main.taskType).toBe('review');
+      expect(result.main.path).toBe('/user/quick-test');
+    });
+
+    it('目标岗位下架时引导重新选择', async () => {
+      jobRepo.findOne.mockResolvedValue(null);
+
+      const result = await service.getTodayActions(100);
+
+      expect(result.main.taskType).toBe('onboarding');
+      expect(result.main.title).toContain('重新选择');
     });
   });
 });
