@@ -26,4 +26,11 @@ export class DashboardController {
     const result = await this.dashboardService.getTodayActions(user.sub);
     return success(result);
   }
+
+  /** GET /api/user/growth-report — 阶段成长报告（P2-2）：7/30 天学习、技能、测评、匹配变化 */
+  @Get('growth-report')
+  async getGrowthReport(@CurrentUser() user: any, @Query('days') days?: string) {
+    const result = await this.dashboardService.getGrowthReport(user.sub, Number(days || 30));
+    return success(result);
+  }
 }

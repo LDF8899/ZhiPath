@@ -13,6 +13,7 @@ import { TaskSchedulerService } from '../../services/task-scheduler.service';
 import { MatchAgentService } from '../../services/match-agent.service';
 import { SkillService } from '../../services/skill.service';
 import { EvaluationResult } from '../../entities/evaluation-result.entity';
+import { LearningCommit } from '../../entities/learning-commit.entity';
 
 /**
  * Dashboard 服务 — 聚合 Dashboard 页所需全部数据
@@ -33,6 +34,7 @@ export class DashboardService {
     @InjectRepository(GeneratedResource) private resourceRepo: Repository<GeneratedResource>,
     @InjectRepository(Resume) private resumeRepo: Repository<Resume>,
     @InjectRepository(EvaluationResult) private evalResultRepo: Repository<EvaluationResult>,
+    @InjectRepository(LearningCommit) private commitRepo: Repository<LearningCommit>,
     private taskScheduler: TaskSchedulerService,
     private matchAgent: MatchAgentService,
     private skillService: SkillService,
@@ -465,6 +467,189 @@ export class DashboardService {
     }
 
     return { main, subs: subCandidates.slice(0, 2) };
+  }
+
+  /**
+   * 阶段成长报告 — GET /api/user/growth-report?days=7|30（P2-2）
+   *
+   * 对齐《ZhiPath_产品业务升级方案》P2-2：
+   *   - 近 N 天学习记录（commit 时间线、任务完成、学习时长）
+   *   - 技能变化（从 commit delta 聚合）
+   *   - 测评表现（次数 / 达标率 / 平均分 / 趋势）
+   *   - 岗位匹配变化（窗口内 delta + 当前最佳匹配）
+   *   - 下一步建议（规则生成，不依赖大模型）
+   *
+   * 先做页面报告，不急于 PDF。
+   */
+  async getGrowthReport(userId: number, days: number) {
+    const daysNum = days === 7 ? 7 : 30;
+    const since = Date.now() - daysNum * 86400000;
+    const sinceDate = new Date(since).toISOString().slice(0, 10);
+
+    // ── 1. commits（近 N 天，非 baseline）──
+    const commits = await this.commitRepo.find({
+      where: { userId, status: 1 },
+      order: { createTime: 'DESC' },
+    });
+    const recentCommits = commits.filter(
+      (c) => Number(c.createTime || 0) >= since && c.commitType !== 'baseline',
+    );
+
+    // ── 2. 任务统计（近 N 天按 planDate）──
+    const allTasks = await this.taskRepo.find({ where: { userId, isActive: 1 } });
+    const recentTasks = allTasks.filter((t) => t.planDate && t.planDate >= sinceDate);
+    const DONE = ['done', 'exam_done', 'lecture_done', 'practice_done', 'code_done'];
+    const doneTasks = recentTasks.filter((t) => DONE.includes(t.taskStatus));
+    const learnedMin = doneTasks.reduce((sum, t) => sum + (t.actualMin || t.estimatedMin || 0), 0);
+    const learningDays = new Set(doneTasks.map((t) => t.planDate).filter(Boolean)).size;
+
+    // ── 3. 技能变化（commit deltaJson 聚合，按首末 after-before）──
+    const skillAgg = new Map<string, { from: number; to: number }>();
+    for (const c of recentCommits) {
+      const changes = (c.deltaJson?.skillChanges || []) as Array<Record<string, any>>;
+      for (const ch of changes) {
+        const name = String(ch.name || '').trim();
+        if (!name) continue;
+        const cur = skillAgg.get(name) || { from: Number(ch.before) || 0, to: Number(ch.before) || 0 };
+        cur.to = Number(ch.after) || cur.to;
+        skillAgg.set(name, cur);
+      }
+    }
+    const skillChanges = [...skillAgg.entries()]
+      .map(([skill, v]) => ({
+        skill,
+        from: Math.round(v.from * 10) / 10,
+        to: Math.round(v.to * 10) / 10,
+        delta: Math.round((v.to - v.from) * 10) / 10,
+      }))
+      .filter((s) => Math.abs(s.delta) > 0.01)
+      .sort((a, b) => b.delta - a.delta)
+      .slice(0, 5);
+
+    // ── 4. 测评表现（近 N 天）──
+    const evalResults = await this.evalResultRepo.find({
+      where: { userId, status: 1 },
+      order: { createTime: 'DESC' },
+    });
+    const recentEvals = evalResults.filter((r) => Number(r.createTime || 0) >= since);
+    const evalPassed = recentEvals.filter(
+      (r) => r.passed === 1 || Number(r.normalizedScore ?? r.score ?? 0) >= 60,
+    ).length;
+    const avgExamScore =
+      recentEvals.length > 0
+        ? Math.round(
+            recentEvals.reduce((sum, r) => sum + Number(r.normalizedScore ?? r.score ?? 0), 0) /
+              recentEvals.length *
+              10,
+          ) / 10
+        : 0;
+    const examTrend = recentEvals.slice(0, 10).map((r) => ({
+      date: new Date(Number(r.createTime)).toISOString().slice(0, 10),
+      skillName: r.skillName,
+      score: Number(r.normalizedScore ?? r.score ?? 0),
+      passed: r.passed === 1 || Number(r.normalizedScore ?? r.score ?? 0) >= 60,
+    }));
+
+    // ── 5. 岗位匹配变化 ──
+    let matchDelta = 0;
+    for (const c of recentCommits) {
+      matchDelta += Number(c.deltaJson?.metricsChange?.matchScore || 0);
+    }
+    matchDelta = Math.round(matchDelta * 10) / 10;
+    let matchNow = 0;
+    let jobTitle = '';
+    try {
+      const best = await this.matchAgent.getBestMatch(userId);
+      if (best) {
+        matchNow = Math.round(best.matchScore * 10) / 10;
+        jobTitle = best.jobTitle || '';
+      }
+    } catch {
+      matchNow = 0;
+    }
+    const matchBefore = Math.round((matchNow - matchDelta) * 10) / 10;
+
+    // ── 6. commit 时间线（最近 10 条）──
+    const commitTimeline = recentCommits.slice(0, 10).map((c) => ({
+      commitId: c.id,
+      type: c.commitType,
+      message: c.message,
+      skillName: c.skillName,
+      delta: (() => {
+        const changes = (c.deltaJson?.skillChanges || []) as Array<Record<string, any>>;
+        const skillChange = changes.find((ch) => ch.name === c.skillName) || changes[0];
+        return skillChange ? Math.round(Number(skillChange.delta || 0) * 10) / 10 : 0;
+      })(),
+      time: Number(c.createTime || 0),
+    }));
+
+    // ── 7. 下一步建议（规则生成）──
+    const recommendations: string[] = [];
+    const taskRate = recentTasks.length > 0 ? Math.round((doneTasks.length / recentTasks.length) * 100) : 0;
+    const evalPassRate = recentEvals.length > 0 ? Math.round((evalPassed / recentEvals.length) * 100) : 0;
+
+    if (recentCommits.length === 0 && recentTasks.length === 0) {
+      recommendations.push(`近 ${daysNum} 天还没有学习记录，先完成今日 1 个任务重新进入节奏。`);
+    }
+    if (skillChanges.length > 0) {
+      const top = skillChanges
+        .filter((s) => s.delta > 0)
+        .slice(0, 3)
+        .map((s) => `${s.skill}+${s.delta}%`)
+        .join('、');
+      if (top) recommendations.push(`技能提升集中在 ${top}，建议继续保持当前学习节奏。`);
+      const decl = skillChanges.filter((s) => s.delta < 0).slice(0, 2);
+      if (decl.length > 0) {
+        recommendations.push(`${decl.map((s) => s.skill).join('、')} 掌握度下降，建议安排一次复习和速测巩固。`);
+      }
+    } else if (recentCommits.length > 0) {
+      recommendations.push('学习有推进但技能数据变化不明显，建议做一次测评把学习成果沉淀为证据。');
+    }
+    if (recentEvals.length > 0 && evalPassRate < 60) {
+      recommendations.push(`近期测评达标率偏低（${evalPassRate}%），建议先针对薄弱技能速测验证，再进入新主题。`);
+    }
+    if (recentTasks.length >= 3 && taskRate < 50) {
+      recommendations.push(`任务完成率 ${taskRate}%，建议在计划设置中调低每日任务量，减少并行任务。`);
+    }
+    if (matchDelta !== 0) {
+      recommendations.push(
+        matchDelta > 0
+          ? `${jobTitle || '目标岗位'}匹配度提升 ${matchDelta >= 0 ? '+' : ''}${matchDelta}%（${matchBefore}% → ${matchNow}%），可更新岗位版简历表达。`
+          : `匹配度下降 ${Math.abs(matchDelta)}%（${matchBefore}% → ${matchNow}%），优先补齐岗位必备技能缺口。`,
+      );
+    } else if (matchNow > 0) {
+      recommendations.push(`匹配度保持 ${matchNow}%（${jobTitle || '目标岗位'}），下一步建议补项目证据或优化简历表达。`);
+    }
+    if (recommendations.length === 0) {
+      recommendations.push(`近 ${daysNum} 天数据较少，先完成画像、选择目标岗位并开始第一个学习任务。`);
+    }
+
+    return {
+      days: daysNum,
+      period: {
+        start: new Date(since).toISOString().slice(0, 10),
+        end: new Date().toISOString().slice(0, 10),
+      },
+      summary: {
+        learningDays,
+        commits: recentCommits.length,
+        tasksDone: doneTasks.length,
+        totalTasks: recentTasks.length,
+        taskRate,
+        learnedMin,
+        examCount: recentEvals.length,
+        examPassRate: evalPassRate,
+        avgExamScore,
+        matchDelta,
+        matchBefore,
+        matchNow,
+        jobTitle,
+      },
+      skillChanges,
+      examTrend,
+      commitTimeline,
+      recommendations: recommendations.slice(0, 5),
+    };
   }
 
   private buildGoldenPath(input: {

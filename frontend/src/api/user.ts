@@ -151,6 +151,10 @@ export const getTodayActions = () =>
 export const getSkillEvidence = (skillName: string) =>
   client.get(`/user/skills/${encodeURIComponent(skillName)}/evidence`) as Promise<ApiResponse<SkillEvidence>>;
 
+/** 阶段成长报告（P2-2）— 7/30 天学习、技能、测评、匹配变化 */
+export const getGrowthReport = (days: number = 30) =>
+  client.get('/user/growth-report', { params: { days } }) as Promise<ApiResponse<any>>;
+
 /** 申请岗位 */
 export const applyJob = (id: number) =>
   client.post(`/user/jobs/${id}/apply`) as Promise<ApiResponse<any>>;

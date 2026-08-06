@@ -17,6 +17,7 @@ import {
   IconChevronDown,
   IconDocument,
   IconChart,
+  IconTrophy,
 } from '../components/icons';
 
 const navSections = [
@@ -29,6 +30,7 @@ const navSections = [
       { key: '/user/agent-office', icon: IconRobot, label: '生成资源' },
       { key: '/user/exams', icon: IconGradCap, label: '测评' },
       { key: '/user/progress', icon: IconChart, label: '画像变化' },
+      { key: '/user/growth-report', icon: IconTrophy, label: '成长报告' },
       { key: '/user/resume', icon: IconDocument, label: '简历建议' },
     ],
   },

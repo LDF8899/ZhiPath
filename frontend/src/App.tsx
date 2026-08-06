@@ -24,6 +24,7 @@ import Profile from './pages/user/Profile'
 import Projects from './pages/user/Projects'
 import Progress from './pages/user/Progress'
 import Resume from './pages/user/Resume'
+import GrowthReport from './pages/user/GrowthReport'
 import AgentOffice from './pages/user/AgentOffice'
 import QuickTest from './pages/user/QuickTest'
 import WrongAnswers from './pages/user/WrongAnswers'
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="profile" element={<Profile />} />
           <Route path="projects" element={<Projects />} />
           <Route path="progress" element={<Progress />} />
+          <Route path="growth-report" element={<GrowthReport />} />
           <Route path="resume" element={<Resume />} />
           <Route path="agent-office" element={<AgentOffice />} />
           <Route path="quick-test" element={<QuickTest />} />

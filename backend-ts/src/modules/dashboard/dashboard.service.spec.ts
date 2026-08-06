@@ -14,6 +14,7 @@ import { TaskSchedulerService } from '../../services/task-scheduler.service';
 import { MatchAgentService } from '../../services/match-agent.service';
 import { SkillService } from '../../services/skill.service';
 import { EvaluationResult } from '../../entities/evaluation-result.entity';
+import { LearningCommit } from '../../entities/learning-commit.entity';
 
 /** 创建 mock Repository */
 function mockRepo() {
@@ -39,6 +40,7 @@ describe('DashboardService', () => {
   let matchAgent: { calculateMatch: jest.Mock };
   let evalResultRepo: ReturnType<typeof mockRepo>;
   let skillService: { getEffectiveSkills: jest.Mock };
+  let commitRepo: ReturnType<typeof mockRepo>;
 
   beforeEach(async () => {
     studentRepo = mockRepo();
@@ -54,6 +56,7 @@ describe('DashboardService', () => {
     matchAgent = { calculateMatch: jest.fn().mockRejectedValue(new Error('fallback')) };
     evalResultRepo = mockRepo();
     skillService = { getEffectiveSkills: jest.fn().mockResolvedValue([]) };
+    commitRepo = mockRepo();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -68,6 +71,7 @@ describe('DashboardService', () => {
         { provide: getRepositoryToken(GeneratedResource), useValue: resourceRepo },
         { provide: getRepositoryToken(Resume), useValue: resumeRepo },
         { provide: getRepositoryToken(EvaluationResult), useValue: evalResultRepo },
+        { provide: getRepositoryToken(LearningCommit), useValue: commitRepo },
         { provide: TaskSchedulerService, useValue: taskScheduler },
         { provide: MatchAgentService, useValue: matchAgent },
         { provide: SkillService, useValue: skillService },
@@ -524,6 +528,110 @@ describe('DashboardService', () => {
 
       expect(result.main.taskType).toBe('onboarding');
       expect(result.main.title).toContain('重新选择');
+    });
+  });
+
+  describe('getGrowthReport - 阶段成长报告（P2-2）', () => {
+    const now = Date.now();
+    const recent = now - 3 * 86400000; // 3 天前（30 天窗口内）
+    const old = now - 45 * 86400000;   // 45 天前（窗口外）
+
+    beforeEach(() => {
+      studentRepo.findOne.mockResolvedValue({ id: 1, userId: 100, targetJobId: 5, status: 1 });
+      jobRepo.findOne.mockResolvedValue({ id: 5, title: '前端开发实习生', status: 1 });
+      commitRepo.find.mockResolvedValue([
+        {
+          id: 1, commitType: 'lecture_read', skillName: 'React', message: 'lecture read: React',
+          deltaJson: {
+            skillChanges: [{ name: 'React', before: 20, after: 35, delta: 15 }],
+            metricsChange: { matchScore: 5 },
+          },
+          createTime: recent, status: 1,
+        },
+        {
+          id: 2, commitType: 'quiz_passed', skillName: '接口联调', message: 'quiz passed: 接口联调',
+          deltaJson: {
+            skillChanges: [{ name: '接口联调', before: 10, after: 30, delta: 20 }],
+            metricsChange: { matchScore: 3 },
+          },
+          createTime: recent, status: 1,
+        },
+        {
+          id: 3, commitType: 'baseline', skillName: null, message: 'baseline',
+          deltaJson: null, createTime: old, status: 1,
+        },
+      ]);
+      taskRepo.find.mockResolvedValue([
+        { id: 1, userId: 100, planDate: new Date(recent).toISOString().slice(0, 10), taskStatus: 'done', actualMin: 40, isActive: 1 },
+        { id: 2, userId: 100, planDate: new Date(recent).toISOString().slice(0, 10), taskStatus: 'pending', isActive: 1 },
+        { id: 3, userId: 100, planDate: new Date(old).toISOString().slice(0, 10), taskStatus: 'done', actualMin: 30, isActive: 1 },
+      ]);
+      evalResultRepo.find.mockResolvedValue([
+        { id: 1, skillName: 'React', normalizedScore: 80, passed: 1, createTime: recent, status: 1 },
+        { id: 2, skillName: '接口联调', normalizedScore: 45, passed: 0, createTime: recent, status: 1 },
+        { id: 3, skillName: '旧技能', normalizedScore: 90, passed: 1, createTime: old, status: 1 },
+      ]);
+      matchAgent.calculateMatch.mockRejectedValue(new Error('fallback'));
+    });
+
+    it('聚合 30 天学习/技能/测评/匹配数据并生成建议', async () => {
+      // 当前最佳匹配
+      const getBestMatch = jest.fn().mockResolvedValue({ jobId: 5, jobTitle: '前端开发实习生', matchScore: 63, canApply: false });
+      (matchAgent as any).getBestMatch = getBestMatch;
+
+      const result = await service.getGrowthReport(100, 30);
+
+      expect(result.days).toBe(30);
+      // 任务：窗口内 2 个（1 done 1 pending）
+      expect(result.summary.tasksDone).toBe(1);
+      expect(result.summary.totalTasks).toBe(2);
+      expect(result.summary.taskRate).toBe(50);
+      expect(result.summary.learnedMin).toBe(40);
+      // 测评：窗口内 2 次，1 达标
+      expect(result.summary.examCount).toBe(2);
+      expect(result.summary.examPassRate).toBe(50);
+      expect(result.summary.avgExamScore).toBe(62.5);
+      // 匹配变化：窗口内 delta 5+3=8，当前 63 → 前值 55
+      expect(result.summary.matchDelta).toBe(8);
+      expect(result.summary.matchNow).toBe(63);
+      expect(result.summary.matchBefore).toBe(55);
+      expect(result.summary.jobTitle).toBe('前端开发实习生');
+      // 技能变化（窗口内非 baseline 聚合）
+      expect(result.skillChanges).toEqual(expect.arrayContaining([
+        expect.objectContaining({ skill: '接口联调', from: 10, to: 30, delta: 20 }),
+        expect.objectContaining({ skill: 'React', from: 20, to: 35, delta: 15 }),
+      ]));
+      // baseline 不进时间线
+      expect(result.commitTimeline).toHaveLength(2);
+      // 建议：技能提升 + 测评达标率低
+      expect(result.recommendations.some((r: string) => r.includes('React'))).toBe(true);
+      expect(result.recommendations.some((r: string) => r.includes('测评达标率偏低'))).toBe(true);
+    });
+
+    it('days=7 时窗口收缩为 7 天', async () => {
+      const getBestMatch = jest.fn().mockResolvedValue(null);
+      (matchAgent as any).getBestMatch = getBestMatch;
+
+      const result = await service.getGrowthReport(100, 7);
+
+      expect(result.days).toBe(7);
+      // 3 天前的 commit 仍在 7 天窗口内
+      expect(result.summary.commits).toBe(2);
+    });
+
+    it('无数据时给出引导建议', async () => {
+      commitRepo.find.mockResolvedValue([]);
+      taskRepo.find.mockResolvedValue([]);
+      evalResultRepo.find.mockResolvedValue([]);
+      const getBestMatch = jest.fn().mockResolvedValue(null);
+      (matchAgent as any).getBestMatch = getBestMatch;
+
+      const result = await service.getGrowthReport(100, 30);
+
+      expect(result.summary.commits).toBe(0);
+      expect(result.skillChanges).toEqual([]);
+      expect(result.examTrend).toEqual([]);
+      expect(result.recommendations[0]).toContain('没有学习记录');
     });
   });
 });
