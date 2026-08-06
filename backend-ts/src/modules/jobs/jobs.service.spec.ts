@@ -162,3 +162,124 @@ describe('JobsService.searchJobs', () => {
     expect(applicationRepo.save).not.toHaveBeenCalled();
   });
 });
+
+describe('JobsService.getGapCard', () => {
+  const baseJob = {
+    id: 5,
+    title: '前端开发实习生',
+    company: '示例科技',
+    level: 'junior',
+    deliveryThreshold: 60,
+    status: 1,
+    requiredSkills: [
+      { name: 'React Hooks', weight: 1, minLevel: 70 },
+      { name: '接口联调', weight: 1, minLevel: 60 },
+      { name: '项目部署', weight: 1, minLevel: 50 },
+    ],
+    preferredSkills: [{ name: 'TypeScript', weight: 0.5, minLevel: 50 }],
+  };
+
+  const matchResult = {
+    totalScore: 58,
+    canApply: false,
+    requirement: { reason: '必须技能覆盖 45%，需达到 60%' },
+    gapAnalysis: [
+      { skill: 'React Hooks', type: 'required', currentMastery: 20 },
+      { skill: '接口联调', type: 'required', currentMastery: 0 },
+      { skill: '项目部署', type: 'required', currentMastery: 40 },
+      { skill: 'TypeScript', type: 'preferred', currentMastery: 10 },
+    ],
+  };
+
+  function createService(overrides: { skillList?: any[]; job?: any; match?: any } = {}) {
+    const jobRepo = { findOne: jest.fn().mockResolvedValue(overrides.job === undefined ? baseJob : overrides.job) };
+    const applicationRepo = { findOne: jest.fn(), save: jest.fn() };
+    const studentRepo = { findOne: jest.fn().mockResolvedValue({ skills: [{ name: 'HTML' }] }) };
+    const enterpriseRepo = {};
+    const planRepo = {};
+    const branchRepo = {};
+    const commitRepo = {};
+    const snapshotRepo = {};
+    const matchAgent = {
+      calculateForAllJobs: jest.fn(),
+      calculateMatch: jest.fn().mockResolvedValue(overrides.match ?? matchResult),
+    };
+    const jobSearch = {};
+    const skillService = {
+      getEffectiveSkills: jest.fn().mockResolvedValue(overrides.skillList ?? [{ name: 'React', masteryPct: 20 }]),
+    };
+    const llmService = {};
+    const config = {};
+
+    const service = new JobsService(
+      jobRepo as any,
+      applicationRepo as any,
+      studentRepo as any,
+      enterpriseRepo as any,
+      planRepo as any,
+      branchRepo as any,
+      commitRepo as any,
+      snapshotRepo as any,
+      matchAgent as any,
+      jobSearch as any,
+      skillService as any,
+      llmService as any,
+      config as any,
+    );
+
+    return { service, jobRepo, studentRepo, matchAgent, skillService };
+  }
+
+  it('returns score, top 3 gaps with actions and estimated impact', async () => {
+    const { service } = createService();
+
+    const card = await service.getGapCard(7, 5);
+
+    expect(card.jobTitle).toBe('前端开发实习生');
+    expect(card.score).toBe(58);
+    expect(card.canApply).toBe(false);
+    expect(card.hasProfile).toBe(true);
+    expect(card.applyAdvice).toContain('暂不建议投递');
+    expect(card.reason).toContain('必须技能覆盖 45%');
+    // Top 3 缺口：required 优先、掌握度升序
+    expect(card.topGaps.map((g: any) => g.skill)).toEqual(['接口联调', 'React Hooks', '项目部署']);
+    expect(card.topGaps[0]).toEqual(expect.objectContaining({
+      type: 'required',
+      currentMastery: 0,
+      actionTarget: 'learning',
+      estimatedImpact: 3,
+    }));
+    expect(card.totalEstimatedImpact).toBe(9);
+    expect(card.message).toBe('');
+  });
+
+  it('gives basic guidance when user has no skill profile', async () => {
+    const { service } = createService({ skillList: [] });
+
+    const card = await service.getGapCard(7, 5);
+
+    expect(card.hasProfile).toBe(false);
+    expect(card.message).toContain('还没有技能画像');
+    expect(card.topGaps.every((g: any) => g.actionTarget === 'plan')).toBe(true);
+  });
+
+  it('falls back to basic skill hit when match calculation fails', async () => {
+    const { service, matchAgent } = createService();
+    matchAgent.calculateMatch.mockRejectedValue(new Error('match service down'));
+
+    const card = await service.getGapCard(7, 5);
+
+    // 降级：按 student.skills 与 requiredSkills 基础命中计算
+    expect(card.score).toBe(0);
+    expect(card.canApply).toBe(false);
+    expect(card.topGaps.map((g: any) => g.skill)).toEqual(['React Hooks', '接口联调', '项目部署']);
+    expect(card.topGaps.every((g: any) => g.type === 'required')).toBe(true);
+  });
+
+  it('throws NotFoundException when job does not exist', async () => {
+    const { service, jobRepo } = createService({ job: null });
+
+    await expect(service.getGapCard(7, 999)).rejects.toThrow('岗位不存在');
+    expect(jobRepo.findOne).toHaveBeenCalledWith({ where: { id: 999, status: 1 } });
+  });
+});

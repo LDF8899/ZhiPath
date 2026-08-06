@@ -26,6 +26,7 @@ import {
 } from '../../components/icons';
 import MatchBreakdown from '../../components/MatchBreakdown';
 import InteractiveCompanyMap from '../../components/InteractiveCompanyMap';
+import JobGapCard from '../../components/JobGapCard';
 import type { Job } from '../../types';
 import { readOnlineJob } from '../../utils/onlineJobCache';
 import { getJobSkillNames, getJobTrustTier } from '../../utils/jobTrust';
@@ -613,6 +614,11 @@ export default function JobDetail() {
               RIGHT COLUMN — sidebar
               ═══════════════════════════════════ */}
           <div className="hd-flex-col" style={{ gap: 20 }}>
+            {/* ── 岗位差距卡（P0-1）：Top3 缺口 + 推荐动作 + 一键加入计划 ── */}
+            {!isOnlineJob && (
+              <JobGapCard jobId={job.id} showHeader={false} />
+            )}
+
             {/* ── Match score card ── */}
             <div className="hd-card-accent">
               <div className="hd-section-label">

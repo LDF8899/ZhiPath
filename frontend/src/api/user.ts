@@ -20,6 +20,7 @@ import type {
   AbilityMetrics,
   RadarDimension,
   EvaluationListItem,
+  GapCard,
 } from '../types';
 
 /** 登录 */
@@ -135,6 +136,10 @@ export const getJobCompanyContext = (id: number) =>
 /** 岗位匹配分析 */
 export const getJobMatch = (id: number) =>
   client.get(`/user/jobs/${id}/match`) as Promise<ApiResponse<any>>;
+
+/** 岗位差距卡 — 匹配度 + Top3 缺口 + 推荐动作 + 预计影响（P0-1） */
+export const getGapCard = (jobId: number) =>
+  client.get(`/user/jobs/${jobId}/gap-card`) as Promise<ApiResponse<GapCard>>;
 
 /** 申请岗位 */
 export const applyJob = (id: number) =>

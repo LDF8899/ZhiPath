@@ -395,6 +395,155 @@ export class JobsService {
     return !['online', 'web', 'ai_generated'].includes(source);
   }
 
+  /**
+   * 岗位差距卡 — GET /api/user/jobs/:jobId/gap-card
+   *
+   * 对齐《ZhiPath_产品业务升级方案_可落地版》P0-1：
+   *  - 展示当前匹配度
+   *  - 展示 Top 3 缺失技能（含掌握度）
+   *  - 每个缺口有推荐动作 + 预计影响
+   *  - 无技能画像时给出基础建议（hasProfile=false + message）
+   *  - 支持一键加入学习计划（前端复用 import-skills）
+   */
+  async getGapCard(userId: number, jobId: number) {
+    const job = await this.jobRepo.findOne({ where: { id: jobId, status: 1 } });
+    if (!job) throw new NotFoundException('岗位不存在');
+
+    const jobTitle = job.title || '';
+    const level = job.level || 'junior';
+
+    // 技能画像判断（用于兜底建议）
+    let hasProfile = true;
+    try {
+      const userSkills = await this.skillService.getEffectiveSkills(userId);
+      hasProfile = userSkills.length > 0;
+    } catch {
+      hasProfile = false;
+    }
+
+    // 匹配度 + 差距分析（复用 MatchAgent 5 因子算法）
+    let score = 0;
+    let canApply = false;
+    let reason = '';
+    let gapAnalysis: Array<{
+      skill: string;
+      type: 'required' | 'preferred';
+      currentMastery: number;
+    }> = [];
+    try {
+      const match = await this.matchAgent.calculateMatch(userId, jobId, 'gap_card');
+      score = match.totalScore;
+      canApply = match.canApply;
+      reason = match.requirement?.reason || '';
+      gapAnalysis = match.gapAnalysis || [];
+    } catch {
+      // 匹配计算失败时降级为基础技能命中
+      const student = await this.studentRepo.findOne({
+        where: { userId, status: 1 },
+      });
+      const studentSkillNames = new Set(
+        (student?.skills || []).map((s: any) =>
+          (typeof s === 'string' ? s : s.name || '').toLowerCase(),
+        ),
+      );
+      const required = (job.requiredSkills || []).map((s: any) =>
+        typeof s === 'string' ? s : s.name || '',
+      );
+      const preferred = (job.preferredSkills || []).map((s: any) =>
+        typeof s === 'string' ? s : s.name || '',
+      );
+      const matchedCount = required.filter((s: string) =>
+        studentSkillNames.has(s.toLowerCase()),
+      ).length;
+      score =
+        required.length > 0
+          ? Math.round((matchedCount / required.length) * 100)
+          : 0;
+      canApply = score >= Math.max(60, job.deliveryThreshold || 60);
+      reason = `必须技能覆盖 ${score}%，需达到 ${Math.max(60, job.deliveryThreshold || 60)}%`;
+      gapAnalysis = [
+        ...required
+          .filter((s: string) => !studentSkillNames.has(s.toLowerCase()))
+          .map((s: string) => ({
+            skill: s,
+            type: 'required' as const,
+            currentMastery: 0,
+          })),
+        ...preferred
+          .filter((s: string) => !studentSkillNames.has(s.toLowerCase()))
+          .map((s: string) => ({
+            skill: s,
+            type: 'preferred' as const,
+            currentMastery: 0,
+          })),
+      ];
+    }
+
+    // Top 3 缺口（required 优先 + 掌握度升序，显式排序保证语义稳定）
+    const sortedGaps = [...gapAnalysis].sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'required' ? -1 : 1;
+      return a.currentMastery - b.currentMastery;
+    });
+    const topGaps = sortedGaps.slice(0, 3).map((g) => {
+      const isRequired = g.type === 'required';
+      const lowMastery = g.currentMastery <= 30;
+      const recommendedAction = !hasProfile
+        ? `先完善技能画像，再学习 ${g.skill}`
+        : isRequired
+          ? lowMastery
+            ? `学习 ${g.skill} 基础并完成练习`
+            : `补强 ${g.skill} 并做一次速测验证`
+          : `补充 ${g.skill} 加分项（练习或小项目）`;
+      const actionTarget = !hasProfile
+        ? 'plan'
+        : isRequired
+          ? lowMastery
+            ? 'learning'
+            : 'quick-test'
+          : 'project';
+      return {
+        skill: g.skill,
+        type: g.type,
+        currentMastery: Math.round(g.currentMastery),
+        recommendedAction,
+        actionTarget,
+        estimatedImpact: isRequired ? 3 : 1,
+      };
+    });
+
+    const totalEstimatedImpact = topGaps.reduce(
+      (sum, g) => sum + g.estimatedImpact,
+      0,
+    );
+
+    // 投递建议（对齐方案 6.2 字段示例）
+    let applyAdvice: string;
+    if (canApply) {
+      applyAdvice = '已达标，可以投递；建议同时优化简历表达。';
+    } else if (score >= 60) {
+      applyAdvice = '匹配度中等，先补齐岗位必备技能再投递。';
+    } else {
+      applyAdvice = '暂不建议投递，先补齐核心技能缺口。';
+    }
+
+    return {
+      jobId: Number(job.id),
+      jobTitle,
+      company: job.company || '',
+      level,
+      score,
+      canApply,
+      applyAdvice,
+      reason,
+      topGaps,
+      totalEstimatedImpact,
+      hasProfile,
+      message: hasProfile
+        ? ''
+        : '还没有技能画像，先完善个人技能或创建学习计划，差距卡会随学习实时更新。',
+    };
+  }
+
   /** 将岗位缺少的技能导入学习计划 — POST /api/user/jobs/:jobId/import-skills */
   async importSkills(userId: number, jobId: number, target: 'main' | 'side' = 'side') {
     const job = await this.jobRepo.findOne({ where: { id: jobId, status: 1 } });

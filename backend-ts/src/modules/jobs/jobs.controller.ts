@@ -49,6 +49,13 @@ export class JobsController {
     return success(context);
   }
 
+  /** GET /api/user/jobs/:jobId/gap-card — 岗位差距卡（匹配度 + Top3 缺口 + 推荐动作 + 预计影响） */
+  @Get('jobs/:jobId/gap-card')
+  async getGapCard(@CurrentUser() user: any, @Param('jobId') jobId: string) {
+    const result = await this.jobsService.getGapCard(user.sub, Number(jobId));
+    return success(result);
+  }
+
   /** GET /api/user/jobs/:jobId/match */
   @Get('jobs/:jobId/match')
   async getJobMatch(@CurrentUser() user: any, @Param('jobId') jobId: string) {

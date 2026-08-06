@@ -91,6 +91,31 @@ export interface Job {
   enterpriseIndustry?: string;
 }
 
+/** 岗位差距卡（P0-1）— GET /api/user/jobs/:id/gap-card */
+export interface GapCardTopGap {
+  skill: string;
+  type: 'required' | 'preferred';
+  currentMastery: number;
+  recommendedAction: string;
+  actionTarget: 'learning' | 'quick-test' | 'project' | 'resume' | 'plan';
+  estimatedImpact: number;
+}
+
+export interface GapCard {
+  jobId: number;
+  jobTitle: string;
+  company: string;
+  level: 'junior' | 'mid' | 'senior';
+  score: number;
+  canApply: boolean;
+  applyAdvice: string;
+  reason: string;
+  topGaps: GapCardTopGap[];
+  totalEstimatedImpact: number;
+  hasProfile: boolean;
+  message: string;
+}
+
 /** 学习路径 */
 export interface LearningPath {
   id: number;

@@ -4,6 +4,7 @@ import { getDashboard, getBestMatch } from '../../api/user';
 import { useSSE } from '../../hooks/useSSE';
 import { useMatchScoreToast, useCelebration, StreakBanner } from '../../components/MatchScoreToast';
 import PlanWelcomeModal from '../../components/PlanWelcomeModal';
+import JobGapCard from '../../components/JobGapCard';
 import '../../styles/hand-draw.css';
 import {
   IconCheck,
@@ -188,6 +189,8 @@ export default function Dashboard() {
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [hoveredTask, setHoveredTask] = useState<number | null>(null);
   const [bestMatch, setBestMatch] = useState<{ jobId: number; jobTitle: string; matchScore: number } | null>(null);
+  // 目标岗位差距卡给出的匹配度（比 bestMatch 更贴近用户目标岗位）
+  const [gapCardScore, setGapCardScore] = useState<number | null>(null);
   const prevMatchRef = useRef<number>(0);
 
   // 计划欢迎弹窗 — 首次进入时显示
@@ -287,14 +290,9 @@ export default function Dashboard() {
   const totalTasks = data.today_tasks.length;
   const taskPct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
   const primaryTask = data.today_tasks.find(t => t.status !== 'done' && t.status !== 'exam_done') || null;
-  const targetScore = bestMatch?.matchScore ?? data.learning_path?.matchScore ?? 0;
-  const gapText = data.target_job
-    ? targetScore >= 80
-      ? '已接近投递标准，建议优化简历并准备面试。'
-      : targetScore >= 60
-        ? '匹配度中等，优先补齐岗位缺失技能。'
-        : '目标差距较大，先完成核心技能和一次测评。'
-    : '还没有目标岗位，先选择一个岗位作为学习主线。';
+  const targetScore = data.target_job
+    ? (gapCardScore ?? bestMatch?.matchScore ?? data.learning_path?.matchScore ?? 0)
+    : (bestMatch?.matchScore ?? data.learning_path?.matchScore ?? 0);
   const nextAction = !data.target_job
     ? { label: '选择目标岗位', path: '/user/jobs', icon: IconBriefcase }
     : !data.learning_path
@@ -428,19 +426,30 @@ export default function Dashboard() {
           </button>
         </div>
 
-        <div className="dash-action-card">
-          <div className="dash-action-kicker">目标岗位差距</div>
-          <div className="dash-action-title">
-            {data.target_job?.title || bestMatch?.jobTitle || '未选择目标岗位'}
+        {data.target_job ? (
+          <div className="dash-action-card" style={{ padding: 14 }}>
+            <div className="dash-action-kicker">目标岗位差距</div>
+            <JobGapCard
+              jobId={data.target_job.id}
+              compact
+              bare
+              showHeader={false}
+              onScoreChange={setGapCardScore}
+            />
           </div>
-          <div className="dash-action-desc">{gapText}</div>
-          <button
-            className="hd-btn small secondary"
-            onClick={() => navigate(data.target_job ? `/user/jobs/${data.target_job.id}` : '/user/jobs')}
-          >
-            查看差距
-          </button>
-        </div>
+        ) : (
+          <div className="dash-action-card">
+            <div className="dash-action-kicker">目标岗位差距</div>
+            <div className="dash-action-title">未选择目标岗位</div>
+            <div className="dash-action-desc">选择一个岗位作为学习主线，差距卡会告诉你差什么、先补什么。</div>
+            <button
+              className="hd-btn small secondary"
+              onClick={() => navigate('/user/jobs')}
+            >
+              选择目标岗位
+            </button>
+          </div>
+        )}
 
         <div className="dash-action-card">
           <div className="dash-action-kicker">下一步提升匹配度</div>
