@@ -86,7 +86,7 @@ export class ResumeAgentService {
       workExperience: (student as any).workExperience || [],
       campusExperience: (student as any).campusExperience || [],
       awards: (student as any).awards || [],
-      resumeAdvice: this.buildResumeAdvice(targetJob, skills, (student as any).projects || []),
+      resumeAdvice: await this.buildResumeAdvice(userId, targetJob, skills, (student as any).projects || []),
     };
 
     // 5. 构建模板数据 + 调用 LLM 优化文案 → 渲染 HTML
@@ -197,7 +197,7 @@ export class ResumeAgentService {
         masteryPct: s.masteryPct,
         source: s.source,
       })),
-      resumeAdvice: this.buildResumeAdvice(targetJob, skills, baseContent.projects || []),
+      resumeAdvice: await this.buildResumeAdvice(userId, targetJob, skills, baseContent.projects || []),
     };
 
     const templateData = await this.buildTemplateData(resumeContent, targetJob);
@@ -416,7 +416,7 @@ export class ResumeAgentService {
     }));
   }
 
-  private buildResumeAdvice(targetJob: JobPosition | null, skills: any[], projects: any[]) {
+  private async buildResumeAdvice(userId: number, targetJob: JobPosition | null, skills: any[], projects: any[]) {
     if (!targetJob) {
       return {
         target: null,
@@ -427,6 +427,7 @@ export class ResumeAgentService {
           '补充 1-2 个与目标方向相关的项目经历。',
           '把技能掌握证据沉淀到测评、项目或代码记录中。',
         ],
+        expressions: [],
       };
     }
 
@@ -459,6 +460,14 @@ export class ResumeAgentService {
         : '至少补充 1 个与目标岗位相关的项目经历，否则岗位版简历说服力不足。',
     ];
 
+    // P1-2 evidence-aware 表达建议：3-5 条，每条引用技能与证据，证据不足时提示
+    const expressions = await this.buildEvidenceAdvice(
+      userId,
+      targetJob,
+      matchedSkills.map((item) => item.name),
+      missingSkills,
+    );
+
     return {
       target: {
         title: targetJob.title,
@@ -467,7 +476,100 @@ export class ResumeAgentService {
       matchedSkills,
       missingSkills,
       actionItems,
+      expressions,
     };
+  }
+
+  /**
+   * P1-2：生成岗位版简历表达建议（evidence-aware）
+   *
+   * 每条建议：
+   *   - 引用岗位关键词（技能名 + 岗位标题）
+   *   - 标明证据来源（测评/项目/学习/无）
+   *   - 证据不足时给出"建议补项目/测评"提示，不鼓励过度包装
+   *
+   * 覆盖技能：匹配技能前 4 个 + 缺失技能前 2 个（去重后最多 5 条）。
+   */
+  private async buildEvidenceAdvice(
+    userId: number,
+    targetJob: JobPosition,
+    matchedSkillNames: string[],
+    missingSkills: string[],
+  ): Promise<Array<Record<string, any>>> {
+    const candidates: string[] = [];
+    for (const name of [...matchedSkillNames, ...missingSkills]) {
+      const norm = this.normSkill(name);
+      if (name && !candidates.some((c) => this.normSkill(c) === norm)) {
+        candidates.push(name);
+      }
+      if (candidates.length >= 5) break;
+    }
+
+    const expressions: Array<Record<string, any>> = [];
+    let seq = 1;
+
+    for (const name of candidates) {
+      let evidence: any = null;
+      try {
+        evidence = await this.skillService.getSkillEvidence(userId, name);
+      } catch {
+        evidence = null;
+      }
+      const evData = evidence?.evidence || null;
+      const passedEval = evData?.evaluation?.find((r: any) => r.passed) || null;
+      const project = evData?.project?.[0] || null;
+      const learningCount = evData?.learning?.length || 0;
+
+      if (passedEval) {
+        const detail = passedEval.summary || `${passedEval.score} 分通过`;
+        expressions.push({
+          id: seq++,
+          category: 'evaluation',
+          advice: `把「${name}」写进技能区，并用「${detail}」作为掌握依据，与「${targetJob.title}」的岗位关键词直接呼应。`,
+          keywords: [name, targetJob.title],
+          skills: [name],
+          evidence: { type: 'evaluation', detail, count: 1 },
+          confidence: 'high',
+          warning: '',
+        });
+      } else if (project) {
+        const detail = project.description || project.name;
+        expressions.push({
+          id: seq++,
+          category: 'project',
+          advice: `在项目「${project.name}」描述中突出 ${name} 的实际应用与个人职责，让岗位要求与项目经验直接对应。`,
+          keywords: [name, targetJob.title],
+          skills: [name],
+          evidence: { type: 'project', detail: String(detail).slice(0, 60), count: 1 },
+          confidence: 'high',
+          warning: '',
+        });
+      } else if (learningCount > 0) {
+        expressions.push({
+          id: seq++,
+          category: 'learning',
+          advice: `「${name}」已有 ${learningCount} 次学习记录，可在简历中体现持续学习；建议补一次速测，把学习转化为可写证据。`,
+          keywords: [name, targetJob.title],
+          skills: [name],
+          evidence: { type: 'learning', detail: `${learningCount} 次学习 commit`, count: learningCount },
+          confidence: 'medium',
+          warning: '证据偏弱，建议补一次速测或小项目。',
+        });
+      } else {
+        expressions.push({
+          id: seq++,
+          category: 'gap',
+          advice: `「${name}」是「${targetJob.title}」的关键词但暂无证据，建议先完成相关测评或项目，再写入简历，避免过度包装。`,
+          keywords: [name, targetJob.title],
+          skills: [name],
+          evidence: { type: 'none', detail: '', count: 0 },
+          confidence: 'low',
+          warning: '建议补项目或测评后再写入简历。',
+        });
+      }
+    }
+
+    return expressions;
   }
 
   private skillNames(skills: Array<{ name?: string } | string>) {

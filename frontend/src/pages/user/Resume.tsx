@@ -579,6 +579,48 @@ function ResumeCard({
               ))}
             </ul>
           )}
+          {/* P1-2 evidence-aware 岗位化表达建议 */}
+          {advice.expressions?.length > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--rule)' }}>
+              <div style={{ font: '700 13px/1.3 var(--hand-bold)', marginBottom: 8, color: 'var(--ink)' }}>
+                岗位化表达建议（引用学习证据）
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {advice.expressions.map((expr: any) => {
+                  const confColor =
+                    expr.confidence === 'high' ? '#3a7d3a'
+                    : expr.confidence === 'medium' ? '#e65100' : 'var(--accent)';
+                  const confLabel =
+                    expr.confidence === 'high' ? '证据充分'
+                    : expr.confidence === 'medium' ? '证据一般' : '证据不足';
+                  return (
+                    <div key={expr.id} style={{ fontSize: 13, lineHeight: 1.5 }}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span className="hd-pill" style={{ fontSize: 10, background: '#e8f5e9', color: confColor, flexShrink: 0 }}>
+                          {confLabel}
+                        </span>
+                        {expr.skills?.map((s: string) => (
+                          <span key={s} className="hd-tag" style={{ fontSize: 11 }}>{s}</span>
+                        ))}
+                        {expr.evidence?.type && expr.evidence.type !== 'none' && (
+                          <span className="hd-badge" style={{ fontSize: 11, color: 'var(--pencil)' }}>
+                            {expr.evidence.type === 'evaluation' ? '测评' : expr.evidence.type === 'project' ? '项目' : '学习'}
+                            {expr.evidence.detail ? `：${expr.evidence.detail}` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ marginTop: 3 }}>{expr.advice}</div>
+                      {expr.warning && (
+                        <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 2 }}>
+                          ⚠ {expr.warning}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

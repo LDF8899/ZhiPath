@@ -91,9 +91,41 @@ describe('ResumeAgentService HTML generation', () => {
     expect(html).toMatch(/^<!DOCTYPE html>/);
   });
 
-  it('builds target-job resume advice from matched and missing skills', () => {
+  it('builds target-job resume advice from matched and missing skills', async () => {
     const service = createService('{}');
-    const advice = (service as any).buildResumeAdvice(
+    // P1-2：evidence-aware — 每个技能返回不同证据强度
+    const evidenceBySkill: Record<string, any> = {
+      React: {
+        mastery: 72,
+        evidence: {
+          learning: [],
+          evaluation: [{ passed: true, score: 80, summary: '组件状态题 8/10' }],
+          project: [],
+          resume: [],
+          impact: {},
+        },
+      },
+      Vite: {
+        mastery: 60,
+        evidence: {
+          learning: [{ commitId: 1, type: 'lecture_read', message: 'lecture read: Vite', delta: 5, time: 1730000000000 }],
+          evaluation: [],
+          project: [],
+          resume: [],
+          impact: {},
+        },
+      },
+      TypeScript: {
+        mastery: 0,
+        evidence: { learning: [], evaluation: [], project: [], resume: [], impact: {} },
+      },
+    };
+    (service as any).skillService = {
+      getSkillEvidence: jest.fn(async (_userId: number, name: string) => evidenceBySkill[name] || evidenceBySkill.TypeScript),
+    };
+
+    const advice = await (service as any).buildResumeAdvice(
+      7,
       {
         title: 'Web 前端实习生',
         company: '示例科技',
@@ -112,5 +144,19 @@ describe('ResumeAgentService HTML generation', () => {
     ]));
     expect(advice.missingSkills).toContain('TypeScript');
     expect(advice.actionItems.join('')).toContain('TypeScript');
+    // P1-2：evidence-aware 表达建议
+    expect(advice.expressions.length).toBeGreaterThanOrEqual(3);
+    const bySkill = Object.fromEntries(advice.expressions.map((e: any) => [e.skills[0], e]));
+    // React 有测评通过证据 → high
+    expect(bySkill.React.confidence).toBe('high');
+    expect(bySkill.React.evidence.type).toBe('evaluation');
+    expect(bySkill.React.advice).toContain('组件状态题 8/10');
+    // Vite 只有学习证据 → medium + warning
+    expect(bySkill.Vite.confidence).toBe('medium');
+    expect(bySkill.Vite.warning).toContain('速测');
+    // TypeScript 无证据 → low + 提示补证据
+    expect(bySkill.TypeScript.confidence).toBe('low');
+    expect(bySkill.TypeScript.warning).toContain('补项目或测评');
+    expect(bySkill.TypeScript.advice).toContain('避免过度包装');
   });
 });
