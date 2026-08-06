@@ -583,6 +583,12 @@
   font: 13px/1.2 var(--hand);
 }
 
+.chat-file-chip.evidence {
+  border-style: dashed;
+  border-color: var(--data-blue);
+  background: rgba(59, 110, 142, 0.08);
+}
+
 .chat-file-name {
   min-width: 0;
   flex: 1;
@@ -615,6 +621,26 @@
 .chat-file-remove:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.chat-file-evidence-btn {
+  flex-shrink: 0;
+  padding: 5px 9px;
+  border: 1.5px solid var(--data-blue);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--data-blue);
+  font: 12px/1 var(--hand-bold);
+  cursor: pointer;
+}
+
+.chat-file-evidence-btn:hover:not(:disabled) {
+  background: rgba(59, 110, 142, 0.1);
+}
+
+.chat-file-evidence-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .chat-input-inner {

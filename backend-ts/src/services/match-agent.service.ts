@@ -485,7 +485,8 @@ export class MatchAgentService {
       // 计算项目相关度
       let relatedCount = 0;
       for (const project of profile.projects) {
-        const projectText = `${project.name || ''} ${project.description || ''} ${(project.techStack || []).join(' ')}`.toLowerCase();
+        const tech = Array.isArray(project.techStack) ? project.techStack : (project.tech || []);
+        const projectText = `${project.name || ''} ${project.description || ''} ${tech.join(' ')}`.toLowerCase();
         for (const keyword of jobSkillKeywords) {
           if (projectText.includes(keyword)) {
             relatedCount++;

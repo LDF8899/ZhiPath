@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Student } from '../../entities/student.entity';
 import { GitHubController } from './github.controller';
+import { ProfileService } from '../../services/profile.service';
 
 /**
  * GitHub / 项目经历模块 — Phase 9 补齐
@@ -12,5 +13,6 @@ import { GitHubController } from './github.controller';
 @Module({
   imports: [TypeOrmModule.forFeature([Student])],
   controllers: [GitHubController],
+  providers: [ProfileService],
 })
 export class GitHubModule {}

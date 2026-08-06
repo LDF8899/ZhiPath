@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useSearchParams, useNavigate } from 'react-router-dom';
 import type { ChatMessage, ChatAction, ChatSession, ResourceItem } from '../../types';
-import { sendChat, getChatSessions, getChatSession, deleteChatSession, getKnowledge } from '../../api/user';
+import { sendChat, getChatSessions, getChatSession, deleteChatSession, getKnowledge, saveProject } from '../../api/user';
 import { useChatStore } from '../../stores/chat';
 import { useOfficeStore } from '../../stores/office';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -117,6 +117,8 @@ export default function Chat() {
   const [dragOver, setDragOver] = useState(false);
   const [attachedFile, setAttachedFile] = useState<ChatAttachedFile | null>(null);
   const [fileReading, setFileReading] = useState(false);
+  const [fileEvidenceCandidate, setFileEvidenceCandidate] = useState<{ file: ChatAttachedFile; question: string } | null>(null);
+  const [evidenceSaving, setEvidenceSaving] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -286,6 +288,7 @@ export default function Chat() {
     try {
       const nextFile = await readChatAttachedFile(file);
       setAttachedFile(nextFile);
+      setFileEvidenceCandidate(null);
       showToast(nextFile.truncated ? '文件已添加，内容较长已截取前半部分' : '文件已添加，可以开始提问');
       inputRef.current?.focus();
     } catch (err: any) {
@@ -302,6 +305,7 @@ export default function Chat() {
     if (!msg || sending) return;
 
     const outboundMsg = attachedFile ? buildQuestionWithFileContext(msg, attachedFile) : msg;
+    const evidenceFile = attachedFile;
     const displayMsg = attachedFile
       ? `${msg}\n\n（已附加文件：${attachedFile.name}${attachedFile.truncated ? '，内容已截取' : ''}）`
       : msg;
@@ -442,11 +446,47 @@ export default function Chat() {
           setMainMessages(newSessionId || oldSessionId, sentMessages);
         }
         setAttachedFile(null);
+        if (evidenceFile) {
+          setFileEvidenceCandidate({ file: evidenceFile, question: msg });
+        }
       }
     } catch (err: any) {
       showToast(err?.message || '发送失败，请稍后重试', 'error');
     } finally {
       setSending(false);
+      inputRef.current?.focus();
+    }
+  };
+
+  const handleSaveFileEvidence = async () => {
+    if (!fileEvidenceCandidate || evidenceSaving) return;
+    setEvidenceSaving(true);
+    try {
+      const { file, question } = fileEvidenceCandidate;
+      const skills = inferSkillsFromFile(file);
+      await saveProject({
+        name: evidenceProjectName(file.name),
+        description: [
+          `来源文件：${file.name}`,
+          question ? `关联问题：${question}` : '',
+          file.content ? `内容摘要：${file.content.slice(0, 900)}` : '',
+        ].filter(Boolean).join('\n'),
+        role: '学习证据',
+        tech: skills,
+        time: new Date().toISOString().slice(0, 10),
+        highlights: question ? [`围绕「${question.slice(0, 60)}」完成文件问答`] : ['通过文件问答沉淀学习证据'],
+        source: 'uploaded_file',
+        evidence_type: 'file_qa',
+        file_name: file.name,
+        content_preview: file.content.slice(0, 1200),
+        question,
+      });
+      setFileEvidenceCandidate(null);
+      showToast('已保存为项目证据，可在项目经历和技能证据链中查看');
+    } catch (err: any) {
+      showToast(err?.message || '保存证据失败', 'error');
+    } finally {
+      setEvidenceSaving(false);
       inputRef.current?.focus();
     }
   };
@@ -749,6 +789,30 @@ export default function Chat() {
               </button>
             </div>
           )}
+          {fileEvidenceCandidate && !attachedFile && (
+            <div className="chat-file-chip evidence" title={fileEvidenceCandidate.file.name}>
+              <IconDocument size={15} />
+              <span className="chat-file-name">
+                本轮文件可保存为项目证据：{fileEvidenceCandidate.file.name}
+              </span>
+              <button
+                type="button"
+                className="chat-file-evidence-btn"
+                onClick={handleSaveFileEvidence}
+                disabled={evidenceSaving}
+              >
+                {evidenceSaving ? '保存中...' : '保存证据'}
+              </button>
+              <button
+                type="button"
+                className="chat-file-remove"
+                onClick={() => setFileEvidenceCandidate(null)}
+                title="忽略"
+              >
+                <IconX size={13} />
+              </button>
+            </div>
+          )}
           <div className="chat-input-inner">
             {/* Doodle pencil icon */}
             <svg className="chat-input-pencil" width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -800,6 +864,33 @@ export default function Chat() {
       />
     </div>
   );
+}
+
+function evidenceProjectName(fileName: string) {
+  const clean = fileName.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+  return clean ? `文件证据：${clean}` : `文件证据：${fileName}`;
+}
+
+function inferSkillsFromFile(file: ChatAttachedFile) {
+  const text = `${file.name}\n${file.content}`.toLowerCase();
+  const skillAliases: Array<[string, string[]]> = [
+    ['JavaScript', ['javascript', '.js', 'node.js', 'nodejs']],
+    ['TypeScript', ['typescript', '.ts', '.tsx']],
+    ['React', ['react', 'jsx', 'tsx', 'hooks', 'useeffect', 'usestate']],
+    ['Vue', ['vue', 'pinia', 'vuex']],
+    ['Node.js', ['node.js', 'nodejs', 'express', 'nestjs']],
+    ['NestJS', ['nestjs', '@nestjs']],
+    ['Python', ['python', '.py', 'pandas', 'fastapi', 'django']],
+    ['SQL', ['sql', 'mysql', 'postgresql', 'database']],
+    ['Docker', ['docker', 'dockerfile', 'compose']],
+    ['Git', ['git', 'github', 'commit']],
+    ['HTML/CSS', ['html', 'css', 'scss', 'tailwind']],
+    ['数据分析', ['数据分析', '可视化', 'pandas', 'chart']],
+  ];
+  const matched = skillAliases
+    .filter(([, aliases]) => aliases.some((alias) => text.includes(alias)))
+    .map(([skill]) => skill);
+  return Array.from(new Set(matched)).slice(0, 8);
 }
 
 /** Renders AI action cards */

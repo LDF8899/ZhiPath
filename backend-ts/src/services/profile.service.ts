@@ -174,6 +174,33 @@ export class ProfileService {
   }
 
   /** 从 MySQL 同步基础信息到 MongoDB 画像 */
+  /** Add a project evidence entry to the Mongo profile for match scoring and long-term memory. */
+  async addProjectEvidence(userId: number, project: Record<string, any>) {
+    const now = Date.now();
+    const tech = Array.isArray(project.tech)
+      ? project.tech
+      : Array.isArray(project.techStack)
+        ? project.techStack
+        : [];
+    const normalized = {
+      ...project,
+      tech,
+      techStack: tech,
+      source: project.source || 'project',
+      saved_at: project.saved_at || now,
+    };
+    await this.collection.updateOne(
+      { user_id: String(userId) },
+      {
+        $push: { projects: normalized } as any,
+        $set: { updated_at: now },
+        $setOnInsert: { created_at: now, version: 1 },
+        $inc: { version: 1 },
+      },
+      { upsert: true },
+    );
+  }
+
   async syncBasicFromMySQL(userId: number, basic: Record<string, any>) {
     const now = Date.now();
     await this.collection.updateOne(

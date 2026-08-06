@@ -1,23 +1,23 @@
-import { useState, useRef, useEffect } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/auth';
 import { useWorkspaceSync } from '../hooks/useWorkspaceSync';
 import { useChatResourceSync } from '../hooks/useChatResourceSync';
 import NotificationBell from '../components/NotificationBell';
 import '../styles/hand-draw.css';
 import {
-  IconHome,
   IconBook,
   IconBriefcase,
-  IconGradCap,
-  IconUser,
-  IconSettings,
+  IconChart,
   IconChat,
-  IconRobot,
   IconChevronDown,
   IconDocument,
-  IconChart,
+  IconGradCap,
+  IconHome,
+  IconRobot,
+  IconSettings,
   IconTrophy,
+  IconUser,
 } from '../components/icons';
 
 const navSections = [
@@ -44,7 +44,6 @@ const navSections = [
 ];
 
 export default function UserLayout() {
-  // 全局事件同步：toast + SSE 桥接
   useWorkspaceSync();
   useChatResourceSync();
 
@@ -56,25 +55,23 @@ export default function UserLayout() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const currentPath = location.pathname;
+  const isChat = currentPath.startsWith('/user/chat');
   const isActive = (key: string) => currentPath.startsWith(key);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    if (userMenuOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [userMenuOpen]);
 
   const handleLogout = () => {
     logout();
     navigate('/');
   };
-
-  // Close user menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setUserMenuOpen(false);
-      }
-    };
-    if (userMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [userMenuOpen]);
 
   const sidebarNav = (
     <ul className="hd-sidebar-nav">
@@ -118,24 +115,18 @@ export default function UserLayout() {
   );
 
   const userMenuDropdown = (
-    <div
-      ref={userMenuRef}
-      className="hd-sidebar-footer"
-      style={{ position: 'relative' }}
-    >
+    <div ref={userMenuRef} className="hd-sidebar-footer" style={{ position: 'relative' }}>
       <button
-        onClick={() => setUserMenuOpen((v) => !v)}
+        onClick={() => setUserMenuOpen((value) => !value)}
         className="hd-sidebar-item"
-        style={{ gap: '10px' }}
+        style={{ gap: 10 }}
       >
-        <span className="hd-avatar small">
-          {user?.realName?.[0] || 'U'}
-        </span>
+        <span className="hd-avatar small">{user?.realName?.[0] || 'U'}</span>
         <span style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
           <span
             style={{
               display: 'block',
-              fontSize: '14px',
+              fontSize: 14,
               fontWeight: 700,
               fontFamily: 'var(--hand-bold)',
               color: 'var(--ink)',
@@ -149,7 +140,7 @@ export default function UserLayout() {
           <span
             style={{
               display: 'block',
-              fontSize: '12px',
+              fontSize: 12,
               color: 'var(--pencil)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -220,77 +211,39 @@ export default function UserLayout() {
 
   return (
     <div className="hd-page">
-      <div className={`hd-layout${currentPath.startsWith('/user/chat') ? ' is-chat' : ''}`}>
-        {/* ── Desktop sidebar ── */}
+      <div className={`hd-layout${isChat ? ' is-chat' : ''}`}>
         <aside className="hd-sidebar">
           <div className="hd-sidebar-brand">智途 ZhiPath</div>
           {sidebarNav}
           {userMenuDropdown}
         </aside>
 
-        {/* ── Main content area ── */}
         <div className="hd-main" style={{ display: 'flex', flexDirection: 'column', padding: 0 }}>
-          {/* Mobile header */}
           <div className="hd-mobile-header">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="hd-hamburger"
-              aria-label="Open menu"
-            >
+            <button onClick={() => setSidebarOpen(true)} className="hd-hamburger" aria-label="打开菜单">
               <span />
               <span />
               <span />
             </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span
-                style={{
-                  font: '800 18px/1 var(--serif)',
-                  fontStyle: 'italic',
-                  color: 'var(--ink)',
-                }}
-              >
-                智途
-              </span>
-            </div>
+            <span style={{ font: '800 18px/1 var(--serif)', fontStyle: 'italic', color: 'var(--ink)' }}>
+              智途
+            </span>
             <NotificationBell />
           </div>
 
-          {/* Page content — Chat page needs full-bleed, no padding */}
-          <div className={`hd-main-scroll${currentPath.startsWith('/user/chat') ? ' is-chat' : ''}`}>
+          <div className={`hd-main-scroll${isChat ? ' is-chat' : ''}`}>
             <Outlet />
           </div>
         </div>
       </div>
 
-      {/* ── Mobile sidebar overlay ── */}
       {sidebarOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 90,
-          }}
-          className="md:hidden"
-        >
+        <div style={{ position: 'fixed', inset: 0, zIndex: 90 }} className="md:hidden">
           <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'rgba(43,38,32,0.3)',
-            }}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(43,38,32,0.3)' }}
             onClick={() => setSidebarOpen(false)}
           />
-          <aside
-            className="hd-sidebar open"
-            style={{
-              position: 'fixed',
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: 260,
-              zIndex: 100,
-            }}
-          >
+          <aside className="hd-sidebar open" style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 260, zIndex: 100 }}>
             <div className="hd-sidebar-brand">智途 ZhiPath</div>
             {sidebarNav}
             {userMenuDropdown}
