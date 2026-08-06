@@ -9,6 +9,7 @@ describe('AdminService employment dashboard (P2-1)', () => {
     tasks?: any[];
     evalResults?: any[];
     plans?: any[];
+    chunks?: any[];
   } = {}) {
     const students = overrides.students ?? [
       { id: 1, userId: 101, name: '张三', studentNo: '2023001', major: '软件工程', grade: '大三', school: 'ZhiPath 大学', targetJobId: 5, status: 1 },
@@ -48,6 +49,7 @@ describe('AdminService employment dashboard (P2-1)', () => {
       repo(overrides.tasks ?? []) as any,    // learningTask
       repo(overrides.evalResults ?? []) as any, // evaluationResult
       repo(overrides.plans ?? []) as any,    // learningPlan
+      repo(overrides.chunks ?? []) as any,   // evidenceChunk
     );
 
     return { service };
@@ -76,6 +78,11 @@ describe('AdminService employment dashboard (P2-1)', () => {
         { userId: 102, matchScore: 62 },
         { userId: 103, matchScore: 45 },
       ],
+      // P2-1：证据覆盖（101 有 React Hooks 项目证据，102 无）
+      chunks: [
+        { id: 1, userId: 101, sourceType: 'project', skillTags: ['React Hooks'], vectorStatus: 'indexed', status: 1 },
+        { id: 2, userId: 101, sourceType: 'file_qa', skillTags: ['React Hooks'], vectorStatus: 'indexed', status: 1 },
+      ],
     });
 
     const result = await service.getEmploymentDashboard({});
@@ -98,6 +105,19 @@ describe('AdminService employment dashboard (P2-1)', () => {
     // 技能缺口 Top：React Hooks 2 人 < 60，接口联调 1 人
     expect(result.skillGaps[0]).toEqual(expect.objectContaining({ skill: 'React Hooks', studentCount: 2 }));
     expect(result.skillGaps[1]).toEqual(expect.objectContaining({ skill: '接口联调', studentCount: 1 }));
+    // P2-1：缺口技能的证据覆盖（React Hooks 有 101 的证据）
+    expect(result.skillGaps[0].evidenceCount).toBe(2);
+    expect(result.skillGaps[0].evidenceStudents).toBe(1);
+    expect(result.skillGaps[0].evidenceCoverageRate).toBe(50);
+    expect(result.skillGaps[1].evidenceCount).toBe(0);
+    // P2-1：整体证据覆盖率
+    expect(result.overview.evidenceCoverage).toEqual(expect.objectContaining({
+      studentsWithEvidence: 1,
+      evidenceStudentRate: 25,
+      chunks: 2,
+      indexedChunks: 2,
+      indexedRate: 100,
+    }));
     // 掌握度 >= 60 的技能不计入缺口
     expect(result.skillGaps.some((g: any) => g.skill === 'JavaScript')).toBe(false);
     // 筛选项

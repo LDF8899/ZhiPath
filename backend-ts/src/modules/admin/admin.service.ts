@@ -14,6 +14,7 @@ import { UserSkill } from '../../entities/user-skills.entity';
 import { LearningTask } from '../../entities/learning-tasks.entity';
 import { EvaluationResult } from '../../entities/evaluation-result.entity';
 import { LearningPlan } from '../../entities/learning.entity';
+import { EvidenceChunk } from '../../entities/evidence-chunk.entity';
 import { JobSearchService } from '../../services/job-search.service';
 
 /**
@@ -37,6 +38,7 @@ export class AdminService {
     @InjectRepository(LearningTask) private taskRepo: Repository<LearningTask>,
     @InjectRepository(EvaluationResult) private evalResultRepo: Repository<EvaluationResult>,
     @InjectRepository(LearningPlan) private planRepo: Repository<LearningPlan>,
+    @InjectRepository(EvidenceChunk) private evidenceChunkRepo: Repository<EvidenceChunk>,
   ) {}
 
   // ── Dashboard ──
@@ -432,7 +434,7 @@ export class AdminService {
     const classes = [...new Set(allStudents.map((s) => this.classOf(s.studentNo)).filter(Boolean))].sort();
 
     // 3. 并行聚合
-    const [skills, tasks, evalResults, plans, jobs] = await Promise.all([
+    const [skills, tasks, evalResults, plans, jobs, chunks] = await Promise.all([
       userIds.length > 0 ? this.userSkillRepo.find({ where: { userId: In(userIds), status: 1 } }) : [],
       userIds.length > 0 ? this.taskRepo.find({ where: { userId: In(userIds), isActive: 1 } }) : [],
       userIds.length > 0 ? this.evalResultRepo.find({ where: { userId: In(userIds), status: 1 } }) : [],
@@ -441,6 +443,7 @@ export class AdminService {
         const ids = [...new Set(students.map((s) => Number(s.targetJobId)).filter(Boolean))];
         return ids.length > 0 ? this.jobRepo.find({ where: { id: In(ids), status: 1 } }) : Promise.resolve([]);
       })(),
+      userIds.length > 0 ? this.evidenceChunkRepo.find({ where: { userId: In(userIds), status: 1 } }) : [],
     ]);
     const jobTitleMap = new Map<number, string>(jobs.map((j) => [Number(j.id), j.title || '']));
 
@@ -470,13 +473,38 @@ export class AdminService {
       const prev = bestMastery.get(name)!.get(uid) || 0;
       bestMastery.get(name)!.set(uid, Math.max(prev, Number(sk.masteryPct) || 0));
     }
+
+    // P2-1：证据覆盖统计（skillTag → chunk 数 / 覆盖学生数）
+    const chunkBySkill = new Map<string, { chunks: number; users: Set<number> }>();
+    const studentsWithEvidence = new Set<number>();
+    for (const c of chunks) {
+      studentsWithEvidence.add(Number(c.userId));
+      for (const tag of c.skillTags || []) {
+        const key = tag.toLowerCase();
+        const cur = chunkBySkill.get(key) || { chunks: 0, users: new Set<number>() };
+        cur.chunks++;
+        cur.users.add(Number(c.userId));
+        chunkBySkill.set(key, cur);
+      }
+    }
+    const indexedChunks = chunks.filter((c) => c.vectorStatus === 'indexed').length;
+
     const skillGaps = [...bestMastery.entries()]
       .map(([skill, userMap]) => {
         const gapUsers = [...userMap.entries()].filter(([, mastery]) => mastery < 60);
         const avgMastery = gapUsers.length > 0
           ? Math.round(gapUsers.reduce((sum, [, m]) => sum + m, 0) / gapUsers.length * 10) / 10
           : 0;
-        return { skill, studentCount: gapUsers.length, avgMastery };
+        const ev = chunkBySkill.get(skill.toLowerCase());
+        return {
+          skill,
+          studentCount: gapUsers.length,
+          avgMastery,
+          // P2-1：缺口技能的证据覆盖
+          evidenceCount: ev?.chunks || 0,
+          evidenceStudents: ev?.users.size || 0,
+          evidenceCoverageRate: percent(ev?.users.size || 0, gapUsers.length),
+        };
       })
       .filter((g) => g.studentCount > 0)
       .sort((a, b) => b.studentCount - a.studentCount)
@@ -519,6 +547,14 @@ export class AdminService {
         examPassRate: percent(evalPassed, evalTotal),
         readiness,
         readinessTotal: students.length,
+        // P2-1：证据覆盖率（有证据学生占比 + 向量化率）
+        evidenceCoverage: {
+          studentsWithEvidence: studentsWithEvidence.size,
+          evidenceStudentRate: percent(studentsWithEvidence.size, students.length),
+          chunks: chunks.length,
+          indexedChunks,
+          indexedRate: percent(indexedChunks, chunks.length),
+        },
       },
       targetJobDistribution,
       skillGaps,
@@ -575,8 +611,22 @@ export class AdminService {
       const str = String(v ?? '');
       return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
     };
+
+    // P2-1：每学生证据数量与已索引数量（导出明细）
+    const chunkByUser = new Map<number, { total: number; indexed: number }>();
+    if (userIds.length > 0) {
+      const chunks = await this.evidenceChunkRepo.find({ where: { userId: In(userIds), status: 1 } });
+      for (const c of chunks) {
+        const uid = Number(c.userId);
+        const cur = chunkByUser.get(uid) || { total: 0, indexed: 0 };
+        cur.total++;
+        if (c.vectorStatus === 'indexed') cur.indexed++;
+        chunkByUser.set(uid, cur);
+      }
+    }
+
     const lines = [
-      ['学号', '姓名', '专业', '年级', '班级', '目标岗位', '技能数', '任务完成率', '测评达标率', '匹配度', '准备度'].map(esc).join(','),
+      ['学号', '姓名', '专业', '年级', '班级', '目标岗位', '技能数', '任务完成率', '测评达标率', '匹配度', '准备度', '证据数量', '已索引证据', '证据强度'].map(esc).join(','),
     ];
     for (const s of students) {
       const uid = Number(s.userId);
@@ -585,6 +635,7 @@ export class AdminService {
       const evalInfo = evalByUser.get(uid) || { passed: 0, total: 0 };
       const matchScore = matchByUser.get(uid) || 0;
       const readinessLevel = matchScore >= 80 ? '高' : matchScore >= 60 ? '中' : '低';
+      const ev = chunkByUser.get(uid) || { total: 0, indexed: 0 };
       lines.push([
         s.studentNo || '',
         s.name || '',
@@ -597,6 +648,9 @@ export class AdminService {
         percent(evalInfo.passed, evalInfo.total),
         matchScore,
         readinessLevel,
+        ev.total,
+        ev.indexed,
+        percent(ev.indexed, ev.total),
       ].map(esc).join(','));
     }
     return lines.join('\r\n');

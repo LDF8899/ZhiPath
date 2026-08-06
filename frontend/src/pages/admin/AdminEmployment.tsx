@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getEmploymentDashboard, exportEmploymentCsv } from '../../api/admin';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
-import { IconRefresh, IconDownload, IconBriefcase, IconGradCap, IconTarget, IconCheck } from '../../components/icons';
+import { IconRefresh, IconDownload, IconBriefcase, IconGradCap, IconTarget, IconCheck, IconDocument } from '../../components/icons';
 import EmptyState from '../../components/EmptyState';
 import '../../styles/hand-draw.css';
 
@@ -195,21 +195,36 @@ export default function AdminEmployment() {
             </div>
             <div className="hd-card-accent" style={{ padding: 14 }}>
               <div className="hd-section-label" style={{ marginBottom: 8 }}>
-                <IconCheck size={15} />
-                求职准备度分层
+                <IconDocument size={15} />
+                证据覆盖率（P2）
               </div>
-              {[
-                { label: '高（≥80）', value: ov.readiness?.high ?? 0, color: '#3a7d3a' },
-                { label: '中（60-79）', value: ov.readiness?.medium ?? 0, color: '#e65100' },
-                { label: '低（<60）', value: ov.readiness?.low ?? 0, color: 'var(--accent)' },
-              ].map((r) => (
-                <div key={r.label} className="hd-flex" style={{ gap: 8, alignItems: 'center', marginTop: 5 }}>
-                  <span style={{ font: '11px/1 var(--mono)', color: 'var(--pencil)', width: 66, flexShrink: 0 }}>{r.label}</span>
-                  {pctBar(ov.readinessTotal ? Math.round(r.value / ov.readinessTotal * 100) : 0, r.color)}
-                  <span style={{ font: '12px/1 var(--serif)', fontWeight: 700, width: 26, textAlign: 'right' }}>{r.value}</span>
-                </div>
-              ))}
+              <div style={{ font: '800 28px/1 var(--serif)' }}>
+                {ov.evidenceCoverage?.evidenceStudentRate ?? 0}%
+              </div>
+              <div style={{ marginTop: 8 }}>{pctBar(ov.evidenceCoverage?.evidenceStudentRate ?? 0, '#7b68ee')}</div>
+              <div style={{ font: '11px/1 var(--mono)', color: 'var(--pencil)', marginTop: 4 }}>
+                {ov.evidenceCoverage?.studentsWithEvidence ?? 0}/{ov.studentCount} 人有证据 · 已索引 {ov.evidenceCoverage?.indexedRate ?? 0}%
+              </div>
             </div>
+          </div>
+
+          {/* ── 求职准备度分层（独立区块）── */}
+          <div className="hd-card" style={{ padding: 14, marginBottom: 14 }}>
+            <div className="hd-section-label" style={{ marginBottom: 8 }}>
+              <IconCheck size={15} />
+              求职准备度分层
+            </div>
+            {[
+              { label: '高（≥80）', value: ov.readiness?.high ?? 0, color: '#3a7d3a' },
+              { label: '中（60-79）', value: ov.readiness?.medium ?? 0, color: '#e65100' },
+              { label: '低（<60）', value: ov.readiness?.low ?? 0, color: 'var(--accent)' },
+            ].map((r) => (
+              <div key={r.label} className="hd-flex" style={{ gap: 8, alignItems: 'center', marginTop: 5 }}>
+                <span style={{ font: '11px/1 var(--mono)', color: 'var(--pencil)', width: 66, flexShrink: 0 }}>{r.label}</span>
+                {pctBar(ov.readinessTotal ? Math.round(r.value / ov.readinessTotal * 100) : 0, r.color)}
+                <span style={{ font: '12px/1 var(--serif)', fontWeight: 700, width: 26, textAlign: 'right' }}>{r.value}</span>
+              </div>
+            ))}
           </div>
 
           <div className="hd-grid-2" style={{ gap: 12 }}>
@@ -255,12 +270,20 @@ export default function AdminEmployment() {
                   {data.skillGaps.map((g: any, i: number) => (
                     <div key={g.skill} className="hd-flex" style={{ gap: 8, alignItems: 'center' }}>
                       <span style={{ font: '12px/1 var(--mono)', color: 'var(--pencil)', width: 20, flexShrink: 0 }}>{i + 1}</span>
-                      <span style={{ font: '13px/1 var(--hand)', width: 150, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ font: '13px/1 var(--hand)', width: 130, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {g.skill}
                       </span>
                       {pctBar(Math.min(100, g.studentCount / Math.max(1, ov.studentCount) * 100), 'var(--accent)')}
-                      <span style={{ font: '12px/1 var(--mono)', color: 'var(--pencil)', width: 90, textAlign: 'right', flexShrink: 0 }}>
+                      <span style={{ font: '12px/1 var(--mono)', color: 'var(--pencil)', width: 84, textAlign: 'right', flexShrink: 0 }}>
                         {g.studentCount} 人 · 均 {g.avgMastery}%
+                      </span>
+                      {/* P2：缺口技能的证据覆盖 */}
+                      <span
+                        className="hd-pill"
+                        style={{ fontSize: 10, flexShrink: 0, background: g.evidenceCount > 0 ? '#e8f5e9' : '#fff3e0', color: g.evidenceCount > 0 ? '#3a7d3a' : '#e65100' }}
+                        title={`${g.evidenceStudents} 人有相关证据 / ${g.studentCount} 人缺口`}
+                      >
+                        {g.evidenceCount > 0 ? `${g.evidenceCoverageRate}% 有证据` : '证据不足'}
                       </span>
                     </div>
                   ))}

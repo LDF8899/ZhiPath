@@ -15,9 +15,10 @@ import { UserSkill } from '../../entities/user-skills.entity';
 import { LearningTask } from '../../entities/learning-tasks.entity';
 import { EvaluationResult } from '../../entities/evaluation-result.entity';
 import { LearningPlan } from '../../entities/learning.entity';
+import { EvidenceChunk } from '../../entities/evidence-chunk.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Student, JobPosition, JobApplication, Enterprise, News, ExamRecord, ExamQuestion, Resume, SystemConfig, GeneratedResource, UserSkill, LearningTask, EvaluationResult, LearningPlan])],
+  imports: [TypeOrmModule.forFeature([User, Student, JobPosition, JobApplication, Enterprise, News, ExamRecord, ExamQuestion, Resume, SystemConfig, GeneratedResource, UserSkill, LearningTask, EvaluationResult, LearningPlan, EvidenceChunk])],
   controllers: [AdminController],
   providers: [AdminService],
 })
