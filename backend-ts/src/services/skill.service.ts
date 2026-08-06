@@ -7,6 +7,7 @@ import { LearningCommit } from '../entities/learning-commit.entity';
 import { EvaluationResult } from '../entities/evaluation-result.entity';
 import { Resume } from '../entities/resume.entity';
 import { JobPosition } from '../entities/job.entity';
+import { EvidenceRagService } from './evidence-rag.service';
 
 /**
  * 技能服务 — 管理 user_skills_v3
@@ -26,6 +27,7 @@ export class SkillService {
     @InjectRepository(EvaluationResult) private evalResultRepo: Repository<EvaluationResult>,
     @InjectRepository(Resume) private resumeRepo: Repository<Resume>,
     @InjectRepository(JobPosition) private jobRepo: Repository<JobPosition>,
+    private evidenceRag: EvidenceRagService,
   ) {}
 
   // ── 基础 CRUD ──────────────────────────────────
@@ -441,6 +443,21 @@ export class SkillService {
       project: project.length,
       resume: resume.length,
     };
+
+    // P1-1 / §7.3：Evidence RAG 语义证据（项目/文件/测评等召回），失败不影响主链路
+    let semantic: Array<{ chunkId: number; sourceType: string; title: string; snippet: string; score: number }> = [];
+    try {
+      semantic = (await this.evidenceRag.search(userId, name, { skill: name, limit: 3 })).map((e) => ({
+        chunkId: e.chunkId,
+        sourceType: e.sourceType,
+        title: e.title,
+        snippet: e.snippet,
+        score: e.score,
+      }));
+    } catch {
+      semantic = [];
+    }
+
     return {
       skill: name,
       mastery: skill ? Math.round(Number(skill.masteryPct)) : 0,
@@ -449,6 +466,7 @@ export class SkillService {
       counts,
       summary: `掌握度 ${skill ? Math.round(Number(skill.masteryPct)) : 0}%，${counts.learning} 次学习、${counts.evaluation} 次测评、${counts.project} 个项目、${counts.resume} 份简历表达`,
       evidence: { learning, evaluation, project, resume, impact },
+      semantic,
     };
   }
 

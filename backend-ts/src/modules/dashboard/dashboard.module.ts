@@ -15,9 +15,10 @@ import { LearningCommit } from '../../entities/learning-commit.entity';
 import { TaskSchedulerModule } from '../task-scheduler/task-scheduler.module';
 import { MatchModule } from '../match/match.module';
 import { SkillModule } from '../skill/skill.module';
+import { EvidenceModule } from '../evidence/evidence.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Student, LearningPlan, LearningTask, JobPosition, News, ExamRecord, JobApplication, GeneratedResource, Resume, EvaluationResult, LearningCommit]), TaskSchedulerModule, MatchModule, SkillModule],
+  imports: [TypeOrmModule.forFeature([Student, LearningPlan, LearningTask, JobPosition, News, ExamRecord, JobApplication, GeneratedResource, Resume, EvaluationResult, LearningCommit]), TaskSchedulerModule, MatchModule, SkillModule, EvidenceModule],
   controllers: [DashboardController],
   providers: [DashboardService],
 })

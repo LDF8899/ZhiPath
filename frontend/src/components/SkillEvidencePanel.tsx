@@ -194,6 +194,24 @@ export default function SkillEvidencePanel({ skillName, onClose }: { skillName: 
               )}
             </div>
           )}
+
+          {/* P1-1：Evidence RAG 语义证据（项目/文件等召回） */}
+          {data.semantic?.length > 0 && (
+            <>
+              <SectionLabel icon={<IconRefresh size={13} style={{ color: 'var(--accent)' }} />} text="语义召回证据" count={data.semantic.length} />
+              <div className="hd-flex-col" style={{ gap: 4 }}>
+                {data.semantic.map((s: any) => (
+                  <div key={s.chunkId} style={{ font: '12px/1.4 var(--hand)', color: 'var(--ink)' }}>
+                    <span className="hd-pill" style={{ fontSize: 10, marginRight: 6, color: '#3a7d3a' }}>
+                      {s.sourceType === 'project' ? '项目' : s.sourceType === 'file_qa' ? '文件' : s.sourceType}
+                    </span>
+                    <b>{s.title}</b>
+                    <div style={{ color: 'var(--pencil)' }}>{s.snippet}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

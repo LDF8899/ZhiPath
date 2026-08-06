@@ -13,6 +13,7 @@ import { MatchAgentService } from '../../services/match-agent.service';
 import { JobSearchService } from '../../services/job-search.service';
 import { SkillService } from '../../services/skill.service';
 import { LlmService } from '../../services/llm.service';
+import { EvidenceRagService } from '../../services/evidence-rag.service';
 
 export interface CompanyContext {
   companyName: string;
@@ -49,6 +50,7 @@ export class JobsService {
     private skillService: SkillService,
     private llmService: LlmService,
     private config: ConfigService,
+    private evidenceRag: EvidenceRagService,
   ) {}
 
   /** 岗位列表（按匹配度排序） — GET /api/user/jobs */
@@ -508,6 +510,7 @@ export class JobsService {
         recommendedAction,
         actionTarget,
         estimatedImpact: isRequired ? 3 : 1,
+        evidence: { hasEvidence: false, count: 0, items: [] as Array<{ chunkId: number; sourceType: string; title: string }> },
       };
     });
 
@@ -515,6 +518,23 @@ export class JobsService {
       (sum, g) => sum + g.estimatedImpact,
       0,
     );
+
+    // P1-2 / §8.4：缺口判断依据 — 每个缺口技能检索 Evidence RAG，标注证据覆盖状态
+    for (const gap of topGaps) {
+      gap.evidence = { hasEvidence: false, count: 0, items: [] };
+      try {
+        const hits = await this.evidenceRag.search(userId, gap.skill, { skill: gap.skill, limit: 2 });
+        if (hits.length > 0) {
+          gap.evidence = {
+            hasEvidence: true,
+            count: hits.length,
+            items: hits.map((h) => ({ chunkId: h.chunkId, sourceType: h.sourceType, title: h.title })),
+          };
+        }
+      } catch {
+        // 证据服务不可用不影响差距卡
+      }
+    }
 
     // 投递建议（对齐方案 6.2 字段示例）
     let applyAdvice: string;

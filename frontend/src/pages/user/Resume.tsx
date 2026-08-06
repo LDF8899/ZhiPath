@@ -610,6 +610,16 @@ function ResumeCard({
                         )}
                       </div>
                       <div style={{ marginTop: 3 }}>{expr.advice}</div>
+                      {/* Evidence RAG（P0）：建议引用的个人证据 */}
+                      {expr.evidenceRefs?.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 5 }}>
+                          {expr.evidenceRefs.map((ref: any) => (
+                            <span key={ref.chunkId} className="hd-badge" style={{ fontSize: 11, background: '#e8f5e9', color: '#3a7d3a' }}>
+                              引用 {ref.sourceType === 'project' ? '项目' : ref.sourceType === 'file_qa' ? '文件' : ref.sourceType}：{ref.title}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {expr.warning && (
                         <div style={{ fontSize: 12, color: 'var(--accent)', marginTop: 2 }}>
                           ⚠ {expr.warning}

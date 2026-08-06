@@ -12,6 +12,7 @@ import { Resume } from '../../entities/resume.entity';
 import { TaskSchedulerService } from '../../services/task-scheduler.service';
 import { MatchAgentService } from '../../services/match-agent.service';
 import { SkillService } from '../../services/skill.service';
+import { EvidenceRagService } from '../../services/evidence-rag.service';
 import { EvaluationResult } from '../../entities/evaluation-result.entity';
 import { LearningCommit } from '../../entities/learning-commit.entity';
 
@@ -38,6 +39,7 @@ export class DashboardService {
     private taskScheduler: TaskSchedulerService,
     private matchAgent: MatchAgentService,
     private skillService: SkillService,
+    private evidenceRag: EvidenceRagService,
   ) {}
 
   /** GET /api/user/dashboard */
@@ -423,12 +425,23 @@ export class DashboardService {
     if (mainGap) {
       const gapPct = mainGap.minLevel - mainGap.mastery;
       const impact = Math.min(5, Math.max(1, Math.round(gapPct / 20)));
+      // P1-3 / §8.4：推荐理由引用证据覆盖状态
+      let evidenceNote = '';
+      try {
+        const hits = await this.evidenceRag.search(userId, mainGap.name, { skill: mainGap.name, limit: 1 });
+        evidenceNote =
+          hits.length > 0
+            ? `已有 ${hits.length} 条相关证据（${hits[0].title}），完成本任务后可直接强化该证据表达。`
+            : '暂无相关证据，完成学习后可保存项目或测评补上证据。';
+      } catch {
+        evidenceNote = '';
+      }
       main = {
         id: 0,
         title: `学习 ${mainGap.name} 并完成练习`,
         taskType: 'learning',
         estimatedMin: 25,
-        reason: `目标岗位要求 ${mainGap.name}（门槛 ${mainGap.minLevel}%），你当前掌握度 ${mainGap.mastery}%。`,
+        reason: `目标岗位要求 ${mainGap.name}（门槛 ${mainGap.minLevel}%），你当前掌握度 ${mainGap.mastery}%。${evidenceNote}`,
         estimatedImpact: impact,
         impactLabel: `匹配度预计 +${impact}%`,
         evidence: '完成后生成学习 commit 和技能 delta',

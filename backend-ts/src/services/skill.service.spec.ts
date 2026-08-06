@@ -29,6 +29,9 @@ describe('SkillService.getSkillEvidence', () => {
     const jobRepo = {
       findOne: jest.fn().mockResolvedValue(overrides.targetJob || null),
     };
+    const evidenceRag = {
+      search: jest.fn().mockResolvedValue([]),
+    };
 
     const service = new SkillService(
       userSkillRepo as any,
@@ -37,9 +40,10 @@ describe('SkillService.getSkillEvidence', () => {
       evalResultRepo as any,
       resumeRepo as any,
       jobRepo as any,
+      evidenceRag as any,
     );
 
-    return { service, commitRepo, evalResultRepo, resumeRepo, jobRepo };
+    return { service, commitRepo, evalResultRepo, resumeRepo, jobRepo, evidenceRag };
   }
 
   const baseCommit = (id: number, skillName: string, extra: any = {}) => ({
@@ -60,7 +64,7 @@ describe('SkillService.getSkillEvidence', () => {
   });
 
   it('聚合学习/测评/项目/简历证据与岗位影响', async () => {
-    const { service } = setup({
+    const { service, evidenceRag } = setup({
       skills: [{ id: 1, userId: 1, skillName: 'React', masteryPct: 70, source: 'exam', status: 1 }],
       commits: [baseCommit(101, 'React')],
       evalResults: [
@@ -84,6 +88,10 @@ describe('SkillService.getSkillEvidence', () => {
       ],
       targetJob: { id: 5, title: '前端开发实习生' },
     });
+    // P1-1：RAG 语义证据
+    evidenceRag.search.mockResolvedValue([
+      { chunkId: 501, sourceType: 'project', title: '项目证据：Todo 应用', snippet: '使用 React 构建任务管理模块…', score: 0.88 },
+    ]);
 
     const result = await service.getSkillEvidence(1, 'React');
 
@@ -122,6 +130,13 @@ describe('SkillService.getSkillEvidence', () => {
     // 汇总
     expect(result.counts).toEqual({ learning: 1, evaluation: 1, project: 1, resume: 1 });
     expect(result.summary).toContain('掌握度 70%');
+    // P1-1：semantic 语义证据
+    expect(result.semantic).toHaveLength(1);
+    expect(result.semantic[0]).toEqual(expect.objectContaining({
+      chunkId: 501,
+      sourceType: 'project',
+      title: expect.stringContaining('Todo 应用'),
+    }));
   });
 
   it('无任何证据时返回空证据链与基础 summary', async () => {

@@ -8,12 +8,13 @@ import { Resume } from '../../entities/resume.entity';
 import { JobPosition } from '../../entities/job.entity';
 import { SkillService } from '../../services/skill.service';
 import { SkillController } from './skill.controller';
+import { EvidenceModule } from '../evidence/evidence.module';
 
 /**
  * 技能模块 — 管理 user_skills_v3
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([UserSkill, Student, LearningCommit, EvaluationResult, Resume, JobPosition])],
+  imports: [TypeOrmModule.forFeature([UserSkill, Student, LearningCommit, EvaluationResult, Resume, JobPosition]), EvidenceModule],
   controllers: [SkillController],
   providers: [SkillService],
   exports: [SkillService],

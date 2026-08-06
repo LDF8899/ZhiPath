@@ -99,6 +99,12 @@ export interface GapCardTopGap {
   recommendedAction: string;
   actionTarget: 'learning' | 'quick-test' | 'project' | 'resume' | 'plan';
   estimatedImpact: number;
+  /** P1-2：缺口判断依据 — Evidence RAG 证据覆盖状态 */
+  evidence?: {
+    hasEvidence: boolean;
+    count: number;
+    items: Array<{ chunkId: number; sourceType: string; title: string }>;
+  };
 }
 
 export interface GapCard {

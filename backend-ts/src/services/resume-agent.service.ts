@@ -6,6 +6,7 @@ import { Student } from '../entities/student.entity';
 import { JobPosition } from '../entities/job.entity';
 import { SkillService } from './skill.service';
 import { LlmService } from './llm.service';
+import { EvidenceRagService } from './evidence-rag.service';
 import { extractJson } from '../common/json-repair';
 import type { ResumeTemplateData } from './agents/resume-agent.service';
 
@@ -30,6 +31,7 @@ export class ResumeAgentService {
     @InjectRepository(JobPosition) private jobRepo: Repository<JobPosition>,
     private skillService: SkillService,
     private llmService: LlmService,
+    private evidenceRag: EvidenceRagService,
   ) {}
 
   /**
@@ -509,6 +511,20 @@ export class ResumeAgentService {
     let seq = 1;
 
     for (const name of candidates) {
+      // Evidence RAG（P0）：检索该技能相关个人证据（项目/文件/测评），供建议引用
+      let ragEvidence: any[] = [];
+      try {
+        ragEvidence = await this.evidenceRag.search(userId, name, { skill: name, limit: 3 });
+      } catch {
+        ragEvidence = [];
+      }
+      const ragRefs = ragEvidence.map((e) => ({
+        chunkId: e.chunkId,
+        sourceType: e.sourceType,
+        title: e.title,
+        snippet: e.snippet,
+      }));
+
       let evidence: any = null;
       try {
         evidence = await this.skillService.getSkillEvidence(userId, name);
@@ -529,18 +545,26 @@ export class ResumeAgentService {
           keywords: [name, targetJob.title],
           skills: [name],
           evidence: { type: 'evaluation', detail, count: 1 },
+          evidenceRefs: ragRefs,
           confidence: 'high',
           warning: '',
         });
-      } else if (project) {
-        const detail = project.description || project.name;
+      } else if (project || ragRefs.length > 0) {
+        const projectDetail = project
+          ? `在项目「${project.name}」描述中突出 ${name} 的实际应用与个人职责，让岗位要求与项目经验直接对应。`
+          : `引用已保存的「${ragRefs[0].title}」证据，把 ${name} 的实践细节写进项目描述，让岗位要求与真实经历直接对应。`;
         expressions.push({
           id: seq++,
           category: 'project',
-          advice: `在项目「${project.name}」描述中突出 ${name} 的实际应用与个人职责，让岗位要求与项目经验直接对应。`,
+          advice: projectDetail,
           keywords: [name, targetJob.title],
           skills: [name],
-          evidence: { type: 'project', detail: String(detail).slice(0, 60), count: 1 },
+          evidence: {
+            type: ragRefs[0]?.sourceType === 'file_qa' ? 'file_qa' : 'project',
+            detail: project?.description || project?.name || ragRefs[0]?.title || '',
+            count: Math.max(1, ragRefs.length),
+          },
+          evidenceRefs: ragRefs,
           confidence: 'high',
           warning: '',
         });
@@ -552,6 +576,7 @@ export class ResumeAgentService {
           keywords: [name, targetJob.title],
           skills: [name],
           evidence: { type: 'learning', detail: `${learningCount} 次学习 commit`, count: learningCount },
+          evidenceRefs: ragRefs,
           confidence: 'medium',
           warning: '证据偏弱，建议补一次速测或小项目。',
         });
@@ -563,6 +588,7 @@ export class ResumeAgentService {
           keywords: [name, targetJob.title],
           skills: [name],
           evidence: { type: 'none', detail: '', count: 0 },
+          evidenceRefs: ragRefs,
           confidence: 'low',
           warning: '建议补项目或测评后再写入简历。',
         });

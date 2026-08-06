@@ -225,6 +225,18 @@ export default function JobGapCard({
                   <div style={{ font: '12px/1.4 var(--hand)', color: 'var(--pencil)', marginTop: 3 }}>
                     {g.recommendedAction}
                   </div>
+                  {/* P1-2：缺口判断依据 — 证据覆盖状态 */}
+                  {g.evidence && (
+                    <div style={{ font: '11px/1.4 var(--hand)', marginTop: 3 }}>
+                      {g.evidence.hasEvidence ? (
+                        <span style={{ color: '#3a7d3a' }}>
+                          ✓ 已有 {g.evidence.count} 条相关证据（{g.evidence.items.map((it: any) => it.title).join('、')}）
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--accent)' }}>✗ 暂无相关证据，优先补齐后再投递</span>
+                      )}
+                    </div>
+                  )}
                   {!compact && (
                     <div style={{ font: '11px/1 var(--mono)', color: '#3a7d3a', marginTop: 4 }}>
                       预计 +{g.estimatedImpact}% 匹配度

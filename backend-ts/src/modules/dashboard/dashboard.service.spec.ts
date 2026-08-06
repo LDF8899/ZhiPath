@@ -13,6 +13,7 @@ import { Resume } from '../../entities/resume.entity';
 import { TaskSchedulerService } from '../../services/task-scheduler.service';
 import { MatchAgentService } from '../../services/match-agent.service';
 import { SkillService } from '../../services/skill.service';
+import { EvidenceRagService } from '../../services/evidence-rag.service';
 import { EvaluationResult } from '../../entities/evaluation-result.entity';
 import { LearningCommit } from '../../entities/learning-commit.entity';
 
@@ -41,6 +42,7 @@ describe('DashboardService', () => {
   let evalResultRepo: ReturnType<typeof mockRepo>;
   let skillService: { getEffectiveSkills: jest.Mock };
   let commitRepo: ReturnType<typeof mockRepo>;
+  let evidenceRag: { search: jest.Mock };
 
   beforeEach(async () => {
     studentRepo = mockRepo();
@@ -57,6 +59,7 @@ describe('DashboardService', () => {
     evalResultRepo = mockRepo();
     skillService = { getEffectiveSkills: jest.fn().mockResolvedValue([]) };
     commitRepo = mockRepo();
+    evidenceRag = { search: jest.fn().mockResolvedValue([]) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -75,6 +78,7 @@ describe('DashboardService', () => {
         { provide: TaskSchedulerService, useValue: taskScheduler },
         { provide: MatchAgentService, useValue: matchAgent },
         { provide: SkillService, useValue: skillService },
+        { provide: EvidenceRagService, useValue: evidenceRag },
       ],
     }).compile();
 
@@ -437,6 +441,10 @@ describe('DashboardService', () => {
       skillService.getEffectiveSkills.mockResolvedValue([
         { name: 'React', masteryPct: 20 },
       ]);
+      // P1-3：推荐理由引用证据覆盖状态
+      evidenceRag.search.mockResolvedValue([
+        { chunkId: 701, sourceType: 'project', title: '项目证据：React 练习', snippet: '…', score: 0.8 },
+      ]);
 
       const result = await service.getTodayActions(100);
 
@@ -444,6 +452,7 @@ describe('DashboardService', () => {
       expect(result.main.title).toContain('React Hooks');
       expect(result.main.reason).toContain('React Hooks');
       expect(result.main.reason).toContain('70%');
+      expect(result.main.reason).toContain('已有 1 条相关证据');
       expect(result.main.estimatedImpact).toBeGreaterThan(0);
       expect(result.main.impactLabel).toContain('+');
       expect(result.main.path).toBe('/user/learning');

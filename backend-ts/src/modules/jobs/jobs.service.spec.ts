@@ -54,6 +54,7 @@ describe('JobsService.searchJobs', () => {
       skillService as any,
       {} as any,
       {} as any,
+      { search: jest.fn().mockResolvedValue([]) } as any,
     );
 
     return { service, jobRepo, applicationRepo, branchRepo, commitRepo, snapshotRepo, matchAgent, jobSearch };
@@ -191,7 +192,7 @@ describe('JobsService.getGapCard', () => {
     ],
   };
 
-  function createService(overrides: { skillList?: any[]; job?: any; match?: any } = {}) {
+  function createService(overrides: { skillList?: any[]; job?: any; match?: any; evidenceHits?: any[] } = {}) {
     const jobRepo = { findOne: jest.fn().mockResolvedValue(overrides.job === undefined ? baseJob : overrides.job) };
     const applicationRepo = { findOne: jest.fn(), save: jest.fn() };
     const studentRepo = { findOne: jest.fn().mockResolvedValue({ skills: [{ name: 'HTML' }] }) };
@@ -210,6 +211,11 @@ describe('JobsService.getGapCard', () => {
     };
     const llmService = {};
     const config = {};
+    const evidenceRag = {
+      search: jest.fn().mockResolvedValue(
+        overrides.evidenceHits ?? [],
+      ),
+    };
 
     const service = new JobsService(
       jobRepo as any,
@@ -225,9 +231,10 @@ describe('JobsService.getGapCard', () => {
       skillService as any,
       llmService as any,
       config as any,
+      evidenceRag as any,
     );
 
-    return { service, jobRepo, studentRepo, matchAgent, skillService };
+    return { service, jobRepo, studentRepo, matchAgent, skillService, evidenceRag };
   }
 
   it('returns score, top 3 gaps with actions and estimated impact', async () => {
@@ -251,6 +258,23 @@ describe('JobsService.getGapCard', () => {
     }));
     expect(card.totalEstimatedImpact).toBe(9);
     expect(card.message).toBe('');
+  });
+
+  it('top gaps 标注证据覆盖状态（P1-2）', async () => {
+    const { service, evidenceRag } = createService();
+    evidenceRag.search.mockImplementation(async (_userId: number, skill: string) =>
+      skill === '接口联调'
+        ? [{ chunkId: 601, sourceType: 'project', title: '项目证据：接口联调实战', snippet: '…', score: 0.8 }]
+        : [],
+    );
+
+    const card = await service.getGapCard(7, 5);
+
+    // 缺口带 evidence 状态：首个缺口有证据，其余无
+    expect(card.topGaps[0].evidence.hasEvidence).toBe(true);
+    expect(card.topGaps[0].evidence.count).toBe(1);
+    expect(card.topGaps[0].evidence.items[0]).toEqual(expect.objectContaining({ chunkId: 601 }));
+    expect(card.topGaps[1].evidence.hasEvidence).toBe(false);
   });
 
   it('gives basic guidance when user has no skill profile', async () => {

@@ -7,6 +7,7 @@ import { ResumeAgentService } from '../../services/resume-agent.service';
 import { PdfService } from '../../services/pdf.service';
 import { ResumeController } from './resume.controller';
 import { SkillModule } from '../skill/skill.module';
+import { EvidenceModule } from '../evidence/evidence.module';
 import { LlmService } from '../../services/llm.service';
 
 /**
@@ -16,6 +17,7 @@ import { LlmService } from '../../services/llm.service';
   imports: [
     TypeOrmModule.forFeature([Resume, Student, JobPosition]),
     SkillModule,
+    EvidenceModule,
   ],
   controllers: [ResumeController],
   providers: [ResumeAgentService, LlmService, PdfService],

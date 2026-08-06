@@ -35,6 +35,10 @@ describe('ResumeAgentService HTML generation', () => {
     (service as any).llmService = {
       chatCompletion: jest.fn().mockResolvedValue(llmResult),
     };
+    // Evidence RAG（P0）：默认无证据
+    (service as any).evidenceRag = {
+      search: jest.fn().mockResolvedValue([]),
+    };
     return service;
   }
 
@@ -123,6 +127,12 @@ describe('ResumeAgentService HTML generation', () => {
     (service as any).skillService = {
       getSkillEvidence: jest.fn(async (_userId: number, name: string) => evidenceBySkill[name] || evidenceBySkill.TypeScript),
     };
+    // P0：RAG 召回 React 项目证据 → 建议携带 evidenceRefs
+    (service as any).evidenceRag.search = jest.fn(async (_userId: number, name: string) =>
+      name === 'React'
+        ? [{ chunkId: 501, sourceType: 'project', title: '项目证据：就业看板', snippet: '使用 React 和 TypeScript 完成…', score: 0.9 }]
+        : [],
+    );
 
     const advice = await (service as any).buildResumeAdvice(
       7,
@@ -151,6 +161,13 @@ describe('ResumeAgentService HTML generation', () => {
     expect(bySkill.React.confidence).toBe('high');
     expect(bySkill.React.evidence.type).toBe('evaluation');
     expect(bySkill.React.advice).toContain('组件状态题 8/10');
+    // P0：RAG 召回的 React 项目证据进入建议引用
+    expect(bySkill.React.evidenceRefs).toHaveLength(1);
+    expect(bySkill.React.evidenceRefs[0]).toEqual(expect.objectContaining({
+      chunkId: 501,
+      sourceType: 'project',
+      title: expect.stringContaining('就业看板'),
+    }));
     // Vite 只有学习证据 → medium + warning
     expect(bySkill.Vite.confidence).toBe('medium');
     expect(bySkill.Vite.warning).toContain('速测');
