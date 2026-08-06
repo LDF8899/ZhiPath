@@ -69,6 +69,8 @@ export class EvidenceRagService {
   private readonly logger = new Logger(EvidenceRagService.name);
   private embeddingClient: OpenAI | null = null;
   private embeddingModel = '';
+  private embeddingProvider = 'off';
+  private embeddingDimensions = 384;
 
   constructor(
     @InjectRepository(EvidenceChunk) private chunkRepo: Repository<EvidenceChunk>,
@@ -78,8 +80,10 @@ export class EvidenceRagService {
     const provider = this.config.get('EMBEDDING_PROVIDER', 'off');
     const baseUrl = this.config.get('EMBEDDING_BASE_URL', '');
     const apiKey = this.config.get('EMBEDDING_API_KEY', 'embedding');
+    this.embeddingProvider = String(provider || 'off').toLowerCase();
     this.embeddingModel = this.config.get('EMBEDDING_MODEL', 'nomic-embed-text');
-    if (provider !== 'off' && baseUrl) {
+    this.embeddingDimensions = Number(this.config.get('EMBEDDING_DIMENSIONS', 384));
+    if (!['off', 'hash', 'local'].includes(this.embeddingProvider) && baseUrl) {
       this.embeddingClient = new OpenAI({ baseURL: baseUrl, apiKey, timeout: 10000 });
     }
   }
@@ -146,14 +150,10 @@ export class EvidenceRagService {
 
   /** 向量化并写入 Chroma；embedding 不可用或写入失败返回 false */
   private async indexVector(userId: number, chunk: EvidenceChunk): Promise<boolean> {
-    if (!this.embeddingClient || !this.chroma.enabled) return false;
+    if (!this.chroma.enabled) return false;
     try {
       const text = `${chunk.title}\n${chunk.content}`;
-      const res = await this.embeddingClient.embeddings.create({
-        model: this.embeddingModel,
-        input: text,
-      });
-      const embedding = res.data?.[0]?.embedding;
+      const embedding = await this.embed(text);
       if (!embedding) return false;
       return await this.chroma.upsert(userId, chunk.id, text, embedding, {
         chunkId: String(chunk.id),
@@ -186,13 +186,9 @@ export class EvidenceRagService {
 
     // 1. 尝试向量召回（Chroma + embedding 均可用时）
     let vectorHits: Array<{ chunkId: number; score: number }> = [];
-    if (this.embeddingClient && this.chroma.enabled && queryText) {
+    if (this.embeddingProvider !== 'off' && this.chroma.enabled && queryText) {
       try {
-        const res = await this.embeddingClient.embeddings.create({
-          model: this.embeddingModel,
-          input: queryText,
-        });
-        const embedding = res.data?.[0]?.embedding;
+        const embedding = await this.embed(queryText);
         if (embedding) {
           const hits = await this.chroma.query(userId, embedding, 12, opts.sourceType ? { sourceType: opts.sourceType } : undefined);
           vectorHits = hits
@@ -247,7 +243,7 @@ export class EvidenceRagService {
         if (score <= 0.15 && !vectorHitIds.has(c.id)) return null;
       }
       return {
-        chunkId: c.id,
+        chunkId: Number(c.id),
         sourceType: c.sourceType,
         sourceId: c.sourceId,
         title: c.title,
@@ -368,5 +364,37 @@ export class EvidenceRagService {
     }
     tokens.push(...(text.match(/[a-zA-Z0-9_+#.-]{2,}/g) || []).map((t) => t.toLowerCase()));
     return [...new Set(tokens)];
+  }
+
+  private async embed(text: string): Promise<number[] | null> {
+    if (['hash', 'local'].includes(this.embeddingProvider)) {
+      return this.hashEmbedding(text);
+    }
+    if (!this.embeddingClient) return null;
+    const res = await this.embeddingClient.embeddings.create({
+      model: this.embeddingModel,
+      input: text,
+    });
+    return res.data?.[0]?.embedding || null;
+  }
+
+  /**
+   * Local deterministic embedding used when no embedding model is available.
+   * It is lexical, not model-semantic, but it lets Chroma handle vector indexing,
+   * filtering and ranking without blocking the Evidence RAG workflow.
+   */
+  private hashEmbedding(text: string): number[] {
+    const dim = Math.max(64, Math.min(2048, this.embeddingDimensions || 384));
+    const vector = new Array(dim).fill(0);
+    const tokens = this.tokenize(text);
+    const source = tokens.length ? tokens : [text.toLowerCase().slice(0, 64)];
+    for (const token of source) {
+      const hash = createHash('md5').update(token).digest();
+      const index = hash.readUInt32BE(0) % dim;
+      const sign = hash[4] % 2 === 0 ? 1 : -1;
+      vector[index] += sign;
+    }
+    const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0)) || 1;
+    return vector.map((value) => Math.round((value / norm) * 1_000_000) / 1_000_000);
   }
 }

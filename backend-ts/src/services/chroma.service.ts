@@ -23,12 +23,13 @@ export interface ChromaQueryResult {
 export class ChromaService {
   private readonly logger = new Logger(ChromaService.name);
   private readonly baseUrl: string;
-  private readonly collection: string;
+  private readonly collectionName: string;
   private readonly timeoutMs: number;
+  private collectionIdPromise: Promise<string | null> | null = null;
 
   constructor(private config: ConfigService) {
     this.baseUrl = (this.config.get('CHROMA_URL', '') || '').replace(/\/+$/, '');
-    this.collection = this.config.get('CHROMA_COLLECTION', 'zhipath_user_evidence');
+    this.collectionName = this.config.get('CHROMA_COLLECTION', 'zhipath_user_evidence');
     this.timeoutMs = Number(this.config.get('CHROMA_TIMEOUT_MS', 3000));
   }
 
@@ -46,7 +47,9 @@ export class ChromaService {
   ): Promise<boolean> {
     if (!this.enabled) return false;
     try {
-      const res = await fetch(`${this.baseUrl}/api/v1/collections/${encodeURIComponent(this.collection)}/add`, {
+      const collectionId = await this.getCollectionId();
+      if (!collectionId) return false;
+      const res = await fetch(`${this.baseUrl}/api/v1/collections/${collectionId}/upsert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(this.timeoutMs),
@@ -77,9 +80,11 @@ export class ChromaService {
   ): Promise<ChromaQueryResult[]> {
     if (!this.enabled) return [];
     try {
+      const collectionId = await this.getCollectionId();
+      if (!collectionId) return [];
       const filter: Record<string, any> = { userId: String(userId) };
       if (where?.sourceType) filter.sourceType = where.sourceType;
-      const res = await fetch(`${this.baseUrl}/api/v1/collections/${encodeURIComponent(this.collection)}/query`, {
+      const res = await fetch(`${this.baseUrl}/api/v1/collections/${collectionId}/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(this.timeoutMs),
@@ -101,7 +106,7 @@ export class ChromaService {
         const distance = Number(distances[i] ?? 1);
         return {
           id,
-          score: Math.max(0, Math.min(1, 1 - distance)),
+          score: distance <= 0 ? 1 : Math.max(0, Math.min(1, 1 / (1 + distance))),
           metadata: metadatas[i] || {},
         };
       });
@@ -115,7 +120,9 @@ export class ChromaService {
   async deleteBySource(userId: number, sourceId: string): Promise<boolean> {
     if (!this.enabled) return false;
     try {
-      const res = await fetch(`${this.baseUrl}/api/v1/collections/${encodeURIComponent(this.collection)}/delete`, {
+      const collectionId = await this.getCollectionId();
+      if (!collectionId) return false;
+      const res = await fetch(`${this.baseUrl}/api/v1/collections/${collectionId}/delete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(this.timeoutMs),
@@ -127,6 +134,60 @@ export class ChromaService {
     } catch (e) {
       this.logger.warn(`[Chroma] deleteBySource error: ${e.message}`);
       return false;
+    }
+  }
+
+  private async getCollectionId(): Promise<string | null> {
+    if (!this.enabled) return null;
+    if (!this.collectionIdPromise) {
+      this.collectionIdPromise = this.resolveCollectionId();
+    }
+    return this.collectionIdPromise;
+  }
+
+  private async resolveCollectionId(): Promise<string | null> {
+    const existing = await this.fetchCollectionByName();
+    if (existing?.id) return existing.id;
+    const created = await this.createCollection();
+    return created?.id || null;
+  }
+
+  private async fetchCollectionByName(): Promise<{ id: string } | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/v1/collections/${encodeURIComponent(this.collectionName)}`, {
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+      if (res.status === 404) return null;
+      if (!res.ok) {
+        this.logger.warn(`[Chroma] get collection failed: ${res.status} ${res.statusText}`);
+        return null;
+      }
+      return (await res.json()) as { id: string };
+    } catch (e) {
+      this.logger.warn(`[Chroma] get collection error: ${e.message}`);
+      return null;
+    }
+  }
+
+  private async createCollection(): Promise<{ id: string } | null> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/v1/collections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(this.timeoutMs),
+        body: JSON.stringify({
+          name: this.collectionName,
+          metadata: { description: 'ZhiPath user evidence chunks' },
+        }),
+      });
+      if (!res.ok) {
+        this.logger.warn(`[Chroma] create collection failed: ${res.status} ${res.statusText}`);
+        return this.fetchCollectionByName();
+      }
+      return (await res.json()) as { id: string };
+    } catch (e) {
+      this.logger.warn(`[Chroma] create collection error: ${e.message}`);
+      return null;
     }
   }
 }
