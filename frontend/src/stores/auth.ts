@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create, type StateCreator } from 'zustand';
 import type { User } from '../types';
 
 interface AuthState {
@@ -40,31 +40,38 @@ if (_storedToken && !_validAuth) {
   STORAGE.removeItem('zhpath_user');
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  token: _validAuth ? _storedToken : null,
-  user: _storedUser,
-  isAuthenticated: _validAuth,
+const createAuthState: StateCreator<AuthState> = (set) => {
+  const initialToken = _validAuth ? _storedToken : null;
 
-  setAuth: (token, user) => {
-    if (!isValidUser(user)) {
-      console.error('[Auth] setAuth 收到无效 user 对象:', user);
-      return;
-    }
-    STORAGE.setItem('zhpath_token', token);
-    STORAGE.setItem('zhpath_user', JSON.stringify(user));
-    set({ token, user, isAuthenticated: true });
-  },
+  return {
+    token: initialToken,
+    user: _storedUser,
+    isAuthenticated: _validAuth,
 
-  logout: () => {
-    STORAGE.removeItem('zhpath_token');
-    STORAGE.removeItem('zhpath_user');
-    set({ token: null, user: null, isAuthenticated: false });
-  },
+    setAuth: (token, user) => {
+      if (!isValidUser(user)) {
+        console.error('[Auth] setAuth 收到无效 user 对象:', user);
+        return;
+      }
+      STORAGE.setItem('zhpath_token', token);
+      STORAGE.setItem('zhpath_user', JSON.stringify(user));
+      set({ token, user, isAuthenticated: true });
+    },
 
-  updateUser: (partial) =>
-    set((state) => {
-      const user = state.user ? { ...state.user, ...partial } : null;
-      if (user) STORAGE.setItem('zhpath_user', JSON.stringify(user));
-      return { user };
-    }),
-}));
+    logout: () => {
+      STORAGE.removeItem('zhpath_token');
+      STORAGE.removeItem('zhpath_user');
+      set({ token: null, user: null, isAuthenticated: false });
+    },
+
+    updateUser: (partial) => {
+      set((state) => {
+        const user = state.user ? { ...state.user, ...partial } : null;
+        if (user) STORAGE.setItem('zhpath_user', JSON.stringify(user));
+        return { user };
+      });
+    },
+  };
+};
+
+export const useAuthStore = create<AuthState>(createAuthState);

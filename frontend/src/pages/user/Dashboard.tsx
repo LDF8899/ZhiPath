@@ -5,6 +5,7 @@ import { useSSE } from '../../hooks/useSSE';
 import { useMatchScoreToast, useCelebration, StreakBanner } from '../../components/MatchScoreToast';
 import PlanWelcomeModal from '../../components/PlanWelcomeModal';
 import JobGapCard from '../../components/JobGapCard';
+import EmptyState from '../../components/EmptyState';
 import '../../styles/hand-draw.css';
 import {
   IconCheck,
@@ -720,12 +721,15 @@ export default function Dashboard() {
               </div>
             </>
           ) : (
-            <div className="hd-empty" style={{ padding: '32px 16px' }}>
-              <p style={{ marginBottom: 12 }}>还没有学习计划</p>
-              <button className="hd-btn small" onClick={() => navigate('/plan/create')}>
-                创建计划
-              </button>
-            </div>
+            <EmptyState
+              compact
+              icon="target"
+              tone="action"
+              title="还没有学习计划"
+              description="先围绕目标岗位生成 7 天任务，闭环会从今日任务开始。"
+              actionLabel="创建计划"
+              onAction={() => navigate('/plan/create')}
+            />
           )}
         </div>
 
@@ -826,9 +830,15 @@ export default function Dashboard() {
                 })}
               </div>
             ) : (
-              <div className="hd-empty" style={{ padding: '24px 12px' }}>
-                <p>暂无任务，开始学习吧！</p>
-              </div>
+              <EmptyState
+                compact
+                icon={data.target_job ? 'book' : 'briefcase'}
+                tone="action"
+                title={data.target_job ? '今天暂无排期任务' : '先选择目标岗位'}
+                description={data.target_job ? '可以做一次速测，或去学习路径补一个缺口技能。' : '绑定目标岗位后，系统会生成差距卡和今日任务。'}
+                actionLabel={data.target_job ? '去速测' : '选择岗位'}
+                onAction={() => navigate(data.target_job ? '/user/quick-test' : '/user/jobs')}
+              />
             )}
 
             {/* 全部完成时的鼓励便签 */}
@@ -907,9 +917,14 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : (
-              <div className="hd-empty" style={{ padding: '24px 12px' }}>
-                <p>暂无资讯</p>
-              </div>
+              <EmptyState
+                compact
+                icon="briefcase"
+                title="暂无资讯"
+                description="后续会根据目标岗位和技能画像推荐行业/招聘动态。"
+                actionLabel="去岗位页"
+                onAction={() => navigate('/user/jobs')}
+              />
             )}
           </div>
         </div>

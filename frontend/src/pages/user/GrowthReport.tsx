@@ -9,7 +9,9 @@ import {
   IconTarget,
   IconArrowRight,
   IconRefresh,
+  IconDownload,
 } from '../../components/icons';
+import EmptyState from '../../components/EmptyState';
 import '../../styles/hand-draw.css';
 
 function fmtTime(t: number): string {
@@ -65,9 +67,18 @@ export default function GrowthReport() {
   useEffect(() => { fetchReport(days); }, [days, fetchReport]);
 
   const s = data?.summary || null;
+  const reportVerdict = s
+    ? s.commits === 0
+      ? '本期还没有形成学习证据，建议先完成 1 个今日任务和 1 次速测。'
+      : s.matchDelta > 0
+        ? `本期岗位匹配度提升 ${s.matchDelta}%，学习成果已经进入岗位闭环。`
+        : s.examCount === 0
+          ? '本期已有学习推进，但缺少测评证据，建议用速测把掌握度沉淀下来。'
+          : '本期学习记录已沉淀，下一步建议补项目证据或优化岗位版简历。'
+    : '';
 
   return (
-    <div className="hd-canvas" style={{ maxWidth: 980, margin: '0 auto' }}>
+    <div className="hd-canvas growth-report-page" style={{ maxWidth: 980, margin: '0 auto' }}>
       {/* 头部：标题 + 周期切换 + 刷新 */}
       <div className="hd-flex-between" style={{ flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
         <div>
@@ -93,6 +104,10 @@ export default function GrowthReport() {
             <IconRefresh size={13} style={{ marginRight: 4 }} />
             刷新
           </button>
+          <button className="hd-btn small highlight" onClick={() => window.print()} disabled={loading || !s}>
+            <IconDownload size={13} style={{ marginRight: 4 }} />
+            打印/保存
+          </button>
         </div>
       </div>
 
@@ -102,6 +117,20 @@ export default function GrowthReport() {
         <div className="hd-empty" style={{ padding: 48 }}>正在生成报告…</div>
       ) : s ? (
         <>
+          <div className="growth-report-verdict">
+            <div>
+              <span className="hd-badge accent">本期结论</span>
+              <strong>{reportVerdict}</strong>
+              <p>
+                报告覆盖学习 commit、任务完成、测评表现、技能变化和岗位匹配变化，可用于阶段复盘或就业指导沟通。
+              </p>
+            </div>
+            <button className="hd-btn small secondary" onClick={() => navigate('/user/learning')}>
+              继续今日任务
+              <IconArrowRight size={12} style={{ marginLeft: 5 }} />
+            </button>
+          </div>
+
           {/* ── 概览卡 ── */}
           <div className="hd-grid-4" style={{ gap: 12, marginBottom: 14 }}>
             <div className="hd-card-accent" style={{ padding: 14 }}>
@@ -202,7 +231,14 @@ export default function GrowthReport() {
                   ))}
                 </div>
               ) : (
-                <div className="hd-empty" style={{ padding: 20 }}>窗口内暂无技能变化</div>
+                <EmptyState
+                  compact
+                  icon="book"
+                  title="窗口内暂无技能变化"
+                  description="完成学习任务或测评后，这里会显示掌握度变化。"
+                  actionLabel="去学习"
+                  onAction={() => navigate('/user/learning')}
+                />
               )}
 
               {/* ── 测评趋势 ── */}
@@ -225,7 +261,14 @@ export default function GrowthReport() {
                   ))}
                 </div>
               ) : (
-                <div className="hd-empty" style={{ padding: 16 }}>暂无测评记录</div>
+                <EmptyState
+                  compact
+                  icon="test"
+                  title="暂无测评记录"
+                  description="做一次速测，把学习结果变成能力证据。"
+                  actionLabel="去速测"
+                  onAction={() => navigate('/user/quick-test')}
+                />
               )}
             </div>
 
@@ -259,7 +302,14 @@ export default function GrowthReport() {
                   ))}
                 </div>
               ) : (
-                <div className="hd-empty" style={{ padding: 20 }}>窗口内暂无学习记录</div>
+                <EmptyState
+                  compact
+                  icon="book"
+                  title="窗口内暂无学习记录"
+                  description="完成任务后会生成 commit，并记录技能 delta。"
+                  actionLabel="去学习"
+                  onAction={() => navigate('/user/learning')}
+                />
               )}
 
               <button
@@ -273,7 +323,15 @@ export default function GrowthReport() {
             </div>
           </div>
         </>
-      ) : null}
+      ) : (
+        <EmptyState
+          icon="target"
+          title="暂无成长报告数据"
+          description="先完成画像、绑定目标岗位并开始第一个学习任务。"
+          actionLabel="回到首页"
+          onAction={() => navigate('/user/home')}
+        />
+      )}
     </div>
   );
 }

@@ -3,6 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { sendChat } from '../api/user';
 import { useChatStore } from '../stores/chat';
 import { ProfessionalIcon } from './icons';
+import {
+  CHAT_FILE_ACCEPT,
+  type ChatAttachedFile,
+  buildQuestionWithFileContext,
+  formatFileSize,
+  readChatAttachedFile,
+} from '../utils/chatFileContext';
 import '../styles/hand-draw.css';
 
 /** 路由 → 页面类型映射 */
@@ -36,7 +43,10 @@ export default function AIFloatingChat() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<ChatAttachedFile | null>(null);
+  const [fileReading, setFileReading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 持久化对话状态
   const { floatingMessages, floatingSessionIds, appendFloatingMessage, setFloatingSessionId } = useChatStore();
@@ -111,21 +121,42 @@ export default function AIFloatingChat() {
     setDragging(true);
   }, []);
 
+  const handleAttachFile = useCallback(async (file?: File) => {
+    if (!file || fileReading || loading) return;
+    setFileReading(true);
+    try {
+      const nextFile = await readChatAttachedFile(file);
+      setAttachedFile(nextFile);
+    } catch (err: any) {
+      const text = err?.message || '文件读取失败，请换一个文本文件';
+      setMessages(prev => [...prev, { role: 'ai', text }]);
+    } finally {
+      setFileReading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [fileReading, loading, setMessages]);
+
   const handleSend = useCallback(async () => {
-    const text = input.trim();
+    const question = input.trim();
+    const text = question || (attachedFile ? `请总结并分析文件：${attachedFile.name}` : '');
     if (!text || loading) return;
+    const outboundText = attachedFile ? buildQuestionWithFileContext(text, attachedFile) : text;
+    const displayText = attachedFile
+      ? `${text}\n\n（已附加文件：${attachedFile.name}${attachedFile.truncated ? '，内容已截取' : ''}）`
+      : text;
 
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', text }]);
+    setMessages(prev => [...prev, { role: 'user', text: displayText }]);
     setLoading(true);
 
     try {
       const currentSessionId = useChatStore.getState().floatingSessionIds[pageType] || '';
-      const res = await sendChat(text, currentSessionId || undefined, pageType);
+      const res = await sendChat(outboundText, currentSessionId || undefined, pageType);
       const aiText = typeof res.data?.reply === 'string'
         ? res.data.reply
         : (res.data?.reply?.text || res.data?.reply?.content || '抱歉，我没有理解你的意思。');
       setMessages(prev => [...prev, { role: 'ai', text: aiText }]);
+      setAttachedFile(null);
       // 保存 sessionId 以便后续复用
       if (res.data?.sessionId) {
         setFloatingSessionId(pageType, res.data.sessionId);
@@ -135,7 +166,7 @@ export default function AIFloatingChat() {
     } finally {
       setLoading(false);
     }
-  }, [input, loading, pageType, setFloatingSessionId]);
+  }, [attachedFile, input, loading, pageType, setFloatingSessionId, setMessages]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -179,11 +210,12 @@ export default function AIFloatingChat() {
       {open && (
         <div
           ref={panelRef}
-          className="hd-card"
+          className="hd-card ai-floating-chat"
           style={{
             ...panelStyle,
             width: 360, height: 480,
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            background: 'var(--paper)',
             boxShadow: '6px 8px 0 -4px rgba(43,38,32,0.18)',
             animation: 'hd-msg-in 0.3s ease-out',
           }}
@@ -223,7 +255,7 @@ export default function AIFloatingChat() {
           </div>
 
           {/* 消息列表 */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--paper)' }}>
             {messages.length === 0 && (
               <div style={{ font: '13px/1.5 var(--hand)', color: 'var(--pencil)', textAlign: 'center', marginTop: 40 }}>
                 {hint}
@@ -252,24 +284,70 @@ export default function AIFloatingChat() {
           </div>
 
           {/* 输入框 */}
-          <div style={{ padding: 12, borderTop: '2px solid var(--rule)', display: 'flex', gap: 8 }}>
+          <div
+            style={{ padding: 12, borderTop: '2px solid var(--rule)', display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--paper-tint)' }}
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (e.dataTransfer.files?.length) handleAttachFile(e.dataTransfer.files[0]);
+            }}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={CHAT_FILE_ACCEPT}
+              style={{ display: 'none' }}
+              onChange={(e) => handleAttachFile(e.target.files?.[0])}
+            />
+            {attachedFile && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 8px', border: '1.5px solid var(--rule)', borderRadius: 8,
+                background: 'var(--paper)', color: 'var(--ink)', font: '12px/1.2 var(--hand)',
+              }}>
+                <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {attachedFile.name}
+                </span>
+                <span style={{ flexShrink: 0, font: '10px/1 var(--mono)', color: 'var(--pencil)' }}>
+                  {formatFileSize(attachedFile.size)}{attachedFile.truncated ? ' · 已截取' : ''}
+                </span>
+                <button
+                  onClick={() => setAttachedFile(null)}
+                  style={{ border: 'none', background: 'transparent', color: 'var(--pencil)', cursor: 'pointer', padding: 2 }}
+                  title="移除文件"
+                >
+                  x
+                </button>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={hint}
+              placeholder={attachedFile ? '基于文件问点什么...' : hint}
               className="hd-input"
-              style={{ flex: 1, padding: '8px 12px', fontSize: 14 }}
+              style={{ flex: 1, minWidth: 0, padding: '8px 12px', fontSize: 14 }}
             />
             <button
-              onClick={handleSend}
-              disabled={!input.trim() || loading}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading || fileReading}
               className="hd-btn small"
-              style={{ padding: '8px 14px' }}
+              style={{ padding: '8px 10px' }}
+              title="添加文件进行问答"
+            >
+              文件
+            </button>
+            <button
+              onClick={handleSend}
+              disabled={(!input.trim() && !attachedFile) || loading || fileReading}
+              className="hd-btn small"
+              style={{ padding: '8px 12px' }}
             >
               →
             </button>
           </div>
+        </div>
         </div>
       )}
     </>

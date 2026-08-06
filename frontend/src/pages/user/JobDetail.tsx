@@ -27,6 +27,8 @@ import {
 import MatchBreakdown from '../../components/MatchBreakdown';
 import InteractiveCompanyMap from '../../components/InteractiveCompanyMap';
 import JobGapCard from '../../components/JobGapCard';
+import EmptyState from '../../components/EmptyState';
+import JobTrustBanner from '../../components/JobTrustBanner';
 import type { Job } from '../../types';
 import { readOnlineJob } from '../../utils/onlineJobCache';
 import { getJobSkillNames, getJobTrustTier } from '../../utils/jobTrust';
@@ -298,13 +300,14 @@ export default function JobDetail() {
     return (
       <div className="hd-page">
         <div className="hd-page-wrap">
-          <div className="hd-empty">
-            <div style={{ marginBottom: 12 }}>{error || '岗位不存在'}</div>
-            <button className="hd-btn small" onClick={fetchData}>
-              <IconRefresh size={14} style={{ marginRight: 6 }} />
-              重试
-            </button>
-          </div>
+          <EmptyState
+            icon="briefcase"
+            tone="warning"
+            title={error || '岗位不存在'}
+            description="联网参考岗位可能已过期，本地岗位也可能已下架。"
+            actionLabel="重新加载"
+            onAction={fetchData}
+          />
         </div>
       </div>
     );
@@ -400,6 +403,8 @@ export default function JobDetail() {
             )}
           </div>
         </div>
+
+        <JobTrustBanner tier={trustTier} host={job.host} />
 
         <div className="hd-grid-2" style={{ gap: 24, alignItems: 'start' }}>
           {/* ═══════════════════════════════════
@@ -856,13 +861,10 @@ export default function JobDetail() {
             {!trustTier.canDirectApply ? (
               <div className="hd-card-accent">
                 <div className="hd-section-label">
-                  <h3>岗位来源</h3>
+                  <h3>可执行动作</h3>
                 </div>
                 <div className="hd-divider" style={{ marginBottom: 16 }} />
-                <div className="hd-dashed" style={{ marginBottom: 14, font: '13px/1.5 var(--hand)', color: 'var(--pencil)' }}>
-                  <strong>{trustTier.label}：</strong>{trustTier.description}
-                  {job.host && trustTier.kind === 'web' ? ` 来源：${job.host}。` : ''}
-                </div>
+                <JobTrustBanner tier={trustTier} host={job.host} compact />
                 {job.url && (
                   <a
                     className="hd-btn highlight"
@@ -892,9 +894,12 @@ export default function JobDetail() {
               </div>
             ) : <div className="hd-card-accent">
               <div className="hd-section-label">
-                <h3>操作</h3>
+                <h3>可执行动作</h3>
               </div>
               <div className="hd-divider" style={{ marginBottom: 16 }} />
+              <div className="hd-dashed" style={{ marginBottom: 14, font: '13px/1.5 var(--hand)', color: 'var(--pencil)' }}>
+                <strong>{trustTier.label}：</strong>建议先补齐缺口并生成岗位版简历；达到投递门槛后再投递，后续变化会进入成长报告。
+              </div>
 
               {/* §7.4 分阶段达标门槛提示 */}
               {matchResult && !canApply && (

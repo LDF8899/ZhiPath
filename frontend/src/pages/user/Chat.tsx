@@ -22,6 +22,8 @@ import {
   IconLightbulb,
   IconRefresh,
   IconArrowLeft,
+  IconDocument,
+  IconX,
 } from '../../components/icons';
 import JobCard from '../../components/JobCard';
 import ProgressCard from '../../components/ProgressCard';
@@ -34,6 +36,13 @@ import VideoCard from '../../components/VideoCard';
 import AvatarCard from '../../components/AvatarCard';
 import SkillGapCard from '../../components/SkillGapCard';
 import { reconcileChatAgentTasks, reconcileChatSessionResources, saveResourcesFromActions } from '../../utils/chatResources';
+import {
+  CHAT_FILE_ACCEPT,
+  type ChatAttachedFile,
+  buildQuestionWithFileContext,
+  formatFileSize,
+  readChatAttachedFile,
+} from '../../utils/chatFileContext';
 
 /** 拖拽智能体到输入框时的提示语映射 */
 const AGENT_DROP_PROMPTS: Record<string, string> = {
@@ -106,8 +115,11 @@ export default function Chat() {
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<ChatAttachedFile | null>(null);
+  const [fileReading, setFileReading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const prefillSent = useRef(false);
   const processedSSE = useRef(new Set<string>());
 
@@ -268,11 +280,32 @@ export default function Chat() {
     }
   };
 
+  const handleAttachFile = async (file?: File) => {
+    if (!file || fileReading || sending) return;
+    setFileReading(true);
+    try {
+      const nextFile = await readChatAttachedFile(file);
+      setAttachedFile(nextFile);
+      showToast(nextFile.truncated ? '文件已添加，内容较长已截取前半部分' : '文件已添加，可以开始提问');
+      inputRef.current?.focus();
+    } catch (err: any) {
+      showToast(err?.message || '文件读取失败，请换一个文本文件', 'error');
+    } finally {
+      setFileReading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleSend = async (text?: string) => {
-    const msg = (text || input).trim();
+    const typedQuestion = (text || input).trim();
+    const msg = typedQuestion || (attachedFile ? `请总结并分析文件：${attachedFile.name}` : '');
     if (!msg || sending) return;
 
-    const userMsg: ChatMessage = { role: 'user', content: msg, timestamp: Date.now() };
+    const outboundMsg = attachedFile ? buildQuestionWithFileContext(msg, attachedFile) : msg;
+    const displayMsg = attachedFile
+      ? `${msg}\n\n（已附加文件：${attachedFile.name}${attachedFile.truncated ? '，内容已截取' : ''}）`
+      : msg;
+    const userMsg: ChatMessage = { role: 'user', content: displayMsg, timestamp: Date.now() };
     const oldSessionId = currentSessionId || '__pending__';
     // 用 getState() 读取最新 store，避免闭包拿到 stale state
     const prevMessages = useChatStore.getState().mainMessages[oldSessionId] || [];
@@ -281,7 +314,7 @@ export default function Chat() {
     setSending(true);
 
     try {
-      const res = await sendChat(msg, currentSessionId || undefined, 'chat');
+      const res = await sendChat(outboundMsg, currentSessionId || undefined, 'chat');
       // 智能体状态联动
       if (res.data?.agent) {
         setActiveAgent(res.data.agent);
@@ -408,6 +441,7 @@ export default function Chat() {
         } else {
           setMainMessages(newSessionId || oldSessionId, sentMessages);
         }
+        setAttachedFile(null);
       }
     } catch (err: any) {
       showToast(err?.message || '发送失败，请稍后重试', 'error');
@@ -679,6 +713,10 @@ export default function Chat() {
           onDrop={(e) => {
             e.preventDefault();
             setDragOver(false);
+            if (e.dataTransfer.files?.length) {
+              handleAttachFile(e.dataTransfer.files[0]);
+              return;
+            }
             const agentKey = e.dataTransfer.getData('application/zhipath-agent');
             if (agentKey) {
               const prompt = AGENT_DROP_PROMPTS[agentKey] || `请帮我处理${agentKey}相关任务`;
@@ -687,6 +725,30 @@ export default function Chat() {
             }
           }}
         >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={CHAT_FILE_ACCEPT}
+            className="chat-file-input"
+            onChange={(e) => handleAttachFile(e.target.files?.[0])}
+          />
+          {attachedFile && (
+            <div className="chat-file-chip" title={attachedFile.name}>
+              <IconDocument size={15} />
+              <span className="chat-file-name">{attachedFile.name}</span>
+              <span className="chat-file-meta">
+                {formatFileSize(attachedFile.size)}{attachedFile.truncated ? ' · 已截取' : ''}
+              </span>
+              <button
+                type="button"
+                className="chat-file-remove"
+                onClick={() => setAttachedFile(null)}
+                title="移除文件"
+              >
+                <IconX size={13} />
+              </button>
+            </div>
+          )}
           <div className="chat-input-inner">
             {/* Doodle pencil icon */}
             <svg className="chat-input-pencil" width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -696,23 +758,33 @@ export default function Chat() {
             <input
               ref={inputRef}
               className="chat-input"
-              placeholder={dragOver ? '松开即可调用智能体...' : '写下你的问题...'}
+              placeholder={dragOver ? '松开即可添加文件或调用智能体...' : '写下你的问题，或添加文件后直接发送...'}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
               disabled={sending}
             />
             <button
+              type="button"
+              className="chat-attach-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sending || fileReading}
+              title="添加文件进行问答"
+            >
+              <IconDocument size={18} />
+              <span>{fileReading ? '读取中' : '文件'}</span>
+            </button>
+            <button
               className="chat-send-btn"
               onClick={() => handleSend()}
-              disabled={!input.trim() || sending}
+              disabled={(!input.trim() && !attachedFile) || sending || fileReading}
             >
               <IconSend size={18} />
               <span>发送</span>
             </button>
           </div>
           <div className="chat-input-hint">
-            <span>Enter 发送 · Shift+Enter 换行</span>
+            <span>Enter 发送 · 支持 txt/md/csv/json/code 文件作为本轮上下文</span>
           </div>
         </div>
       </main>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getEmploymentDashboard, exportEmploymentCsv } from '../../api/admin';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import { IconRefresh, IconDownload, IconBriefcase, IconGradCap, IconTarget, IconCheck } from '../../components/icons';
+import EmptyState from '../../components/EmptyState';
 import '../../styles/hand-draw.css';
 
 interface Filters {
@@ -67,6 +68,19 @@ export default function AdminEmployment() {
 
   const ov = data?.overview || null;
   const filtersMeta = data?.filters || { majors: [], grades: [], schools: [], classes: [] };
+  const highPct = ov?.readinessTotal ? Math.round((ov.readiness?.high || 0) / ov.readinessTotal * 100) : 0;
+  const lowPct = ov?.readinessTotal ? Math.round((ov.readiness?.low || 0) / ov.readinessTotal * 100) : 0;
+  const firstGap = data?.skillGaps?.[0];
+  const activeFilters = Object.entries(filters).filter(([, value]) => value);
+  const dashboardVerdict = ov
+    ? ov.studentCount === 0
+      ? '当前筛选范围内暂无学生数据。'
+      : lowPct >= 40
+        ? `低准备度学生占 ${lowPct}%，建议优先安排目标岗位绑定、基础技能补齐和一次诊断测评。`
+        : highPct >= 50
+          ? `高准备度学生占 ${highPct}%，可以进入岗位版简历优化和投递辅导。`
+          : `中间层学生较多，建议围绕 ${firstGap?.skill || 'Top 技能缺口'} 做一轮专项提升。`
+    : '';
 
   return (
     <div className="hd-canvas">
@@ -112,6 +126,13 @@ export default function AdminEmployment() {
           <button className="hd-btn small" onClick={() => fetchData()} disabled={loading}>
             应用筛选
           </button>
+          {activeFilters.length > 0 && (
+            <div className="hd-flex" style={{ gap: 6, flexWrap: 'wrap' }}>
+              {activeFilters.map(([key, value]) => (
+                <span key={key} className="hd-badge accent">{value}</span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -123,6 +144,21 @@ export default function AdminEmployment() {
         <div className="hd-empty" style={{ padding: 48 }}>加载中…</div>
       ) : ov ? (
         <>
+          <div className="employment-verdict">
+            <div>
+              <span className="hd-badge accent">就业指导结论</span>
+              <strong>{dashboardVerdict}</strong>
+              <p>
+                当前看板用于试点复盘：先看准备度分层，再看岗位目标是否明确，最后用技能缺口 Top10 安排专项辅导。
+              </p>
+            </div>
+            <div className="employment-verdict-metrics">
+              <span><b>{ov.targetJobRate}%</b>目标绑定</span>
+              <span><b>{highPct}%</b>高准备度</span>
+              <span><b>{lowPct}%</b>低准备度</span>
+            </div>
+          </div>
+
           {/* ── 概览 ── */}
           <div className="hd-grid-4" style={{ gap: 12, marginBottom: 14 }}>
             <div className="hd-card-accent" style={{ padding: 14 }}>
@@ -198,7 +234,12 @@ export default function AdminEmployment() {
                   ))}
                 </div>
               ) : (
-                <div className="hd-empty" style={{ padding: 20 }}>暂无目标岗位数据</div>
+                <EmptyState
+                  compact
+                  icon="briefcase"
+                  title="暂无目标岗位数据"
+                  description="引导学生先绑定目标岗位，后续才能形成岗位差距和学习闭环。"
+                />
               )}
             </div>
 
@@ -225,12 +266,28 @@ export default function AdminEmployment() {
                   ))}
                 </div>
               ) : (
-                <div className="hd-empty" style={{ padding: 20 }}>暂无技能缺口数据</div>
+                <EmptyState
+                  compact
+                  icon="target"
+                  title="暂无技能缺口数据"
+                  description="学生完成画像、学习任务或测评后，这里会聚合群体短板。"
+                />
               )}
             </div>
           </div>
         </>
-      ) : null}
+      ) : (
+        <EmptyState
+          icon="target"
+          title="暂无就业准备度数据"
+          description="请检查筛选条件，或先让学生完成画像与目标岗位绑定。"
+          actionLabel="重置筛选"
+          onAction={() => {
+            setFilters({});
+            fetchData({});
+          }}
+        />
+      )}
     </div>
   );
 }

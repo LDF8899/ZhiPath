@@ -561,6 +561,62 @@
   flex-shrink: 0;
 }
 
+.chat-input-bar.drag-over {
+  background: rgba(216, 72, 43, 0.06);
+}
+
+.chat-file-input {
+  display: none;
+}
+
+.chat-file-chip {
+  max-width: 780px;
+  margin: 0 auto 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper-tint);
+  color: var(--ink);
+  font: 13px/1.2 var(--hand);
+}
+
+.chat-file-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-file-meta {
+  flex-shrink: 0;
+  font: 11px/1 var(--mono);
+  color: var(--pencil);
+  opacity: 0.72;
+}
+
+.chat-file-remove {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1.5px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--pencil);
+  cursor: pointer;
+}
+
+.chat-file-remove:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .chat-input-inner {
   max-width: 780px;
   margin: 0 auto;
@@ -599,6 +655,34 @@
 }
 .chat-input:disabled {
   opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.chat-attach-btn {
+  min-width: 76px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 14px;
+  font: 14px/1 var(--hand-bold);
+  color: var(--ink);
+  background: var(--paper-tint);
+  border: 2px solid var(--pencil);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.chat-attach-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.chat-attach-btn:disabled {
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
@@ -829,6 +913,19 @@
 
   .chat-input-bar {
     padding: 10px 12px 8px;
+  }
+
+  .chat-file-chip {
+    font-size: 12px;
+  }
+
+  .chat-attach-btn {
+    min-width: 44px;
+    padding: 11px 12px;
+  }
+
+  .chat-attach-btn span {
+    display: none;
   }
 
   .chat-send-btn span {
