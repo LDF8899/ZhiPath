@@ -14,7 +14,7 @@ interface MatchScoreToastProps {
 export function useMatchScoreToast() {
   const [toast, setToast] = useState<{ key: number; node: React.ReactNode } | null>(null);
 
-  const showMatchScoreChange = useCallback((oldScore: number, newScore: number, jobTitle?: string) => {
+  const showMatchScoreChange = useCallback((oldScore: number, newScore: number, jobTitle?: string, reason?: string) => {
     const diff = newScore - oldScore;
     if (Math.abs(diff) < 1) return;
 
@@ -37,6 +37,7 @@ export function useMatchScoreToast() {
                 </span>
               </div>
               {jobTitle && <div style={{ fontSize: 12, color: 'var(--pencil)', marginTop: 2 }}>目标岗位：{jobTitle}</div>}
+              {reason && <div style={{ fontSize: 12, color: 'var(--pencil)', marginTop: 2 }}>{reason}</div>}
             </div>
           </div>
         </div>

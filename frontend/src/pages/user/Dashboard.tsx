@@ -208,10 +208,10 @@ export default function Dashboard() {
   // 监听 SSE match_update 事件
   useEffect(() => {
     if (latestEvent?.type === 'match_update') {
-      const { newScore, jobId } = latestEvent.data;
+      const { newScore, jobId, reason } = latestEvent.data;
       const oldScore = prevMatchRef.current;
       if (oldScore > 0 && newScore !== oldScore) {
-        showMatchScoreChange(oldScore, newScore, bestMatch?.jobTitle);
+        showMatchScoreChange(oldScore, newScore, bestMatch?.jobTitle, reason);
         // 阶段性庆祝（每提升 10%）
         if (newScore > oldScore && Math.floor(newScore / 10) > Math.floor(oldScore / 10)) {
           celebrate(`匹配度达到 ${Math.floor(newScore)}%！`);

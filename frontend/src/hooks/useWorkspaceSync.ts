@@ -199,7 +199,7 @@ export function useWorkspaceSync() {
 
     switch (latestEvent.type) {
       case 'match_update': {
-        const score = latestEvent.data?.score ?? 0;
+        const score = latestEvent.data?.newScore ?? latestEvent.data?.score ?? 0;
         useWorkspaceStore.getState().setMatchScore(score);
         // P0: 匹配度 >= 80% 立即显示
         if (score >= 80) {

@@ -166,12 +166,12 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * 发送匹配度变化事件
+   * 发送匹配度变化事件（P0-3：携带可读变化原因，供首页 toast 展示）
    */
-  emitMatchUpdate(userId: number, jobId: number, newScore: number) {
+  emitMatchUpdate(userId: number, jobId: number, newScore: number, reason?: string) {
     this.emit(userId, {
       type: 'match_update',
-      data: { jobId, newScore },
+      data: { jobId, newScore, ...(reason ? { reason } : {}) },
     });
   }
 

@@ -44,7 +44,7 @@ describe('LearningCommitService', () => {
     const matchAgentService = {
       calculateForAllJobs: jest.fn().mockResolvedValue([{ jobId: 1, jobTitle: 'FE', matchScore: 12, canApply: false }]),
     };
-    const eventsService = { emit: jest.fn() };
+    const eventsService = { emit: jest.fn(), emitMatchUpdate: jest.fn() };
     const service = new LearningCommitService(
       branchRepo as any,
       commitRepo as any,
@@ -81,6 +81,15 @@ describe('LearningCommitService', () => {
     expect(branchRepo.save).toHaveBeenCalledWith(expect.objectContaining({ headCommitId: result.commit.id }));
     expect(eventsService.emit).toHaveBeenCalledWith(1, expect.objectContaining({ type: 'commit_created' }));
     expect(eventsService.emit).toHaveBeenCalledWith(1, expect.objectContaining({ type: 'radar_updated' }));
+    // P0-3：主分支匹配度变化 → 推送 match_update（含可读原因）
+    expect(eventsService.emitMatchUpdate).toHaveBeenCalledWith(
+      1, 1, 12,
+      expect.stringContaining('FE'),
+    );
+    expect(eventsService.emitMatchUpdate).toHaveBeenCalledWith(
+      1, 1, 12,
+      expect.stringContaining('Git'),
+    );
   });
 
   it('keeps plan branch changes isolated from the canonical skill store', async () => {
@@ -99,5 +108,26 @@ describe('LearningCommitService', () => {
     expect(matchAgentService.calculateForAllJobs).not.toHaveBeenCalled();
     expect(branchRepo.save).toHaveBeenCalled();
     expect(eventsService.emit).not.toHaveBeenCalledWith(1, expect.objectContaining({ type: 'radar_updated' }));
+    // P0-3：计划分支不推送 match_update
+    expect(eventsService.emitMatchUpdate).not.toHaveBeenCalled();
+  });
+
+  it('does not emit match_update when best match score is unchanged', async () => {
+    const { service, snapshotService, eventsService } = setup();
+    // 前序 snapshot 已有相同匹配度 → 无变化不发事件
+    snapshotService.getSnapshotByCommit.mockResolvedValue({
+      id: 199,
+      matchSummaryJson: { best: { jobId: 1, jobTitle: 'FE', matchScore: 12, canApply: false }, jobs: [] },
+      skillsJson: [{ name: 'Git', mastery: 30, trustWeight: 1, effectiveMastery: 30, source: 'exam' }],
+    });
+
+    await service.commitSkill(1, 7, {
+      type: 'lecture_read',
+      skillName: 'Git',
+      delta: 0,
+      message: 'lecture read: Git',
+    });
+
+    expect(eventsService.emitMatchUpdate).not.toHaveBeenCalled();
   });
 });

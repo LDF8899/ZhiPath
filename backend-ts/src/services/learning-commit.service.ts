@@ -162,6 +162,7 @@ export class LearningCommitService {
     await this.branchRepo.save(branch);
 
     this.emitCommitEvents(userId, branch, commit, snapshot, delta, matchSummary);
+    this.emitMatchChangeIfAny(userId, branch, delta, matchSummary, beforeBest, afterBest);
 
     return { commit, snapshot, delta, branch, matchSummary };
   }
@@ -214,6 +215,7 @@ export class LearningCommitService {
     input.branch.updateTime = Date.now();
     await this.branchRepo.save(input.branch);
     this.emitCommitEvents(input.userId, input.branch, commit, snapshot, delta, matchSummary);
+    this.emitMatchChangeIfAny(input.userId, input.branch, delta, matchSummary, beforeBest, this.bestMatchScore(matchSummary));
     return { commit, snapshot, delta, branch: input.branch, matchSummary };
   }
 
@@ -313,5 +315,33 @@ export class LearningCommitService {
       this.eventsService.emit(userId, { type: 'radar_updated', data: { snapshot, radar: snapshot.radarJson, abilityMetrics: snapshot.abilityMetricsJson } });
       this.eventsService.emit(userId, { type: 'match_updated', data: matchSummary });
     }
+  }
+
+  /**
+   * P0-3：主分支 commit 后若最佳岗位匹配度发生变化，
+   * 推送 match_update 事件（首页 SSE toast 据此弹出"匹配度变化提示"），
+   * 并附带可读变化原因（来自 skill delta）。
+   */
+  private emitMatchChangeIfAny(userId: number, branch: LearningBranch, delta: any, matchSummary: any, beforeBest: number, afterBest: number) {
+    if (branch.branchType !== 'main') return;
+    const best = matchSummary?.best;
+    if (!best) return;
+    const diff = Math.round((afterBest - beforeBest) * 100) / 100;
+    if (Math.abs(diff) < 0.01) return;
+
+    const changes = (delta?.skillChanges || [])
+      .filter((c: any) => Math.abs(c.delta) > 0.5)
+      .slice(0, 3)
+      .map((c: any) => `${c.name} ${c.delta > 0 ? '+' : ''}${this.round1(c.delta)}%`);
+    const direction = diff > 0 ? '提升' : '下降';
+    const reason = changes.length > 0
+      ? `${changes.join('、')}，${best.jobTitle}匹配度${direction} ${this.round1(beforeBest)}% → ${this.round1(afterBest)}%`
+      : `${best.jobTitle}匹配度${direction} ${this.round1(beforeBest)}% → ${this.round1(afterBest)}%`;
+
+    this.eventsService.emitMatchUpdate(userId, best.jobId, best.matchScore, reason);
+  }
+
+  private round1(v: number): number {
+    return Math.round(Number(v || 0) * 10) / 10;
   }
 }
