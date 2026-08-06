@@ -18,7 +18,7 @@ export interface Station {
   id: number;
 }
 
-/** 任务（复用后端 AgentTask） */
+/** 任务（复用后端 AgentTask）— P1-3 新增 outputType/targetEntity */
 export interface AgentTask {
   id: number;
   agentType: string;
@@ -34,6 +34,8 @@ export interface AgentTask {
   startedAt: number | null;
   completedAt: number | null;
   createTime: number;
+  outputType?: string;
+  targetEntity?: Record<string, any> | null;
 }
 
 /** 动物类型 */

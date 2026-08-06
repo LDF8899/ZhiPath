@@ -216,11 +216,11 @@ export class AgentOfficeController {
     return success(task);
   }
 
-  /** 创建任务（派发模式） */
+  /** 创建任务（派发模式）— P1-3：支持 outputType/targetEntity 透传 */
   @Post('tasks')
   async createTask(
     @CurrentUser() user: any,
-    @Body() body: { agentType: string; title: string; params?: Record<string, any>; description?: string },
+    @Body() body: { agentType: string; title: string; params?: Record<string, any>; description?: string; outputType?: string; targetEntity?: Record<string, any> },
   ) {
     if (!body.agentType || !AGENT_TYPE_MAP[body.agentType]) {
       return error(400, '无效的 Agent 类型');
@@ -232,6 +232,8 @@ export class AgentOfficeController {
       body.title,
       body.params,
       body.description,
+      body.outputType,
+      body.targetEntity || null,
     );
 
     await this.syncGeneratedResource(user.sub, task, undefined, 'task pending');

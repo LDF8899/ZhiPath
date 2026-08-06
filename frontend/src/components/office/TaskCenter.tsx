@@ -1,10 +1,45 @@
 import React, { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { AgentProfile, AgentTask } from './types';
 import type { GeneratedResource } from '../../types';
 import { makeAnimalSVG } from './AnimalSVG';
 import { AGENT_LABELS } from '../../hooks/useAgentOffice';
 import { setGeneratedResourceFeedback } from '../../api/user';
 import { ProfessionalIcon } from '../icons';
+
+/**
+ * P1-3：产物类型 → 一键进入业务页面
+ * 兼容存量任务（无 outputType 时按 agentType 推断）
+ */
+function outputAction(task: AgentTask): { label: string; path: string } | null {
+  const fallback: Record<string, string> = {
+    lecture: 'knowledge',
+    reading: 'knowledge',
+    code: 'project',
+    path: 'plan',
+    assess: 'evaluation',
+  };
+  const type = task.outputType || fallback[task.agentType] || '';
+  const skill =
+    task.targetEntity?.skillName ||
+    task.params?.skillName ||
+    task.params?.skill ||
+    '';
+  switch (type) {
+    case 'knowledge':
+      return { label: '查看讲义', path: skill ? `/user/knowledge/${encodeURIComponent(skill)}` : '/user/learning' };
+    case 'project':
+      return { label: '去项目', path: '/user/projects' };
+    case 'plan':
+      return { label: '去学习', path: '/user/learning' };
+    case 'evaluation':
+      return { label: '去速测', path: '/user/quick-test' };
+    case 'resume':
+      return { label: '去简历', path: '/user/resume' };
+    default:
+      return null;
+  }
+}
 
 interface TaskCenterProps {
   profiles: AgentProfile[];
@@ -33,6 +68,7 @@ export default function TaskCenter({
   busyCount, idleCount, stationCount, agentCount,
   standbyAgents, onTaskAction, onTaskReorder, onDirectUse,
 }: TaskCenterProps) {
+  const navigate = useNavigate();
   /* ── 任务拖拽排序 ── */
   const dragTaskIdRef = useRef<number | null>(null);
   const taskOverRef = useRef<number | null>(null);
@@ -318,6 +354,7 @@ export default function TaskCenter({
             );
           }) : completedOutputs.length > 0 ? completedOutputs.map(task => {
             const agent = profiles.find(p => p.agentType === task.agentType);
+            const action = outputAction(task);
             return (
               <div key={task.id} className="office-output-card">
                 <div className="out-header">
@@ -334,6 +371,16 @@ export default function TaskCenter({
                   <div className="out-result">
                     {typeof task.result === 'string' ? task.result : JSON.stringify(task.result).slice(0, 100)}
                   </div>
+                )}
+                {/* P1-3：产物一键进入对应业务页面 */}
+                {action && (
+                  <button
+                    className="hd-btn small highlight"
+                    style={{ marginTop: 8, width: '100%' }}
+                    onClick={() => navigate(action.path)}
+                  >
+                    进入产物：{action.label} →
+                  </button>
                 )}
               </div>
             );
@@ -353,6 +400,7 @@ export default function TaskCenter({
         <div className="office-output-list">
           {recentHistory.length > 0 ? recentHistory.map(task => {
             const agent = profiles.find(p => p.agentType === task.agentType);
+            const action = task.taskStatus === 'success' ? outputAction(task) : null;
             return (
               <div key={`history-${task.id}`} className="office-output-card">
                 <div className="out-header">
@@ -367,6 +415,16 @@ export default function TaskCenter({
                   <div className="out-result" style={{ color: 'var(--accent)' }}>
                     失败原因：{task.errorMessage}
                   </div>
+                )}
+                {/* P1-3：成功任务产物可一键进入业务页面 */}
+                {action && (
+                  <button
+                    className="hd-btn small"
+                    style={{ marginTop: 8, width: '100%' }}
+                    onClick={() => navigate(action.path)}
+                  >
+                    进入产物：{action.label} →
+                  </button>
                 )}
               </div>
             );

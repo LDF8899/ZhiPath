@@ -29,6 +29,7 @@ describe('AgentOfficeBridgeService', () => {
       updateStatus: jest.fn(),
       updateProgress: jest.fn(),
       getTask: jest.fn(),
+      hasRunningTask: jest.fn().mockResolvedValue(false),
     };
     profileService = {
       ensureAgent: jest.fn().mockResolvedValue(null),

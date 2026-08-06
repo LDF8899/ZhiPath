@@ -81,6 +81,8 @@ CREATE TABLE `agent_tasks_v3`  (
   `sort_order` int NOT NULL DEFAULT 0 COMMENT 'æŽ’åº',
   `group_id` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '任务组ID，用于批量关联任务',
   `external_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '外部幂等ID，防止重复创建',
+  `output_type` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '产物类型：knowledge/project/plan/evaluation/resume',
+  `target_entity` json NULL COMMENT '产物目标实体：如 {skillName, planId, resumeId}',
   `started_at` bigint NULL DEFAULT NULL COMMENT 'å¼€å§‹æ—¶é—´',
   `completed_at` bigint NULL DEFAULT NULL COMMENT 'å®Œæˆæ—¶é—´',
   `status` tinyint NOT NULL DEFAULT 1 COMMENT '1=æ­£å¸¸ 0=åˆ é™¤',

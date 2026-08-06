@@ -19,7 +19,7 @@ export class AgentTaskService {
   ) {}
 
   /**
-   * 创建任务
+   * 创建任务（P1-3：支持产物类型 outputType 与目标实体 targetEntity）
    */
   async createTask(
     userId: number,
@@ -27,6 +27,8 @@ export class AgentTaskService {
     title: string,
     params?: Record<string, any>,
     description?: string,
+    outputType?: string,
+    targetEntity?: Record<string, any> | null,
   ): Promise<AgentTask> {
     const now = Date.now();
 
@@ -54,7 +56,23 @@ export class AgentTaskService {
       createTime: now,
       updateTime: now,
       status: 1,
+      outputType: outputType || this.inferOutputType(agentType),
+      targetEntity: targetEntity || null,
     });
+  }
+
+  /**
+   * 由 Agent 类型推断产物类型（未显式指定时兜底）
+   */
+  private inferOutputType(agentType: AgentTask['agentType']): string {
+    const map: Record<string, string> = {
+      lecture: 'knowledge',
+      reading: 'knowledge',
+      code: 'project',
+      path: 'plan',
+      assess: 'evaluation',
+    };
+    return map[agentType] || agentType || '';
   }
 
   /**

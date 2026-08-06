@@ -36,9 +36,17 @@ export class AgentsController {
     private readonly learningCommitService: LearningCommitService,
   ) {}
 
-  /** 异步注册任务到办公室（不阻塞响应） */
+  /** 异步注册任务到办公室（不阻塞响应）— P1-3：携带 outputType/targetEntity */
   private registerOfficeTask(userId: number, agentType: string, title: string, result: any, params?: Record<string, any>) {
-    this.taskService.createTask(userId, agentType as any, title, params)
+    this.taskService.createTask(
+      userId,
+      agentType as any,
+      title,
+      params,
+      undefined,
+      undefined,
+      this.buildTargetEntity(agentType, params),
+    )
       .then(async (task) => {
         await this.generatedResources.upsertFromTask(userId, task).catch(() => {});
         const completedTask = await this.taskService.updateStatus(task.id, 'success', result);
@@ -47,6 +55,20 @@ export class AgentsController {
         }
       })
       .catch(() => {});
+  }
+
+  /**
+   * P1-3：根据 Agent 类型与参数构建产物目标实体（供前端"一键进入业务页面"）
+   */
+  private buildTargetEntity(agentType: string, params?: Record<string, any>): Record<string, any> | null {
+    const skillName = params?.skillName || params?.skill || '';
+    if (agentType === 'lecture' || agentType === 'reading') {
+      return skillName ? { type: 'knowledge', skillName } : { type: 'knowledge' };
+    }
+    if (agentType === 'code') return { type: 'project', skillName };
+    if (agentType === 'path') return { type: 'plan', skillName };
+    if (agentType === 'assess') return { type: 'evaluation', skillName };
+    return { type: agentType || '' };
   }
 
   /**

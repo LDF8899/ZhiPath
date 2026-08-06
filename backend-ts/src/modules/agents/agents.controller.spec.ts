@@ -39,11 +39,15 @@ describe('AgentsController resource ledger integration', () => {
     await flushPromises();
 
     expect(response.code).toBe(200);
+    // P1-3：createTask 携带 outputType（自动推断）与 targetEntity（知识库产物）
     expect(taskService.createTask).toHaveBeenCalledWith(
       24,
       'lecture',
       expect.stringContaining('React'),
       { skillName: 'React' },
+      undefined,
+      undefined,
+      expect.objectContaining({ type: 'knowledge', skillName: 'React' }),
     );
     expect(generatedResources.upsertFromTask).toHaveBeenCalledWith(24, task);
     expect(taskService.updateStatus).toHaveBeenCalledWith(11, 'success', {

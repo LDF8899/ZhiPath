@@ -62,4 +62,10 @@ export class AgentTask extends BaseEntity {
 
   @Column({ type: 'varchar', length: 128, nullable: true, unique: true, name: 'external_id', comment: '外部幂等ID，防重复创建' })
   externalId: string;
+
+  @Column({ type: 'varchar', length: 40, nullable: true, name: 'output_type', comment: '产物类型（P1-3）：lecture/reading→knowledge、code→project、path→plan、assess→evaluation、resume' })
+  outputType: string;
+
+  @Column({ type: 'json', nullable: true, name: 'target_entity', comment: '产物目标实体（P1-3）：如 { skillName, planId, resumeId }' })
+  targetEntity: Record<string, any> | null;
 }
