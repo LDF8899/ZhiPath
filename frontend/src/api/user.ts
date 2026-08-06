@@ -22,6 +22,7 @@ import type {
   EvaluationListItem,
   GapCard,
   TodayActions,
+  SkillEvidence,
 } from '../types';
 
 /** 登录 */
@@ -145,6 +146,10 @@ export const getGapCard = (jobId: number) =>
 /** 今日行动推荐 — 1 主任务 + 最多 2 辅助任务，含原因与预计影响（P0-2） */
 export const getTodayActions = () =>
   client.get('/user/today-actions') as Promise<ApiResponse<TodayActions>>;
+
+/** 技能证据链（P1-1）— 学习/测评/项目/简历证据 + 岗位影响 */
+export const getSkillEvidence = (skillName: string) =>
+  client.get(`/user/skills/${encodeURIComponent(skillName)}/evidence`) as Promise<ApiResponse<SkillEvidence>>;
 
 /** 申请岗位 */
 export const applyJob = (id: number) =>

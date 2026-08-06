@@ -4,6 +4,7 @@ import { getProfile, getSkills, updateProfile } from '../../api/user';
 import RadarChart from '../../components/RadarChart';
 import SkillGraph3D from '../../components/SkillGraph3D';
 import AbilityMap3D from '../../components/AbilityMap3D';
+import SkillEvidencePanel from '../../components/SkillEvidencePanel';
 import { useWorkspaceStore } from '../../stores/workspace';
 import {
   IconUser,
@@ -26,6 +27,8 @@ export default function Profile() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [skills, setSkills] = useState<any[]>([]);
+  // P1-1 技能证据链：当前展开证据链的技能名
+  const [evidenceSkill, setEvidenceSkill] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -451,6 +454,19 @@ export default function Profile() {
                           }
                           return null;
                         })()}
+                        {/* P1-1 证据链展开按钮 + 内联面板 */}
+                        <div style={{ marginTop: 8 }}>
+                          <button
+                            className="hd-btn small secondary"
+                            style={{ fontSize: 11, padding: '3px 8px' }}
+                            onClick={() => setEvidenceSkill(evidenceSkill === skill.name ? null : skill.name)}
+                          >
+                            {evidenceSkill === skill.name ? '收起证据' : `证据链`}
+                          </button>
+                          {evidenceSkill === skill.name && (
+                            <SkillEvidencePanel skillName={skill.name} onClose={() => setEvidenceSkill(null)} />
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -134,6 +134,23 @@ export interface TodayActions {
   subs: TodayAction[];
 }
 
+/** 技能证据链（P1-1）— GET /api/user/skills/:skillName/evidence */
+export interface SkillEvidence {
+  skill: string;
+  mastery: number;
+  hasSkill: boolean;
+  source: string;
+  counts: { learning: number; evaluation: number; project: number; resume: number };
+  summary: string;
+  evidence: {
+    learning: Array<{ commitId: number; type: string; message: string; delta: number; time: number }>;
+    evaluation: Array<{ resultId: number; skillName: string | null; score: number; passed: boolean; level: string | null; summary: string | null; time: number }>;
+    project: Array<{ name: string; description: string; skills: string[]; period: string }>;
+    resume: Array<{ resumeId: number; versionName: string; targetJobTitle: string; expression: string }>;
+    impact: { matchDelta: number; commitId: number | null; message: string; jobTitle: string };
+  };
+}
+
 /** 学习路径 */
 export interface LearningPath {
   id: number;

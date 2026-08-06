@@ -33,6 +33,13 @@ export class SkillController {
     return success(skills);
   }
 
+  /** 技能证据链（P1-1）— 学习/测评/项目/简历证据 + 岗位影响 */
+  @Get('skills/:skillName/evidence')
+  async getSkillEvidence(@CurrentUser() user: any, @Param('skillName') skillName: string) {
+    const evidence = await this.skillService.getSkillEvidence(user.sub, skillName);
+    return success(evidence);
+  }
+
   /** 添加技能 */
   @Post('skills')
   async addSkill(@CurrentUser() user: any, @Body() body: { name: string; source?: string; trustWeight?: number }) {

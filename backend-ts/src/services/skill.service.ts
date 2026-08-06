@@ -3,6 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { UserSkill } from '../entities/user-skills.entity';
 import { Student } from '../entities/student.entity';
+import { LearningCommit } from '../entities/learning-commit.entity';
+import { EvaluationResult } from '../entities/evaluation-result.entity';
+import { Resume } from '../entities/resume.entity';
+import { JobPosition } from '../entities/job.entity';
 
 /**
  * 技能服务 — 管理 user_skills_v3
@@ -18,6 +22,10 @@ export class SkillService {
   constructor(
     @InjectRepository(UserSkill) private userSkillRepo: Repository<UserSkill>,
     @InjectRepository(Student) private studentRepo: Repository<Student>,
+    @InjectRepository(LearningCommit) private commitRepo: Repository<LearningCommit>,
+    @InjectRepository(EvaluationResult) private evalResultRepo: Repository<EvaluationResult>,
+    @InjectRepository(Resume) private resumeRepo: Repository<Resume>,
+    @InjectRepository(JobPosition) private jobRepo: Repository<JobPosition>,
   ) {}
 
   // ── 基础 CRUD ──────────────────────────────────
@@ -299,5 +307,186 @@ export class SkillService {
       bySource,
       avgMastery: skills.length > 0 ? Math.round((totalMastery / skills.length) * 100) / 100 : 0,
     };
+  }
+
+  // ── 技能证据链（P1-1）──────────────────────────
+
+  /**
+   * 技能证据链 — GET /api/user/skills/:skillName/evidence（P1-1）
+   *
+   * 对齐《ZhiPath_产品业务升级方案》P1-1 / §9.2 证据链聚合表：
+   *   - 学习证据：learning commit（含 delta）
+   *   - 测评证据：evaluation result（分数/是否通过）
+   *   - 项目证据：student.projects（绑定该技能的项目）
+   *   - 简历证据：resume content（该技能在简历中的表达）
+   *   - 岗位影响：最近一次匹配度 delta + 目标岗位信息
+   *
+   * 仅聚合现有数据，不新建表。
+   */
+  async getSkillEvidence(userId: number, skillName: string) {
+    const name = skillName.trim();
+    const lower = name.toLowerCase();
+    const skill = await this.getSkill(userId, name);
+
+    // ── 1. 学习证据：commit（skillName 匹配或 payload 提及）──
+    const commits = await this.commitRepo.find({
+      where: { userId, status: 1 },
+      order: { createTime: 'DESC' },
+      take: 300,
+    });
+    const learning = commits
+      .filter((c) => this.commitMentionsSkill(c, lower))
+      .slice(0, 5)
+      .map((c) => ({
+        commitId: c.id,
+        type: c.commitType,
+        message: c.message,
+        delta: this.skillDeltaFromCommit(c, lower),
+        time: Number(c.createTime || 0),
+      }));
+
+    // ── 2. 测评证据：evaluation result ──
+    const evalResults = await this.evalResultRepo.find({
+      where: { userId, status: 1 },
+      order: { createTime: 'DESC' },
+      take: 200,
+    });
+    const evaluation = evalResults
+      .filter((r) => this.namesMatch(r.skillName, lower))
+      .slice(0, 5)
+      .map((r) => ({
+        resultId: r.id,
+        skillName: r.skillName,
+        score: Number(r.normalizedScore ?? r.score ?? 0),
+        passed: r.passed === 1,
+        level: r.level,
+        summary: r.summary,
+        time: Number(r.createTime || 0),
+      }));
+
+    // ── 3. 项目证据：student.projects ──
+    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const projectList = (student?.projects || []) as Array<Record<string, any>>;
+    const project = projectList
+      .filter((p) => this.projectMentionsSkill(p, lower))
+      .slice(0, 5)
+      .map((p) => ({
+        name: p.name || p.projectName || '',
+        description: p.description || p.desc || '',
+        skills: p.skills || p.tech || [],
+        period: p.time || p.duration || p.period || '',
+      }));
+
+    // ── 4. 简历证据：resume content ──
+    const resumes = await this.resumeRepo.find({
+      where: { userId, status: 1 },
+      order: { version: 'DESC' },
+      take: 20,
+    });
+    const resume = resumes
+      .map((r) => {
+        const content = r.content || {};
+        const skillsArr = (content.skills || []) as Array<Record<string, any>>;
+        const skillEntry = skillsArr.find((s) => this.namesMatch(String(s.name || ''), lower));
+        const projectsArr = (content.projects || []) as Array<Record<string, any>>;
+        const projectEntry = projectsArr.find((p) => this.projectMentionsSkill(p, lower));
+        const expression =
+          (projectEntry &&
+            (projectEntry.description || projectEntry.desc || projectEntry.name || '')) ||
+          (skillEntry && `${skillEntry.name}（掌握度 ${skillEntry.masteryPct ?? '—'}%）`) ||
+          '';
+        if (!expression) return null;
+        return {
+          resumeId: r.id,
+          versionName: r.versionName || `v${r.version}`,
+          targetJobTitle: (content.targetJob as any)?.title || '',
+          expression: String(expression).slice(0, 120),
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 5);
+
+    // ── 5. 岗位影响：最近一次匹配度 delta + 目标岗位 ──
+    const impactCommit = commits.find(
+      (c) => c.deltaJson?.metricsChange && Number(c.deltaJson.metricsChange.matchScore) !== 0,
+    );
+    let impact: Record<string, any> = {
+      matchDelta: 0,
+      commitId: null,
+      message: '',
+    };
+    if (impactCommit) {
+      impact = {
+        matchDelta: Math.round(Number(impactCommit.deltaJson.metricsChange.matchScore) * 10) / 10,
+        commitId: impactCommit.id,
+        message: impactCommit.message,
+      };
+    }
+    if (student?.targetJobId) {
+      try {
+        const targetJob = await this.jobRepo.findOne({
+          where: { id: student.targetJobId, status: 1 },
+        });
+        impact.jobTitle = targetJob?.title || '';
+      } catch {
+        impact.jobTitle = '';
+      }
+    } else {
+      impact.jobTitle = '';
+    }
+
+    const counts = {
+      learning: learning.length,
+      evaluation: evaluation.length,
+      project: project.length,
+      resume: resume.length,
+    };
+    return {
+      skill: name,
+      mastery: skill ? Math.round(Number(skill.masteryPct)) : 0,
+      hasSkill: Boolean(skill),
+      source: skill?.source || '',
+      counts,
+      summary: `掌握度 ${skill ? Math.round(Number(skill.masteryPct)) : 0}%，${counts.learning} 次学习、${counts.evaluation} 次测评、${counts.project} 个项目、${counts.resume} 份简历表达`,
+      evidence: { learning, evaluation, project, resume, impact },
+    };
+  }
+
+  /** commit 是否提及该技能（skillName 精确匹配或 payload 提及） */
+  private commitMentionsSkill(commit: LearningCommit, lowerSkill: string): boolean {
+    if (this.namesMatch(commit.skillName, lowerSkill)) return true;
+    const payload = commit.payloadJson || {};
+    const payloadSkill = payload.skillName || payload.skill || payload.skill_name;
+    if (payloadSkill && this.namesMatch(String(payloadSkill), lowerSkill)) return true;
+    // message 中提及（如 "task done: React Hooks"）
+    return commit.message ? commit.message.toLowerCase().includes(lowerSkill) : false;
+  }
+
+  /** 从 commit 的 deltaJson 提取该技能的变化量 */
+  private skillDeltaFromCommit(commit: LearningCommit, lowerSkill: string): number {
+    const changes = commit.deltaJson?.skillChanges as Array<Record<string, any>> | undefined;
+    if (!changes) return 0;
+    const change = changes.find((c) => this.namesMatch(String(c.name || ''), lowerSkill));
+    return change ? Math.round(Number(change.delta || 0) * 10) / 10 : 0;
+  }
+
+  /** 项目对象是否提及该技能（skills/tech 数组或描述文本） */
+  private projectMentionsSkill(project: Record<string, any>, lowerSkill: string): boolean {
+    const skillsArr = project.skills || project.tech || [];
+    if (Array.isArray(skillsArr) && skillsArr.some((s) => this.namesMatch(String(s.name || s), lowerSkill))) {
+      return true;
+    }
+    const text = [project.name, project.projectName, project.description, project.desc]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return text.includes(lowerSkill);
+  }
+
+  /** 技能名互匹配（双向包含，兼容 "React" 与 "React Hooks"） */
+  private namesMatch(a: string | null | undefined, lowerB: string): boolean {
+    if (!a) return false;
+    const lowerA = a.toLowerCase();
+    return lowerA === lowerB || lowerA.includes(lowerB) || lowerB.includes(lowerA);
   }
 }
