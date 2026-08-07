@@ -240,7 +240,9 @@ export class EvidenceRagService {
           0.2 * (skillHit ? 1 : 0) +
           0.1 * jobHit +
           0.1 * typeScore;
-        if (score <= 0.15 && !vectorHitIds.has(c.id)) return null;
+        // 弱命中过滤：分数低于 0.25 视为无证据（避免 2-gram 泛词误报，
+        // 保障 No-Evidence Accuracy；实测强命中均 ≥0.33）
+        if (score < 0.25 && !vectorHitIds.has(c.id)) return null;
       }
       return {
         chunkId: Number(c.id),
