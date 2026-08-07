@@ -38,7 +38,7 @@ export class AgentEngineService {
     messages: Array<{ role: string; content: string }>,
     pageContext?: string,
     chatSessionId?: string,
-  ): Promise<{ reply: string; actions: any[]; agent: string; evidence?: any[] }> {
+  ): Promise<{ reply: string; actions: any[]; agent: string; evidence?: any[]; citationMiss?: boolean }> {
     // 1. 读取用户画像
     let profile: any = null;
     let student: any = null;
@@ -81,7 +81,7 @@ export class AgentEngineService {
       ...messages,
     ];
 
-    // 4. 调用 LLM
+    // 4. 调用 LLM（护栏：无引用/假引用时二次重试一次，方案评审建议）
     let reply: string;
     try {
       reply = await this.llmService.chatCompletion(chatMessages);
@@ -90,6 +90,40 @@ export class AgentEngineService {
       console.error('[AgentEngine] LLM call failed:', e.message);
       reply = '抱歉，AI服务暂时不可用，请稍后再试。';
     }
+
+    // 4.5 引用校验 + 二次重试（护栏）：
+    //   - 引用了不存在的证据 ID → 重试修正
+    //   - 有证据上下文但回答涉及个人内容且零引用 → 重试补引用
+    const availableIds = evidenceItems.map((item) => item.chunkId);
+    let citations = this.evidenceRag.parseCitations(reply);
+    const invalidIds = citations.filter((id) => !availableIds.includes(id));
+    const needsCitation = evidenceItems.length > 0 && this.evidenceRag.requiresCitation(reply);
+    const retried = invalidIds.length > 0 || (needsCitation && citations.length === 0);
+    if (retried && reply !== '抱歉，AI服务暂时不可用，请稍后再试。') {
+      const correctionPrompt =
+        invalidIds.length > 0
+          ? `你引用的证据 ID 不存在：${invalidIds.map((id) => `[证据#${id}]`).join('、')}。请修正引用，只使用以下证据：${availableIds.map((id) => `[证据#${id}]`).join('、')}；无法对应时删除引用并明确说明“暂无相关证据”。`
+          : `你的回答涉及个人经历/项目/文件内容，但没有 [证据#ID] 引用。请重写回答，在相关句子末尾标注引用（只能使用 ${availableIds.map((id) => `[证据#${id}]`).join('、')}）；如果确实没有可引用的证据，明确说明“暂无相关证据”，不要编造。`;
+      try {
+        const retryReply = await this.llmService.chatCompletion([
+          ...chatMessages,
+          { role: 'assistant', content: reply },
+          { role: 'user', content: correctionPrompt },
+        ]);
+        if (retryReply && retryReply.trim()) {
+          reply = retryReply;
+          citations = this.evidenceRag.parseCitations(reply);
+          console.log(`[AgentEngine] Citation retry applied (invalid=${invalidIds.length}, missing=${needsCitation && citations.length === 0})`);
+        }
+      } catch (e) {
+        console.warn('[AgentEngine] Citation retry failed:', e.message);
+      }
+    }
+
+    // 4.6 最终引用集合：只返回回答实际引用的证据（评审：前端只展示被实际引用的）
+    const citedSet = new Set(citations);
+    const citedEvidence = evidenceItems.filter((item) => citedSet.has(item.chunkId));
+    const citationMiss = evidenceItems.length > 0 && citedEvidence.length === 0;
 
     // 5. 解析并执行内嵌动作
     const actionResults: any[] = [];
@@ -116,14 +150,16 @@ export class AgentEngineService {
       reply: clean,
       actions: actionResults,
       agent: 'chat',
-      // 引用证据（P0）：供前端展示“引用证据”区域
-      evidence: evidenceItems.map((item) => ({
+      // 引用证据（护栏后）：只返回回答实际引用的证据
+      evidence: citedEvidence.map((item) => ({
         chunkId: item.chunkId,
         sourceType: item.sourceType,
         title: item.title,
         snippet: item.snippet,
         score: item.score,
       })),
+      // 有召回但回答未引用（供前端提示）
+      citationMiss,
     };
   }
 }

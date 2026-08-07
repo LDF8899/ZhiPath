@@ -564,6 +564,8 @@ export interface ChatMessage {
     snippet: string;
     score: number;
   }>;
+  /** 有召回证据但回答未实际引用（护栏标记，前端展示提示） */
+  citationMiss?: boolean;
 }
 
 /** 对话会话 */

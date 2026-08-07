@@ -355,6 +355,7 @@ export default function Chat() {
           timestamp: Date.now(),
           actions: res.data.actions,
           evidence: res.data.evidence,
+          citationMiss: res.data.citationMiss,
         };
         const newSessionId = res.data.sessionId;
 
@@ -723,7 +724,7 @@ export default function Chat() {
                       </div>
                     ))}
 
-                    {/* Evidence RAG（P0）：引用证据区域 */}
+                    {/* Evidence RAG（P0）：引用证据区域 — 只展示回答实际引用的证据 */}
                     {msg.evidence && msg.evidence.length > 0 && (
                       <div
                         className="chat-evidence"
@@ -751,6 +752,23 @@ export default function Chat() {
                             </div>
                           ))}
                         </div>
+                      </div>
+                    )}
+                    {/* 护栏提示：有召回证据但回答未引用 */}
+                    {msg.citationMiss && (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          padding: '6px 10px',
+                          fontSize: 11,
+                          fontFamily: 'var(--hand)',
+                          color: '#e65100',
+                          background: '#fff3e0',
+                          border: '1px dashed #e65100',
+                          borderRadius: 8,
+                        }}
+                      >
+                        ⚠ 已找到相关证据但回答未标注引用，可追问“根据我的项目证据回答”以强制引用。
                       </div>
                     )}
                   </div>

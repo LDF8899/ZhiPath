@@ -77,6 +77,7 @@ export class ChatService {
     let agent = 'chat';
     // Evidence RAG（P0）：聊天引用证据
     let evidenceItems: any[] = [];
+    let citationMiss = false;
 
     if (this.useLangGraph) {
       // LangGraph 引擎：流式状态图编排（每个节点推送 SSE 事件）
@@ -141,6 +142,7 @@ export class ChatService {
           }
           agent = result.agent || agent;
           evidenceItems = result.evidence || evidenceItems;
+          citationMiss = Boolean(result.citationMiss);
         } catch (e) {
           console.error('[Chat] Simple engine fallback failed:', e.message);
         }
@@ -185,7 +187,8 @@ export class ChatService {
         actionResults = result.actions;
         agent = result.agent;
         evidenceItems = result.evidence || evidenceItems;
-        console.log(`[AgentEngine] reply length: ${reply.length}, evidence: ${evidenceItems.length}`);
+        citationMiss = Boolean(result.citationMiss);
+        console.log(`[AgentEngine] reply length: ${reply.length}, evidence: ${evidenceItems.length}, citationMiss: ${citationMiss}`);
       }
     }
 
@@ -218,6 +221,7 @@ export class ChatService {
       profile_version: profileVersion,
       actions: actionResults,
       evidence: evidenceItems,
+      citationMiss,
     };
   }
 

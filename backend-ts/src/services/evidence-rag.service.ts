@@ -281,6 +281,67 @@ export class EvidenceRagService {
     return context.trim();
   }
 
+  // ── LLM 输出引用校验（护栏）────────────────────
+
+  /**
+   * 解析回答中的证据引用，支持 [证据#123]、[证据#1, #2]、[#3] 格式
+   */
+  parseCitations(reply: string): number[] {
+    if (!reply) return [];
+    const ids: number[] = [];
+    const add = (id: number) => {
+      if (id > 0 && !ids.includes(id)) ids.push(id);
+    };
+    // 分组形式：[证据#1, #2, #3] / [证据#1，#2]（分隔符至少一个，避免吞掉单个引用）
+    const groupRe = /\[证据\s*#(\d+)(?:[\s,，#]+#?\s*\d+)+\]/g;
+    let m: RegExpExecArray | null;
+    while ((m = groupRe.exec(reply)) !== null) {
+      const nums = m[0].match(/#(\d+)/g) || [];
+      for (const n of nums) add(Number(n.slice(1)));
+    }
+    // 单个形式：[证据#123] / [证据#123] 无括号 / [#123]
+    const singleRe = /\[?\s*证据\s*#(\d+)\s*\]?|\[\s*#(\d+)\s*\]/g;
+    while ((m = singleRe.exec(reply)) !== null) {
+      add(Number(m[1] || m[2]));
+    }
+    return ids;
+  }
+
+  /**
+   * 校验回答引用：
+   *   - citedIds：回答中出现的证据 ID
+   *   - validIds / invalidIds：是否存在于检索集合
+   *   - coverage：检索集合中实际被引用的比例
+   *   - precision：引用中有效比例
+   */
+  validateCitations(reply: string, retrievedItems: EvidenceSearchItem[]): {
+    citedIds: number[];
+    validIds: number[];
+    invalidIds: number[];
+    coverage: number;
+    precision: number;
+  } {
+    const citedIds = this.parseCitations(reply);
+    const availableIds = new Set(retrievedItems.map((i) => i.chunkId));
+    const validIds = citedIds.filter((id) => availableIds.has(id));
+    const invalidIds = citedIds.filter((id) => !availableIds.has(id));
+    const citedSet = new Set(validIds);
+    const coverage =
+      retrievedItems.length > 0
+        ? Math.round((retrievedItems.filter((i) => citedSet.has(i.chunkId)).length / retrievedItems.length) * 100) / 100
+        : 0;
+    const precision = citedIds.length > 0 ? validIds.length / citedIds.length : 1;
+    return { citedIds, validIds, invalidIds, coverage, precision };
+  }
+
+  /** 判断回答是否需要引用证据（涉及个人经历/项目/文件内容的关键词） */
+  requiresCitation(reply: string): boolean {
+    if (!reply) return false;
+    // 涉及个人经历/项目/文件/学习内容的表达
+    const markers = ['项目', '经验', '文件', '笔记', '测评', '我做了', '我开发', '我写过', '我的项目', '我参与', '简历', '学习过', '用过', '完成过'];
+    return markers.some((m) => reply.includes(m));
+  }
+
   /** 从学生历史项目重建索引（补历史数据 / Chroma 丢失恢复） */
   async reindexFromProjects(userId: number, projects: Array<Record<string, any>>): Promise<number> {
     let count = 0;
