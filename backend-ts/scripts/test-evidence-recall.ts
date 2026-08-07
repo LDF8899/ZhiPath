@@ -17,9 +17,33 @@ import { EvidenceChunk } from '../src/entities/evidence-chunk.entity';
 import { EvidenceRagService } from '../src/services/evidence-rag.service';
 import { ChromaService } from '../src/services/chroma.service';
 import * as mysql from 'mysql2/promise';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const TEST_USERNAME = 'evidence_test';
 const TEST_EMAIL = 'evidence_test@zhipath.local';
+
+function loadEnv(filePath: string) {
+  if (!fs.existsSync(filePath)) return;
+  for (const line of fs.readFileSync(filePath, 'utf8').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const index = trimmed.indexOf('=');
+    if (index <= 0) continue;
+    const key = trimmed.slice(0, index).trim();
+    let value = trimmed.slice(index + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+}
+
+function envConfig() {
+  return {
+    get: (key: string, def?: any) => process.env[key] ?? def,
+  };
+}
 
 /** 种子证据：10 条，覆盖多技能、多来源类型 */
 const SEED_EVIDENCE: Array<{ sourceType: any; title: string; content: string; skillTags: string[] }> = [
@@ -102,6 +126,8 @@ const QUERIES: Array<{ query: string; expectTitle: string | null }> = [
 ];
 
 async function main() {
+  loadEnv(path.join(__dirname, '..', '.env'));
+
   // 1. 连接 MySQL
   const conn = await mysql.createConnection({
     host: process.env.MYSQL_HOST || '127.0.0.1',
@@ -145,12 +171,15 @@ async function main() {
   await dataSource.initialize();
   const chunkRepo = dataSource.getRepository(EvidenceChunk);
 
-  // ChromaService：传空配置 → enabled=false → 走关键词降级（真实默认行为）
-  const chroma = new ChromaService({ get: () => '' } as any);
-  const rag = new EvidenceRagService(chunkRepo, chroma, { get: () => 'off' } as any);
+  const config = envConfig();
+  const chroma = new ChromaService(config as any);
+  const rag = new EvidenceRagService(chunkRepo, chroma, config as any);
 
   // 4. 清理旧证据（幂等重跑）
   await chunkRepo.delete({ userId });
+  for (const seed of SEED_EVIDENCE) {
+    await chroma.deleteBySource(userId, `${seed.sourceType}:${seed.title}`);
+  }
   console.log(`[Test] 已清理 userId=${userId} 旧证据`);
 
   // 5. 填入种子证据
@@ -165,7 +194,8 @@ async function main() {
     });
     ingested += saved.length;
   }
-  console.log(`[Test] 已入库 ${ingested} 个 evidence chunk（10 条种子证据）\n`);
+  console.log(`[Test] 已入库 ${ingested} 个 evidence chunk（10 条种子证据）`);
+  console.log(`[Test] Chroma enabled=${chroma.enabled}, EMBEDDING_PROVIDER=${process.env.EMBEDDING_PROVIDER || 'off'}\n`);
 
   // 6. 跑评测查询
   const results: Array<{ query: string; expected: string | null; hit: boolean; topTitle: string; rank: number; scores: number[] }> = [];
@@ -221,7 +251,7 @@ async function main() {
   console.log('='.repeat(72));
   console.log('Evidence RAG 真实召回率报告（测试账号 evidence_test / userId=' + userId + '）');
   console.log('='.repeat(72));
-  console.log(`种子证据：${SEED_EVIDENCE.length} 条 → ${ingested} chunks（关键词降级检索，EMBEDDING/CHROMA 未配置）`);
+  console.log(`种子证据：${SEED_EVIDENCE.length} 条 → ${ingested} chunks（Chroma enabled=${chroma.enabled}, EMBEDDING_PROVIDER=${process.env.EMBEDDING_PROVIDER || 'off'}）`);
   console.log('');
   console.log('─'.repeat(72));
   console.log('查询明细（top1 命中率按 title 匹配）：');

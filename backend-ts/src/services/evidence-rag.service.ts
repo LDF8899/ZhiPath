@@ -218,7 +218,11 @@ export class EvidenceRagService {
       const titleLower = c.title.toLowerCase();
       const kwHits = queryTokens.filter((t) => contentLower.includes(t) || titleLower.includes(t)).length;
       const kwScore = queryTokens.length > 0 ? Math.min(1, kwHits / queryTokens.length) : 0;
-      const skillHit = skill && (c.skillTags || []).some((t) => t.toLowerCase().includes(skill));
+      const tags = c.skillTags || [];
+      const tagText = tags.join(' ').toLowerCase();
+      const explicitSkillHit = Boolean(skill && tags.some((t) => t.toLowerCase().includes(skill)));
+      const tagHit = explicitSkillHit || queryTokens.some((t) => tagText.includes(t) || t.includes(tagText));
+      const tagScore = tagHit ? 1 : 0;
       const jobHit = opts.jobTargetId && c.jobTargetId === opts.jobTargetId ? 1 : 0;
       const typeScore = SOURCE_CONFIDENCE[c.sourceType] ?? 0.7;
       const freshness = c.createTime
@@ -228,16 +232,17 @@ export class EvidenceRagService {
       let score: number;
       if (vectorHits.length > 0) {
         score =
-          0.5 * vectorScore +
-          0.2 * (skillHit ? 1 : 0) +
-          0.15 * jobHit +
-          0.1 * typeScore +
+          0.25 * vectorScore +
+          0.45 * kwScore +
+          0.2 * tagScore +
+          0.05 * Math.max(jobHit, typeScore) +
           0.05 * freshness;
+        if (score < 0.25) return null;
       } else {
         // 关键词降级：仅保留有一定命中或技能匹配的
         score =
           0.6 * kwScore +
-          0.2 * (skillHit ? 1 : 0) +
+          0.2 * tagScore +
           0.1 * jobHit +
           0.1 * typeScore;
         // 弱命中过滤：分数低于 0.25 视为无证据（避免 2-gram 泛词误报，
