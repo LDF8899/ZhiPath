@@ -110,7 +110,7 @@ export default function PlanHub() {
                 {latestPlan.planName}
               </div>
               <div style={{ font: '13px/1.5 var(--hand)', color: 'var(--pencil)', marginTop: 4 }}>
-                {latestPlan.planType === 'main' ? '主线计划' : '支线计划'} · 每日 {latestPlan.dailyHours}h
+                {latestPlan.planType === 'main' ? '核心计划' : '并行计划'} · 每日 {latestPlan.dailyHours}h
               </div>
             </div>
             <span className="hd-pill" style={{ background: 'var(--highlight)', color: 'var(--ink)' }}>
@@ -122,7 +122,7 @@ export default function PlanHub() {
           <div style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={{ font: '12px/1 var(--mono)', color: 'var(--pencil)' }}>
-                技能进度 {latestPlan.doneSkills}/{latestPlan.totalSkills}
+                能力进度 {latestPlan.doneSkills}/{latestPlan.totalSkills}
               </span>
               <span style={{ font: '12px/1 var(--mono)', color: progressPct === 100 ? '#4a9d4a' : 'var(--accent)' }}>
                 {progressPct}%

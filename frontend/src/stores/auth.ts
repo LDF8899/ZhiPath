@@ -61,6 +61,10 @@ const createAuthState: StateCreator<AuthState> = (set) => {
     logout: () => {
       STORAGE.removeItem('zhpath_token');
       STORAGE.removeItem('zhpath_user');
+      // 清理聊天与资源客户端缓存：重登后强制从后端重建（后端为准），
+      // 避免跨用户残留 / 把 sessionStorage、localStorage 当成数据源。
+      try { STORAGE.removeItem('zhpath_chat'); } catch {}
+      try { localStorage.removeItem('zhpath_resources'); } catch {}
       set({ token: null, user: null, isAuthenticated: false });
     },
 

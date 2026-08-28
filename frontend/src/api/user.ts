@@ -23,6 +23,8 @@ import type {
   GapCard,
   TodayActions,
   SkillEvidence,
+  LearningDomain,
+  LearningGoalType,
 } from '../types';
 
 /** 登录 */
@@ -48,6 +50,10 @@ export const submitOnboarding = (data: {
   major: string;
   grade: string;
   direction: string;
+  domainId?: string;
+  goalType?: LearningGoalType;
+  starterPathId?: string;
+  goalTitle?: string;
   dailyHours: number;
   skills: Array<{ name: string; level: string }>;
 }) =>
@@ -60,6 +66,9 @@ export const getMyPlans = () =>
     planName: string;
     planType: 'main' | 'side';
     targetJobId: number | null;
+    domainId: string;
+    goalType: LearningGoalType;
+    goalTitle: string;
     currentPhase: number;
     dailyHours: number;
     estimatedDate: string;
@@ -77,14 +86,25 @@ export const createPlan = (data: {
   targetJobId?: number;
   dailyHours?: number;
   importFromPlanId?: number;
+  domainId?: string;
+  goalType?: LearningGoalType;
+  goalTitle?: string;
+  starterPathId?: string;
 }) =>
   client.post('/user/learning-paths', data) as Promise<ApiResponse<{
     id: number;
     planName: string;
+    domainId: string;
+    goalType: LearningGoalType;
+    goalTitle: string;
     estimatedDate: string;
     totalSkills: number;
     todayTasks: Array<{ skillName: string; estimatedMin: number; taskType: string }>;
   }>>;
+
+/** 可用学习领域与起步路线 */
+export const getLearningDomains = () =>
+  client.get('/user/learning-domains') as Promise<ApiResponse<LearningDomain[]>>;
 
 /** Dashboard */
 export const getDashboard = () =>
@@ -373,8 +393,18 @@ export const getTaskStatus = (taskId: string) =>
 export const getVideoTaskStatus = (taskId: string) =>
   client.get(`/user/video-task/${taskId}`) as Promise<ApiResponse<any>>;
 
-/** 直接触发视频生成（跳过 IntentRouter） */
-export const createVideoTask = (data: { skillName: string; difficulty?: string }) =>
+/** 直接触发视频生成（跳过 IntentRouter）；有 assets 时走素材展示视频，否则走教学视频 */
+export const createVideoTask = (data: {
+  skillName?: string;
+  difficulty?: string;
+  assets?: string;
+  projectName?: string;
+  prompt?: string;
+  targetDurationSec?: number;
+  voice?: string;
+  visualStyle?: string;
+  llmProvider?: string;
+}) =>
   client.post('/user/video-task', data) as Promise<ApiResponse<any>>;
 
 // ── 技能相关 API ──────────────────────────────────

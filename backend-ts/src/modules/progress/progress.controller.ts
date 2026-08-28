@@ -12,6 +12,7 @@ import { LearningProgressService } from '../../services/learning-progress.servic
 import { LearningCommitService } from '../../services/learning-commit.service';
 import { EvaluationService, EvaluationDimensionInput } from '../../services/evaluation.service';
 import { BranchService } from '../../services/branch.service';
+import { LearningAssessmentContextService, LearningAssessmentContext } from '../../domains/learning-assessment-context.service';
 
 /**
  * 学习进度控制器 — 对齐 Python api/user/progress.py
@@ -34,6 +35,7 @@ export class ProgressController {
     private readonly learningCommitService: LearningCommitService,
     private readonly evaluationService: EvaluationService,
     private readonly branchService: BranchService,
+    private readonly assessmentContext: LearningAssessmentContextService,
   ) {}
 
   /**
@@ -60,6 +62,7 @@ export class ProgressController {
   ) {
     const path = await this.getActivePath(userId, body.path_id);
     if (!path) return success(null, '暂无学习路径');
+    const context = this.assessmentContext.fromPlan(path);
 
     const skillNode = this.updateSkillProgress(path, body.skill, 'read');
     await this.pathRepo.save(path);
@@ -87,14 +90,16 @@ export class ProgressController {
       sourceType: 'progress_commit',
       sourceId: git.commit.id,
       skillName: body.skill,
+      ...this.evaluationContract(context, 'progress_read'),
       score: 100,
       passed: true,
       confidence: 0.65,
-      summary: `Lecture read completed for ${body.skill}.`,
-      evidence: { pathId: path.id, action: 'read', lecturePosition: 100 },
+      summary: `${body.skill}讲义阅读完成。`,
+      evidenceSummary: `${body.skill} · ${context.evidenceTypes.join('、')}`,
+      evidence: { pathId: path.id, action: 'read', lecturePosition: 100, domainId: context.domainId, evidenceTypes: context.evidenceTypes },
       commitOutcome: git,
-      dimensions: this.dimensionsFromGit(git, body.skill, 100),
-      nextActions: [{ type: 'quiz', label: 'Take quiz', skillName: body.skill }],
+      dimensions: this.dimensionsFromGit(git, body.skill, 100, context),
+      nextActions: [{ type: 'quiz', label: '完成随堂练习', skillName: body.skill }],
     });
 
     return success({
@@ -144,9 +149,11 @@ export class ProgressController {
   ) {
     const path = await this.getActivePath(userId, body.path_id);
     if (!path) return success(null, '暂无学习路径');
+    const context = this.assessmentContext.fromPlan(path);
 
     const score = Math.round((body.correct / Math.max(body.total, 1)) * 100);
-    const passed = score >= 70; // 阈值从 60 提高到 70
+    const passScore = context.passScore;
+    const passed = score >= passScore;
 
     this.updateSkillProgress(path, body.skill, 'quiz', score, passed);
     await this.pathRepo.save(path);
@@ -163,7 +170,7 @@ export class ProgressController {
         skillName: body.skill,
         delta,
         message: `quiz passed: ${body.skill}`,
-        payload: { pathId: path.id, total: body.total, correct: body.correct, score },
+        payload: { pathId: path.id, total: body.total, correct: body.correct, score, passScore, domainId: context.domainId },
       });
       const current = (git.snapshot.skillsJson || []).find((skill: any) => skill.name === body.skill);
       masteryPct = current?.mastery ?? 0;
@@ -174,7 +181,7 @@ export class ProgressController {
         skillName: body.skill,
         delta: 0,
         message: `quiz failed: ${body.skill}`,
-        payload: { pathId: path.id, total: body.total, correct: body.correct, score },
+        payload: { pathId: path.id, total: body.total, correct: body.correct, score, passScore, domainId: context.domainId },
       });
     }
 
@@ -198,7 +205,7 @@ export class ProgressController {
             skill: body.skill,
             question: `${body.skill} 测验未通过（${body.correct}/${body.total}）`,
             userAnswer: `${body.correct}/${body.total}`,
-            correctAnswer: `需 ≥70%（当前 ${score}%）`,
+            correctAnswer: `需 ≥${passScore}%（当前 ${score}%）`,
             type: 'quiz_failed',
           }],
         },
@@ -216,18 +223,28 @@ export class ProgressController {
       sourceType: 'exam_record',
       sourceId: examRecord?.id || git?.commit?.id,
       skillName: body.skill,
+      ...this.evaluationContract(context, 'progress_quiz'),
       score,
       passed,
       confidence: passed ? 0.82 : 0.72,
-      summary: passed
-        ? `Quiz passed for ${body.skill}: ${body.correct}/${body.total}.`
-        : `Quiz failed for ${body.skill}: ${body.correct}/${body.total}.`,
-      evidence: { pathId: path.id, total: body.total, correct: body.correct, score, passed },
+      summary: `${context.domainName}练习${passed ? '通过' : '未通过'}：${body.skill} ${body.correct}/${body.total}。`,
+      evidenceSummary: `${body.skill} · ${context.evidenceTypes.join('、')}`,
+      evidence: {
+        pathId: path.id,
+        total: body.total,
+        correct: body.correct,
+        score,
+        passed,
+        passScore,
+        domainId: context.domainId,
+        assessmentModes: context.assessmentModes,
+        evidenceTypes: context.evidenceTypes,
+      },
       commitOutcome: git,
-      dimensions: this.dimensionsFromGit(git, body.skill, score),
+      dimensions: this.dimensionsFromGit(git, body.skill, score, context),
       nextActions: passed
-        ? [{ type: 'code', label: 'Practice with code', skillName: body.skill }]
-        : [{ type: 'review', label: 'Review weak points', skillName: body.skill }],
+        ? [{ type: 'practice', label: context.domainId === 'software-engineering' ? '进入编程实战' : '进入领域实践', skillName: body.skill }]
+        : [{ type: 'review', label: '复盘薄弱项', skillName: body.skill }],
     });
 
     return success({
@@ -242,7 +259,7 @@ export class ProgressController {
       branch: git?.branch,
       matchSummary: git?.matchSummary,
       evaluation,
-      message: passed ? `习题通过！掌握度 +${delta}% → ${masteryPct}%` : '未通过（需 ≥70%），建议复习后重试',
+      message: passed ? `习题通过！掌握度 +${delta}% → ${masteryPct}%` : `未通过（需 ≥${passScore}%），建议复习后重试`,
     });
   }
 
@@ -254,6 +271,7 @@ export class ProgressController {
   ) {
     const path = await this.getActivePath(userId, body.path_id);
     if (!path) return success(null, '暂无学习路径');
+    const context = this.assessmentContext.fromPlan(path);
 
     this.updateSkillProgress(path, body.skill, 'code');
     await this.pathRepo.save(path);
@@ -276,14 +294,16 @@ export class ProgressController {
       sourceType: 'progress_commit',
       sourceId: git.commit.id,
       skillName: body.skill,
+      ...this.evaluationContract(context, 'progress_code'),
       score: 100,
       passed: true,
       confidence: 0.78,
-      summary: `Code practice completed for ${body.skill}.`,
-      evidence: { pathId: path.id, action: 'code_done' },
+      summary: `${body.skill}${context.domainId === 'software-engineering' ? '编程实战' : '领域实践'}完成。`,
+      evidenceSummary: `${body.skill} · ${context.evidenceTypes.join('、')}`,
+      evidence: { pathId: path.id, action: 'practice_done', domainId: context.domainId, evidenceTypes: context.evidenceTypes },
       commitOutcome: git,
-      dimensions: this.dimensionsFromGit(git, body.skill, 100),
-      nextActions: [{ type: 'complete', label: 'Confirm skill completion', skillName: body.skill }],
+      dimensions: this.dimensionsFromGit(git, body.skill, 100, context),
+      nextActions: [{ type: 'complete', label: '确认能力项完成', skillName: body.skill }],
     });
 
     return success({
@@ -297,7 +317,7 @@ export class ProgressController {
       branch: git.branch,
       matchSummary: git.matchSummary,
       evaluation,
-      message: `编程题通过！掌握度 +${delta}% → ${masteryPct}%`,
+      message: `${context.domainId === 'software-engineering' ? '编程实战' : '领域实践'}完成！掌握度 +${delta}% → ${masteryPct}%`,
     });
   }
 
@@ -309,6 +329,7 @@ export class ProgressController {
   ) {
     const path = await this.getActivePath(userId, body.path_id);
     if (!path) return success(null, '暂无学习路径');
+    const context = this.assessmentContext.fromPlan(path);
 
     this.updateSkillProgress(path, body.skill, 'done');
     const phaseDone = this.checkPhaseCompletion(path);
@@ -335,14 +356,16 @@ export class ProgressController {
       sourceType: 'progress_commit',
       sourceId: git.commit.id,
       skillName: body.skill,
+      ...this.evaluationContract(context, 'skill_complete'),
       score: 100,
       passed: true,
       confidence: 0.75,
-      summary: `Skill completion confirmed for ${body.skill}.`,
-      evidence: { pathId: path.id, phaseDone, action: 'skill_complete' },
+      summary: `${body.skill}能力项完成确认。`,
+      evidenceSummary: `${body.skill} · ${context.evidenceTypes.join('、')}`,
+      evidence: { pathId: path.id, phaseDone, action: 'ability_complete', domainId: context.domainId, evidenceTypes: context.evidenceTypes },
       commitOutcome: git,
-      dimensions: this.dimensionsFromGit(git, body.skill, 100),
-      nextActions: phaseDone ? [{ type: 'exam', label: 'Take phase exam', skillName: body.skill }] : [],
+      dimensions: this.dimensionsFromGit(git, body.skill, 100, context),
+      nextActions: phaseDone ? [{ type: 'exam', label: '参加阶段测评', skillName: body.skill }] : [],
     });
 
     return success({
@@ -371,6 +394,7 @@ export class ProgressController {
 
     // 从学习路径中获取完成状态
     const path = await this.getActivePath(userId);
+    const context = path ? this.assessmentContext.fromPlan(path) : null;
     let skillNode: any = null;
     if (path?.pathData?.phases) {
       for (const phase of path.pathData.phases) {
@@ -397,8 +421,8 @@ export class ProgressController {
       breakdown: {
         lecture: { done: lectureDone, weight: w.lecture, label: '讲义阅读' },
         quiz: { done: quizPassed, weight: w.quiz, label: '习题练习' },
-        code: { done: codeDone, weight: w.code, label: '编程实战' },
-        exam: { done: examDone, weight: w.exam, label: '阶段考试' },
+        code: { done: codeDone, weight: w.code, label: context?.domainId === 'software-engineering' ? '编程实战' : '领域实践' },
+        exam: { done: examDone, weight: w.exam, label: '阶段测评' },
       },
     });
   }
@@ -526,7 +550,12 @@ export class ProgressController {
     return allDone;
   }
 
-  private dimensionsFromGit(git: any, fallbackSkill?: string, fallbackScore?: number): EvaluationDimensionInput[] {
+  private dimensionsFromGit(
+    git: any,
+    fallbackSkill?: string,
+    fallbackScore?: number,
+    context?: LearningAssessmentContext | null,
+  ): EvaluationDimensionInput[] {
     const changes = git?.delta?.radarChanges || [];
     if (Array.isArray(changes) && changes.length > 0) {
       return changes.map((change: any) => ({
@@ -537,8 +566,39 @@ export class ProgressController {
         detail: `Radar ${change.dimension}: ${change.before ?? 0} -> ${change.after ?? 0}`,
       }));
     }
+    const domainDimension = this.assessmentContext.dimensionForSkill(context || null, fallbackSkill);
     return fallbackSkill
-      ? [{ name: fallbackSkill, score: fallbackScore ?? 100, maxScore: 100, trend: 'stable' }]
+      ? [{
+          key: domainDimension?.id,
+          name: domainDimension?.name || fallbackSkill,
+          score: fallbackScore ?? 100,
+          maxScore: 100,
+          weight: domainDimension?.weight || 1,
+          trend: 'stable',
+          detail: context ? `${context.domainName} · ${context.assessmentModes.join('、')}` : undefined,
+        }]
       : [];
+  }
+
+  private evaluationContract(context: LearningAssessmentContext, attemptType: string) {
+    return {
+      goal: context.goalTitle,
+      rubricKey: this.assessmentContext.rubricKey(context, attemptType),
+      rubricName: `${context.domainName}${context.terminology.assessment || '能力测评'}`,
+      rubricDimensions: context.radarDimensions.map((dimension) => ({
+        key: dimension.id,
+        name: dimension.name,
+        assessmentModes: context.assessmentModes,
+      })),
+      rubricWeights: Object.fromEntries(context.radarDimensions.map((dimension) => [dimension.id, dimension.weight])),
+      passScore: context.passScore,
+      metadata: {
+        planId: context.planId,
+        domainId: context.domainId,
+        domainName: context.domainName,
+        goalType: context.goalType,
+        goalTitle: context.goalTitle,
+      },
+    };
   }
 }

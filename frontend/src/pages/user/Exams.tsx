@@ -166,7 +166,7 @@ export default function Exams() {
         <div className="hd-header">
           <div className="hd-flex" style={{ gap: 14 }}>
             <span style={{ color: 'var(--accent)' }}><IconExam /></span>
-            <h1>考试中心</h1>
+            <h1>能力测评</h1>
           </div>
           <div className="hd-flex" style={{ gap: 10 }}>
             <button

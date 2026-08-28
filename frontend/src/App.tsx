@@ -28,6 +28,9 @@ import GrowthReport from './pages/user/GrowthReport'
 import AgentOffice from './pages/user/AgentOffice'
 import QuickTest from './pages/user/QuickTest'
 import WrongAnswers from './pages/user/WrongAnswers'
+import QuestionGenerator from './pages/user/QuestionGenerator'
+import QuestionBank from './pages/user/QuestionBank'
+import VideoShowcase from './pages/user/VideoShowcase'
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -100,6 +103,9 @@ export default function App() {
           <Route path="agent-office" element={<AgentOffice />} />
           <Route path="quick-test" element={<QuickTest />} />
           <Route path="wrong-answers" element={<WrongAnswers />} />
+          <Route path="question-generator" element={<QuestionGenerator />} />
+          <Route path="question-bank" element={<QuestionBank />} />
+          <Route path="video-showcase" element={<VideoShowcase />} />
         </Route>
 
         {/* Admin routes */}

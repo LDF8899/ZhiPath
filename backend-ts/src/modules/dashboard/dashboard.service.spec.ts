@@ -319,6 +319,52 @@ describe('DashboardService', () => {
     });
   });
 
+  describe('getDashboard - 泛专业学习目标', () => {
+    beforeEach(() => {
+      studentRepo.findOne.mockResolvedValue({
+        id: 1, userId: 100, name: '周同学', studentNo: '2026001',
+        major: '法学', grade: '研一', targetJobId: null,
+        interests: ['mathematics'], skills: [], projects: [], onboardingCompleted: 1,
+      });
+      learningPathRepo.find.mockResolvedValue([{
+        id: 6, userId: 100, planName: '考研数学', planType: 'main', targetJobId: null,
+        domainId: 'mathematics', goalType: 'exam', goalTitle: '考研数学',
+        planStatus: 'active', scheduleEnabled: 1, currentPhase: 0, dailyHours: 2,
+        matchScore: 0, estimatedDate: '2026-12', status: 1, createTime: new Date(),
+        pathData: {
+          domainName: '数学',
+          phases: [{ name: '基础诊断', skills: [{ name: '函数与极限诊断', status: 'pending' }] }],
+        },
+      }]);
+      newsRepo.find.mockResolvedValue([]);
+      examRepo.count.mockResolvedValue(0);
+      jobAppRepo.count.mockResolvedValue(0);
+      resourceRepo.count.mockResolvedValue(1);
+      resumeRepo.count.mockResolvedValue(0);
+    });
+
+    it('返回领域目标元数据和学习成长闭环', async () => {
+      const result = await service.getDashboard(100);
+
+      expect(result.learning_path).toEqual(expect.objectContaining({
+        domainId: 'mathematics',
+        goalType: 'exam',
+        goalTitle: '考研数学',
+      }));
+      expect(result.golden_path.steps.map((step: any) => step.key)).toEqual([
+        'onboarding',
+        'learning_goal',
+        'learning_plan',
+        'generate_resource',
+        'learning_action',
+        'assessment',
+        'profile_change',
+      ]);
+      expect(result.golden_path.currentKey).toBe('learning_action');
+      expect(result.golden_path.steps.some((step: any) => step.key === 'target_job')).toBe(false);
+    });
+  });
+
   describe('getDashboard - 所有技能已完成', () => {
     beforeEach(() => {
       studentRepo.findOne.mockResolvedValue({

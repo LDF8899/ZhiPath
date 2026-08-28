@@ -21,6 +21,8 @@ import { EventsService } from '../events/events.service';
 import { JobSearchService } from '../../services/job-search.service';
 import { AgentOfficeBridgeService } from '../../services/agent-office-bridge.service';
 import { extractJson } from '../../common/json-repair';
+import { LearningDomainRegistry } from '../../domains/learning-domain.registry';
+import type { LearningGoalType } from '../../domains/learning-domain.types';
 
 // ── State 定义 ──────────────────────────────────
 
@@ -109,6 +111,7 @@ export class LangGraphEngineService {
     private eventsService: EventsService,
     private jobSearch: JobSearchService,
     private officeBridge: AgentOfficeBridgeService,
+    private domainRegistry: LearningDomainRegistry,
   ) {
     this.buildGraph();
   }
@@ -717,18 +720,24 @@ export class LangGraphEngineService {
 
   /** 节点: 生成学习路径 */
   private async generatePathNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
-    const jobId = state.intent?.filters?.targetJobId || state.student?.targetJobId;
-    const customSkills: string[] | undefined = state.intent?.filters?.skills;
-    const customPlanName: string | undefined = state.intent?.filters?.plan_name;
-    return this.trackOfficeNode(state, { type: 'generate_path', targetJobId: jobId }, async () => {
+    const filters = state.intent?.filters || {};
+    const jobId = filters.targetJobId || filters.target_job_id || state.student?.targetJobId;
+    const customSkills: string[] | undefined = filters.skills;
+    const customPlanName: string | undefined = filters.plan_name;
+    const domainId = filters.domainId || filters.domain_id;
+    const goalType = (filters.goalType || filters.goal_type) as LearningGoalType | undefined;
+    const starterPathId = filters.starterPathId || filters.starter_path_id;
+    return this.trackOfficeNode(state, { type: 'generate_path', targetJobId: jobId, domainId, goalType, starterPathId }, async () => {
       try {
-      const result = await this.plannerAgent.generatePath(
-        state.userId,
-        jobId || undefined,
-        undefined,
-        customSkills,
-        customPlanName,
-      );
+      const result = domainId && goalType && starterPathId
+        ? await this.generateRegisteredDomainPath(state.userId, domainId, goalType, starterPathId, filters)
+        : await this.plannerAgent.generatePath(
+            state.userId,
+            jobId || undefined,
+            filters.dailyHours || filters.daily_hours,
+            customSkills,
+            customPlanName,
+          );
       return {
         pathResult: result,
         actions: [{
@@ -746,6 +755,25 @@ export class LangGraphEngineService {
       return { pathResult: null, actions: [] };
       }
     });
+  }
+
+  private async generateRegisteredDomainPath(
+    userId: number,
+    domainId: string,
+    goalType: LearningGoalType,
+    starterPathId: string,
+    filters: Record<string, any>,
+  ) {
+    const { domain, starterPath } = this.domainRegistry.resolvePath(domainId, goalType, starterPathId);
+    return this.plannerAgent.generateDomainPath(
+      userId,
+      domain,
+      starterPath,
+      goalType,
+      filters.goalTitle || filters.goal_title || filters.plan_name || starterPath.title,
+      Number(filters.dailyHours || filters.daily_hours || 2),
+      filters.planType === 'side' || filters.plan_type === 'side' ? 'side' : 'main',
+    );
   }
 
   /** 节点: 生成考试 */
@@ -1011,6 +1039,12 @@ export class LangGraphEngineService {
         targetJobId: filters.targetJobId || 0,
         skills: filters.skills || [],
         plan_name: filters.plan_name || '',
+        domainId: filters.domainId || filters.domain_id || '',
+        goalType: filters.goalType || filters.goal_type || '',
+        starterPathId: filters.starterPathId || filters.starter_path_id || '',
+        goalTitle: filters.goalTitle || filters.goal_title || '',
+        dailyHours: filters.dailyHours || filters.daily_hours,
+        planType: filters.planType || filters.plan_type,
       },
       recommend_jobs: { type: 'recommend_jobs', filters },
       set_target_job: { type: 'set_target_job', jobId: filters.jobId || 0 },
@@ -1048,7 +1082,12 @@ export class LangGraphEngineService {
 
     // 对于 generate_path，如果没有 targetJobId 也没有自定义技能，从用户画像取
     // 如果有自定义技能，直接放行（用户通过聊天指定了想学的技能）
-    if (name === 'generate_path' && !filters.targetJobId && !(filters.skills && filters.skills.length > 0)) {
+    const hasDomainPath = Boolean(
+      (filters.domainId || filters.domain_id)
+      && (filters.goalType || filters.goal_type)
+      && (filters.starterPathId || filters.starter_path_id),
+    );
+    if (name === 'generate_path' && !filters.targetJobId && !hasDomainPath && !(filters.skills && filters.skills.length > 0)) {
       const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
       if (student?.targetJobId) {
         action.targetJobId = student.targetJobId;

@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/auth';
 import { login, register } from '../api/user';
 import {
   IconTarget, IconPath, IconRobot, IconRadar,
-  IconDoc, IconBuilding, IconCode, IconTrendUp, IconCheck,
+  IconDoc, IconBuilding, IconTrendUp, IconCheck,
 } from './LandingIcons';
 import './landing.css';
 import '../styles/hand-draw.css';
@@ -169,13 +169,13 @@ export default function Landing() {
           <div className="lp-hero-content">
             <div className="lp-hero-badge">
               <span className="lp-pulse" />
-              STUDENT CAREER PLATFORM
+              AI LEARNING & GROWTH PLATFORM
             </div>
             <h1>
-              找到你的<em>职业方向</em>，<br />智途陪你走每一步
+              每个专业，都有一条<br /><em>适合你的学习路径</em>
             </h1>
             <p className="lp-hero-desc">
-              基于 AI 的学生职业匹配与学习路径规划平台。从技能评估到岗位推荐，从学习计划到智能辅导——一站式解决你的职业焦虑。
+              面向考试、课程、证书、项目、兴趣与职业发展的 AI 学习平台。从目标诊断到路径规划，从每日学习到能力验证，持续陪你把目标变成真正掌握的能力。
             </p>
             <div className="lp-hero-actions">
               <button className="lp-btn-primary" onClick={() => scrollTo('lp-auth')}>免费注册</button>
@@ -183,7 +183,7 @@ export default function Landing() {
             </div>
             <div className="lp-hero-note lp-n1">
               <div className="lp-tape" />
-              已帮助 12,000+ 学生找到理想工作
+              一个能力档案，连接你的每段学习经历
             </div>
           </div>
           <div className="lp-hero-visual">
@@ -202,7 +202,7 @@ export default function Landing() {
                   </div>
                 </div>
                 <div className="lp-sketch-card">
-                  <h3>技能匹配</h3>
+                  <h3>能力成长</h3>
                   <div className="lp-sketch-chart">
                     <div className="lp-sketch-bar" style={{ height: '60%' }} />
                     <div className="lp-sketch-bar lp-accent" style={{ height: '85%' }} />
@@ -212,7 +212,7 @@ export default function Landing() {
                   </div>
                 </div>
                 <div className="lp-sketch-card">
-                  <h3>岗位推荐</h3>
+                  <h3>学习证据</h3>
                   <div className="lp-sketch-lines">
                     <span /><span />
                   </div>
@@ -227,7 +227,7 @@ export default function Landing() {
             </div>
             <div className="lp-hero-note lp-n2">
               <div className="lp-tape" />
-              智能推荐准确率 92%
+              目标、路径、练习与反馈始终连贯
             </div>
           </div>
         </section>
@@ -236,24 +236,24 @@ export default function Landing() {
         <section className="lp-stats">
           <div className="lp-stats-grid">
             <div className="lp-stat-card">
-              <div className="lp-stat-value">12K+</div>
-              <div className="lp-stat-label">注册学生</div>
-              <div className="lp-stat-sub">ACROSS 200+ UNIVERSITIES</div>
+              <div className="lp-stat-value">6</div>
+              <div className="lp-stat-label">学习目标类型</div>
+              <div className="lp-stat-sub">EXAM · COURSE · CAREER · MORE</div>
             </div>
             <div className="lp-stat-card">
-              <div className="lp-stat-value">89%</div>
-              <div className="lp-stat-label">匹配成功率</div>
-              <div className="lp-stat-sub">WITHIN 30 DAYS</div>
+              <div className="lp-stat-value">1</div>
+              <div className="lp-stat-label">持续能力档案</div>
+              <div className="lp-stat-sub">EVIDENCE-BASED GROWTH</div>
             </div>
             <div className="lp-stat-card">
-              <div className="lp-stat-value">500+</div>
-              <div className="lp-stat-label">合作企业</div>
-              <div className="lp-stat-sub">FORTUNE 500 INCLUDED</div>
+              <div className="lp-stat-value">24/7</div>
+              <div className="lp-stat-label">AI 学习伙伴</div>
+              <div className="lp-stat-sub">CONTEXT-AWARE SUPPORT</div>
             </div>
             <div className="lp-stat-card">
-              <div className="lp-stat-value">2.5x</div>
-              <div className="lp-stat-label">面试通过率提升</div>
-              <div className="lp-stat-sub">VS TRADITIONAL APPROACH</div>
+              <div className="lp-stat-value">∞</div>
+              <div className="lp-stat-label">可扩展专业领域</div>
+              <div className="lp-stat-sub">DOMAIN PACK ARCHITECTURE</div>
             </div>
           </div>
         </section>
@@ -265,41 +265,41 @@ export default function Landing() {
           <div className="lp-section-header">
             <div className="lp-section-tag">CORE FEATURES</div>
             <h2 className="lp-section-title">为什么选择智途？</h2>
-            <p className="lp-section-desc">我们不只是一个学习平台，而是你的职业规划伙伴</p>
+            <p className="lp-section-desc">围绕真实目标组织学习，用证据记录每一次成长</p>
           </div>
           <div className="lp-features-grid">
             <div className="lp-feature-card">
               <div className="lp-feature-icon orange"><IconTarget /></div>
-              <div className="lp-feature-note">AI 驱动</div>
-              <div className="lp-feature-title">智能岗位匹配</div>
-              <div className="lp-feature-desc">基于你的技能、兴趣和学习轨迹，AI 实时推荐最适合的岗位方向，匹配度持续优化。</div>
+              <div className="lp-feature-note">AI 诊断</div>
+              <div className="lp-feature-title">目标与起点识别</div>
+              <div className="lp-feature-desc">理解你的专业背景、当前水平、目标类型和时间预算，找到真正适合开始的位置。</div>
             </div>
             <div className="lp-feature-card">
               <div className="lp-feature-icon green"><IconPath /></div>
               <div className="lp-feature-title">个性化学习路径</div>
-              <div className="lp-feature-desc">Git 分支式学习规划，主线目标岗位技能，支线兴趣拓展，比例可调，进度可追溯。</div>
+              <div className="lp-feature-desc">按领域目标拆分阶段与能力项，核心目标和并行目标独立推进，进度可追溯。</div>
             </div>
             <div className="lp-feature-card">
               <div className="lp-feature-icon pink"><IconRobot /></div>
               <div className="lp-feature-note">7×24</div>
               <div className="lp-feature-title">AI 智能辅导员</div>
-              <div className="lp-feature-desc">随时解答学习疑问，提供代码审查，模拟面试场景，像真人导师一样陪伴你的成长。</div>
+              <div className="lp-feature-desc">结合你的领域、当前阶段和学习记录答疑，提供讲解、练习、反馈与复盘建议。</div>
             </div>
             <div className="lp-feature-card">
               <div className="lp-feature-icon yellow"><IconRadar /></div>
-              <div className="lp-feature-title">技能雷达图</div>
-              <div className="lp-feature-desc">可视化你的技能掌握度，清晰看到优势与短板，针对性提升核心竞争力。</div>
+              <div className="lp-feature-title">领域能力画像</div>
+              <div className="lp-feature-desc">不同专业使用不同评价维度，同时沉淀可迁移的通用学习能力与成长趋势。</div>
             </div>
             <div className="lp-feature-card">
               <div className="lp-feature-icon blue"><IconDoc /></div>
-              <div className="lp-feature-title">智能简历生成</div>
-              <div className="lp-feature-desc">基于学习成果和项目经验，自动生成专业简历，一键投递心仪岗位。</div>
+              <div className="lp-feature-title">学习证据沉淀</div>
+              <div className="lp-feature-desc">练习结果、作文版本、模拟成绩、项目产物与评估反馈统一进入能力档案。</div>
             </div>
             <div className="lp-feature-card">
               <div className="lp-feature-icon purple"><IconBuilding /></div>
-              <div className="lp-feature-note">500+</div>
-              <div className="lp-feature-title">企业直连</div>
-              <div className="lp-feature-desc">与 500+ 知名企业建立人才通道，实习、校招、内推机会实时同步。</div>
+              <div className="lp-feature-note">按需延伸</div>
+              <div className="lp-feature-title">多目标成长</div>
+              <div className="lp-feature-desc">考试、课程、证书、项目、兴趣和职业可以并存，不再用单一岗位定义你的学习。</div>
             </div>
           </div>
         </section>
@@ -311,25 +311,25 @@ export default function Landing() {
           <div className="lp-section-header">
             <div className="lp-section-tag">LEARNING PATHWAYS</div>
             <h2 className="lp-section-title">热门学习路径</h2>
-            <p className="lp-section-desc">从零基础到 offer 收割，每一步都有规划</p>
+            <p className="lp-section-desc">不同专业使用不同阶段、练习与评价方式</p>
           </div>
           <div className="lp-pathway-cards">
-            {/* 前端开发 */}
+            {/* 英语考试 */}
             <div className="lp-pathway-card">
               <div className="lp-pathway-header">
-                <div className="lp-pathway-icon" style={{ background: 'var(--highlight)' }}><IconCode /></div>
+                <div className="lp-pathway-icon" style={{ background: 'var(--highlight)' }}><IconDoc /></div>
                 <div>
-                  <div className="lp-pathway-title">前端开发工程师</div>
-                  <div className="lp-pathway-sub">FRONTEND DEVELOPER</div>
+                  <div className="lp-pathway-title">大学英语六级 CET-6</div>
+                  <div className="lp-pathway-sub">ENGLISH · EXAM</div>
                 </div>
               </div>
               <div className="lp-pathway-body">
                 <div className="lp-pathway-steps">
                   {[
-                    { n: '01', t: 'HTML + CSS 基础', d: '掌握网页结构与样式，响应式布局' },
-                    { n: '02', t: 'JavaScript 核心', d: 'ES6+、DOM 操作、异步编程' },
-                    { n: '03', t: 'React / Vue 框架', d: '组件化开发、状态管理、路由' },
-                    { n: '04', t: '项目实战 + 面试', d: '真实项目经验、简历优化、模拟面试' },
+                    { n: '01', t: '诊断与词汇', d: '识别薄弱项，建立高频词汇语境' },
+                    { n: '02', t: '听力与阅读', d: '分项训练、题型策略与限时练习' },
+                    { n: '03', t: '写作与翻译', d: '多版本批改，积累表达与翻译方法' },
+                    { n: '04', t: '模拟与复盘', d: '全真模拟、错因归类与冲刺调整' },
                   ].map((s) => (
                     <div className="lp-pathway-step" key={s.n}>
                       <div className="lp-step-num">{s.n}</div>
@@ -341,29 +341,29 @@ export default function Landing() {
                   ))}
                 </div>
                 <div className="lp-pathway-tags">
-                  <span className="lp-pathway-tag hot">热门</span>
-                  <span className="lp-pathway-tag">React</span>
-                  <span className="lp-pathway-tag">TypeScript</span>
-                  <span className="lp-pathway-tag">4-6 个月</span>
+                  <span className="lp-pathway-tag hot">考试</span>
+                  <span className="lp-pathway-tag">听力</span>
+                  <span className="lp-pathway-tag">写作</span>
+                  <span className="lp-pathway-tag">能力证据</span>
                 </div>
               </div>
             </div>
-            {/* 数据分析 */}
+            {/* 考研数学 */}
             <div className="lp-pathway-card">
               <div className="lp-pathway-header">
                 <div className="lp-pathway-icon" style={{ background: 'var(--note-green)' }}><IconTrendUp /></div>
                 <div>
-                  <div className="lp-pathway-title">数据分析师</div>
-                  <div className="lp-pathway-sub">DATA ANALYST</div>
+                  <div className="lp-pathway-title">考研数学</div>
+                  <div className="lp-pathway-sub">MATHEMATICS · EXAM</div>
                 </div>
               </div>
               <div className="lp-pathway-body">
                 <div className="lp-pathway-steps">
                   {[
-                    { n: '01', t: 'Python 基础', d: '语法、数据结构、Pandas 入门' },
-                    { n: '02', t: 'SQL 数据库', d: '查询优化、数据建模、实战练习' },
-                    { n: '03', t: '数据可视化', d: 'Matplotlib、Tableau、BI 工具' },
-                    { n: '04', t: '业务分析实战', d: '真实数据集、案例研究、报告撰写' },
+                    { n: '01', t: '基础诊断', d: '按章节识别概念、计算与方法薄弱项' },
+                    { n: '02', t: '高数主干', d: '极限、导数、积分与多元函数' },
+                    { n: '03', t: '线代与概率', d: '矩阵方法、随机变量与典型题型' },
+                    { n: '04', t: '真题与复盘', d: '限时训练、步骤评分与错因归类' },
                   ].map((s) => (
                     <div className="lp-pathway-step" key={s.n}>
                       <div className="lp-step-num">{s.n}</div>
@@ -375,10 +375,10 @@ export default function Landing() {
                   ))}
                 </div>
                 <div className="lp-pathway-tags">
-                  <span className="lp-pathway-tag hot">高薪</span>
-                  <span className="lp-pathway-tag">Python</span>
-                  <span className="lp-pathway-tag">SQL</span>
-                  <span className="lp-pathway-tag">3-5 个月</span>
+                  <span className="lp-pathway-tag hot">备考</span>
+                  <span className="lp-pathway-tag">高等数学</span>
+                  <span className="lp-pathway-tag">线性代数</span>
+                  <span className="lp-pathway-tag">步骤评价</span>
                 </div>
               </div>
             </div>
@@ -396,9 +396,9 @@ export default function Landing() {
           </div>
           <div className="lp-testimonials-grid">
             {[
-              { note: '已入职字节', quote: '智途的学习路径规划太棒了！从零基础到拿到字节跳动前端 offer，只用了 5 个月。AI 辅导员帮我解决了无数技术问题。', avatar: '李', name: '李明', role: '前端开发 · 2025 届' },
-              { note: '转行成功', quote: '作为文科生转行数据分析，智途的路径规划让我少走了很多弯路。技能雷达图帮我清晰看到需要提升的地方。', avatar: '王', name: '王雪', role: '数据分析师 · 2025 届' },
-              { note: '3 个 offer', quote: '智能简历生成功能太实用了！一键生成针对不同岗位的简历，投递效率提升 3 倍。最终拿到 3 个心仪公司的 offer。', avatar: '张', name: '张伟', role: 'Java 后端 · 2024 届' },
+              { note: '六级突破', quote: '听力和写作不再混在一起刷题。每周的证据和复盘让我知道具体进步在哪里，最后一次模拟终于稳定过线。', avatar: '王', name: '王雪', role: '英语备考 · 大二' },
+              { note: '数学提分', quote: '系统把错题按概念、计算和方法重新归类，我第一次能区分“不会”和“做不对”，复习重点终于稳定下来。', avatar: '周', name: '周然', role: '考研数学 · 大三' },
+              { note: '项目完成', quote: '我把想做的校园项目拆成了阶段，每次提交都有反馈。最后得到的不只是一个作品，还有一份能说明自己能力的档案。', avatar: '张', name: '张伟', role: '项目实践 · 软件工程' },
             ].map((t) => (
               <div className="lp-testimonial-card" key={t.name}>
                 <div className="lp-testimonial-note">{t.note}</div>
@@ -424,18 +424,18 @@ export default function Landing() {
             <div className="lp-auth-left">
               <div className="lp-section-tag">GET STARTED</div>
               <h2 className="lp-auth-title">
-                开启你的<br /><em>职业成长之旅</em>
+                开启你的<br /><em>个性化学习旅程</em>
               </h2>
               <p className="lp-auth-desc">
-                注册即可获得完整的学习路径规划、AI 辅导员、技能评估等核心功能。完全免费，无隐藏费用。
+                从一个真实目标开始，建立学习路径、每日节奏和持续更新的能力档案。
               </p>
               <div className="lp-auth-benefits">
                 {[
                   '完整学习路径规划与进度追踪',
                   'AI 智能辅导员 7×24 在线答疑',
-                  '技能雷达图与岗位匹配分析',
-                  '500+ 企业实习与校招机会',
-                  '智能简历生成与优化建议',
+                  '领域化练习、评价与复盘反馈',
+                  '学习证据与能力趋势持续沉淀',
+                  '考试、项目、兴趣与职业目标并行',
                 ].map((b) => (
                   <div className="lp-benefit-item" key={b}>
                     <span className="lp-benefit-check"><IconCheck /></span>
@@ -445,7 +445,7 @@ export default function Landing() {
               </div>
               <div className="lp-auth-note">
                 <div className="lp-tape" />
-                注册即送 7 天 VIP 体验，解锁全部高级功能
+                先完成目标诊断，再开始第一条学习路径
               </div>
             </div>
 

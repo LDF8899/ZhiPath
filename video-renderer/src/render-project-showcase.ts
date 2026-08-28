@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
+import type { MotionStyleId, VisualStyleId } from './motion/types';
 
 interface ShowcaseAudioSegment {
   id: string;
@@ -24,6 +25,10 @@ interface ShowcaseScene {
 interface ShowcaseManifest {
   scenes: ShowcaseScene[];
   audioSegments?: ShowcaseAudioSegment[];
+  projectName?: string;
+  footerText?: string;
+  visualStyle?: VisualStyleId;
+  motionStyle?: MotionStyleId;
 }
 
 function getArg(args: string[], name: string): string | undefined {
@@ -43,6 +48,14 @@ async function main() {
   const manifestText = fs.readFileSync(manifestPath, 'utf-8').replace(/^\uFEFF/, '');
   const manifest = JSON.parse(manifestText) as ShowcaseManifest;
   const audioSegments = manifest.audioSegments || [];
+  const inputProps = {
+    scenes: manifest.scenes,
+    audioSegments,
+    projectName: manifest.projectName,
+    footerText: manifest.footerText,
+    visualStyle: manifest.visualStyle,
+    motionStyle: manifest.motionStyle,
+  };
 
   const publicAudioDir = path.resolve(__dirname, '..', 'public', '_project_audio');
   fs.rmSync(publicAudioDir, { recursive: true, force: true });
@@ -74,10 +87,7 @@ async function main() {
   const composition = await selectComposition({
     serveUrl,
     id: 'ProjectShowcase',
-    inputProps: {
-      scenes: manifest.scenes,
-      audioSegments,
-    },
+    inputProps,
   });
   (composition as any).durationInFrames = totalFrames;
 
@@ -88,10 +98,7 @@ async function main() {
     serveUrl,
     codec: 'h264',
     outputLocation: outputPath,
-    inputProps: {
-      scenes: manifest.scenes,
-      audioSegments,
-    },
+    inputProps,
     onProgress: ({ progress }) => {
       const pct = Math.round(progress * 100);
       process.stdout.write(`\r[ProjectShowcase] progress=${pct}%`);

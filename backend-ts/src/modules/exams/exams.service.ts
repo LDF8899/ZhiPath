@@ -8,6 +8,7 @@ import { LlmService } from '../../services/llm.service';
 import { extractJson } from '../../common/json-repair';
 import { LearningCommitService } from '../../services/learning-commit.service';
 import { EvaluationService } from '../../services/evaluation.service';
+import { LearningAssessmentContextService, LearningAssessmentContext } from '../../domains/learning-assessment-context.service';
 
 /**
  * Exams 服务 — 对齐 Python api/user/exams.py
@@ -22,6 +23,7 @@ export class ExamsService {
     private readonly llmService: LlmService,
     private readonly learningCommitService: LearningCommitService,
     private readonly evaluationService: EvaluationService,
+    private readonly assessmentContext: LearningAssessmentContextService,
   ) {}
 
   /** 考试列表 — 对齐 GET /api/user/exams */
@@ -150,7 +152,9 @@ export class ExamsService {
 
     const accuracy = totalQuestions > 0 ? correctCount / totalQuestions : 0;
     const score = Math.round(accuracy * 100);
-    const passed = score >= 70 ? 1 : 0;
+    const context = await this.assessmentContext.resolve(userId);
+    const passScore = context?.passScore || 70;
+    const passed = score >= passScore ? 1 : 0;
 
     let wrongAnalysis: Record<string, any> | null = null;
     if (passed === 0 && wrongQuestions.length > 0) {
@@ -172,7 +176,9 @@ export class ExamsService {
       this.updatePassRate(q.id).catch(() => {});
     }
 
-    const evaluationPackage = await this.commitAndEvaluateExam(userId, exam, totalQuestions, correctCount, data.answers, questions, wrongAnalysis);
+    const evaluationPackage = await this.commitAndEvaluateExam(
+      userId, exam, totalQuestions, correctCount, data.answers, questions, wrongAnalysis, context, passScore,
+    );
 
     return {
       ...exam,
@@ -222,7 +228,9 @@ export class ExamsService {
     const totalQuestions = served.length;
     const accuracy = totalQuestions > 0 ? correctCount / totalQuestions : 0;
     const score = Math.round(accuracy * 100);
-    const passed = score >= 70 ? 1 : 0;
+    const context = await this.assessmentContext.resolve(userId);
+    const passScore = context?.passScore || 70;
+    const passed = score >= passScore ? 1 : 0;
 
     // §24.1 全对且总用时极短 → 标记可疑
     const totalTime = Object.values(timings).reduce((s, v) => s + (Number(v) || 0), 0);
@@ -257,7 +265,9 @@ export class ExamsService {
       console.warn(`[ExamsService] 考试 ${record.id} 异常行为:`, anomalies.join('; '));
     }
 
-    const evaluationPackage = await this.commitAndEvaluateExam(userId, record, totalQuestions, correctCount, userAnswers, served, wrongAnalysis);
+    const evaluationPackage = await this.commitAndEvaluateExam(
+      userId, record, totalQuestions, correctCount, userAnswers, served, wrongAnalysis, context, passScore,
+    );
 
     return {
       ...record,
@@ -280,6 +290,8 @@ export class ExamsService {
     userAnswers: any,
     questions: any[],
     wrongAnalysis: Record<string, any> | null,
+    context: LearningAssessmentContext | null,
+    passScore: number,
   ) {
     const score = Number(exam.score || 0);
     const passed = Number(exam.passed || 0) === 1;
@@ -299,7 +311,9 @@ export class ExamsService {
         score,
         correctCount,
         totalQuestions,
-        passScore: 70,
+        passScore,
+        domainId: context?.domainId,
+        goalType: context?.goalType,
       },
     });
     const evaluation = await this.evaluationService.record({
@@ -308,12 +322,24 @@ export class ExamsService {
       sourceType: 'exam_record',
       sourceId: exam.id,
       skillName,
+      goal: context?.goalTitle,
+      rubricKey: this.assessmentContext.rubricKey(context, 'exam'),
+      rubricName: context ? `${context.domainName}${context.terminology.assessment || '能力测评'}` : undefined,
+      rubricDimensions: context?.radarDimensions.map((dimension) => ({
+        key: dimension.id,
+        name: dimension.name,
+        assessmentModes: context.assessmentModes,
+      })),
+      rubricWeights: context ? Object.fromEntries(context.radarDimensions.map((dimension) => [dimension.id, dimension.weight])) : undefined,
+      passScore,
       score,
       passed,
       confidence: passed ? 0.9 : 0.78,
       evaluatorType: 'hybrid',
       evaluatorName: 'ExamsService',
-      summary: `Exam ${passed ? 'passed' : 'failed'}: ${correctCount}/${totalQuestions}.`,
+      summary: `${context?.domainName || '通用'}测评${passed ? '通过' : '未通过'}：${skillName || context?.goalTitle || exam.id} ${correctCount}/${totalQuestions}。`,
+      evidenceType: 'exam_answer',
+      evidenceSummary: `${skillName || context?.goalTitle || '综合测评'} · ${context?.evidenceTypes?.join('、') || '考试答卷'}`,
       evidence: {
         examRecordId: exam.id,
         examType: exam.examType,
@@ -327,15 +353,25 @@ export class ExamsService {
         score,
         correctCount,
         totalQuestions,
-        passScore: 70,
+        passScore,
+        domainId: context?.domainId,
+        assessmentModes: context?.assessmentModes,
+        evidenceTypes: context?.evidenceTypes,
       },
       feedback: wrongAnalysis || null,
       rawResult: { wrongAnalysis },
       commitOutcome: git,
-      dimensions: this.dimensionsFromGit(git, skillName || 'exam', score),
+      dimensions: this.dimensionsFromGit(git, skillName || 'exam', score, context),
+      metadata: context ? {
+        planId: context.planId,
+        domainId: context.domainId,
+        domainName: context.domainName,
+        goalType: context.goalType,
+        goalTitle: context.goalTitle,
+      } : null,
       nextActions: passed
-        ? [{ type: 'next_skill', label: 'Move to next skill', skillName }]
-        : [{ type: 'retry_exam', label: 'Schedule retry', skillName }],
+        ? [{ type: 'next_skill', label: '进入下一能力项', skillName }]
+        : [{ type: 'retry_exam', label: '复盘后重新测评', skillName }],
     });
     return {
       commit: git.commit,
@@ -347,7 +383,12 @@ export class ExamsService {
     };
   }
 
-  private dimensionsFromGit(git: any, fallbackSkill: string, fallbackScore: number) {
+  private dimensionsFromGit(
+    git: any,
+    fallbackSkill: string,
+    fallbackScore: number,
+    context: LearningAssessmentContext | null,
+  ) {
     const changes = git?.delta?.radarChanges || [];
     if (Array.isArray(changes) && changes.length > 0) {
       return changes.map((change: any) => ({
@@ -358,7 +399,16 @@ export class ExamsService {
         detail: `Radar ${change.dimension}: ${change.before ?? 0} -> ${change.after ?? 0}`,
       }));
     }
-    return [{ name: fallbackSkill, score: fallbackScore, maxScore: 100, trend: 'stable' }];
+    const domainDimension = this.assessmentContext.dimensionForSkill(context, fallbackSkill);
+    return [{
+      key: domainDimension?.id,
+      name: domainDimension?.name || fallbackSkill,
+      score: fallbackScore,
+      maxScore: 100,
+      weight: domainDimension?.weight || 1,
+      trend: 'stable',
+      detail: context ? `${context.domainName} · ${context.assessmentModes.join('、')}` : undefined,
+    }];
   }
 
   // ── §24.1 防作弊辅助方法 ──────────────────────────────

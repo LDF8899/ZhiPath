@@ -29,7 +29,7 @@ export default function AdminSettings() {
 
   const configLabels: Record<string, { label: string; desc: string }> = {
     site_name: { label: '站点名称', desc: '平台显示名称' },
-    llm_model: { label: 'LLM 模型', desc: 'AI 助教使用的模型' },
+    llm_model: { label: 'LLM 模型', desc: 'AI 学习导师使用的模型' },
     searxng_url: { label: 'SearXNG 地址', desc: '搜索引擎服务地址' },
     news_cron: { label: '资讯抓取周期', desc: '自动抓取新闻的 cron 表达式' },
   };

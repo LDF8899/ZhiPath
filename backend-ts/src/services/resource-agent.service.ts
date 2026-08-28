@@ -3,12 +3,17 @@ import { LlmService } from './llm.service';
 import { KnowledgeBaseService } from './knowledge-base.service';
 import { extractJson } from '../common/json-repair';
 
-/**
- * 资源生成 Agent — 对齐 Python agents/resource_agent.py
- *
- * 为技能点生成多模态学习资源：讲义（Markdown）+ 选择题 + 编程题
- * 存储位置：MongoDB knowledge_base 集合（全平台复用）
- */
+export interface LearningResourceContext {
+  domainId?: string;
+  domainName?: string;
+  goalType?: string;
+  goalTitle?: string;
+  terminology?: Record<string, string>;
+  assessmentModes?: string[];
+  evidenceTypes?: string[];
+}
+
+/** Generate learning resources using the path's domain vocabulary and evidence model. */
 @Injectable()
 export class ResourceAgentService {
   constructor(
@@ -16,102 +21,108 @@ export class ResourceAgentService {
     private knowledgeBase: KnowledgeBaseService,
   ) {}
 
-  /** 为技能点生成 Markdown 讲义 — 对齐 Python generate_lecture() */
-  async generateLecture(skill: string, difficulty = 'beginner'): Promise<string | null> {
-    const prompt = `请为技能「${skill}」生成一份结构化的学习讲义。
+  async generateLecture(
+    ability: string,
+    difficulty = 'beginner',
+    context: LearningResourceContext = {},
+  ): Promise<string | null> {
+    const domainContext = this.buildDomainContext(context);
+    const exampleRequirement = context.domainId === 'software-engineering'
+      ? '包含一个完整、可运行并有解释的代码或工程示例'
+      : '包含该领域常见的例题、案例、语料或实践示例，不要强行使用代码';
+    const prompt = `请为能力项「${ability}」生成一份结构化学习讲义。
 
 难度：${difficulty}
-
+${domainContext}
 要求：
-1. 用 Markdown 格式
-2. 包含：概念介绍、核心知识点、代码示例、常见误区
-3. 内容要具体实用，不要泛泛而谈
-4. 代码示例要完整可运行
-5. 适合${difficulty}水平的学习者
+1. 使用 Markdown
+2. 包含学习目标、核心知识、示例或案例、实践任务、常见误区、复盘问题
+3. 内容具体可执行，不要泛泛而谈
+4. ${exampleRequirement}
+5. 适合 ${difficulty} 水平的学习者
+6. 实践任务应产生一种可记录的学习证据
 
-输出格式：
-# ${skill}
-
-## 概念介绍
-...
-
-## 核心知识点
-### 1. ...
-...
-
-## 代码示例
-\`\`\`代码
-...
-\`\`\`
-
+输出结构：
+# ${ability}
+## 学习目标
+## 核心知识
+## 示例或案例
+## 实践任务
 ## 常见误区
-...
-
-## 小结
-...`;
+## 复盘问题`;
 
     try {
       const result = await this.llmService.chatCompletion(
         [
-          { role: 'system', content: '你是技术教育专家，擅长写清晰易懂的技术讲义。直接输出 Markdown 内容，不要加额外说明。' },
+          {
+            role: 'system',
+            content: '你是跨学科教育内容设计师，能根据专业领域选择正确的术语、例子和练习方式。直接输出 Markdown，不要添加额外说明。',
+          },
           { role: 'user', content: prompt },
         ],
         { temperature: 0.5, maxTokens: 4096, tier: 'pro' },
       );
-
-      await this.knowledgeBase.saveLecture(skill, result, difficulty);
-      console.log(`[ResourceAgent] Lecture generated: ${skill}`);
+      await this.knowledgeBase.saveLecture(ability, result, difficulty);
+      console.log(`[ResourceAgent] Lecture generated: ${ability}`);
       return result;
-    } catch (e) {
-      console.error(`[ResourceAgent] Lecture generation failed for ${skill}:`, e.message);
+    } catch (error: any) {
+      console.error(`[ResourceAgent] Lecture generation failed for ${ability}:`, error.message);
       return null;
     }
   }
 
-  /** 为技能点生成选择题 — 对齐 Python generate_quiz() */
-  async generateQuiz(skill: string, count = 5, difficulty = 'beginner'): Promise<any[] | null> {
-    const prompt = `请为技能「${skill}」生成 ${count} 道选择题。
+  async generateQuiz(
+    ability: string,
+    count = 5,
+    difficulty = 'beginner',
+    context: LearningResourceContext = {},
+  ): Promise<any[] | null> {
+    const domainContext = this.buildDomainContext(context);
+    const prompt = `请为能力项「${ability}」生成 ${count} 道有诊断价值的选择题。
 
 难度：${difficulty}
-
-输出严格JSON数组格式：
+${domainContext}
+输出严格 JSON 数组：
 [
   {
     "question": "题目描述",
     "options": ["选项A", "选项B", "选项C", "选项D"],
     "answer": 0,
-    "explanation": "解析说明为什么选这个"
+    "explanation": "解析说明"
   }
 ]
 
 要求：
-1. 题目要覆盖该技能的核心知识点
-2. 选项要有迷惑性，不能太明显
-3. 解析要清楚说明原理
-4. 只输出JSON数组，不要其他文字`;
+1. 覆盖该能力项的核心知识
+2. 干扰项应反映真实常见误区
+3. 解析要说明判断依据和思考过程
+4. 场景和解析必须符合该专业领域，不要默认使用编程语境
+5. 只输出 JSON 数组`;
 
     try {
       const result = await this.llmService.chatCompletion(
         [
-          { role: 'system', content: '你是出题专家，擅长设计有深度的选择题。只输出 JSON 数组。' },
+          {
+            role: 'system',
+            content: '你是跨学科评价设计师，擅长根据领域目标设计有诊断价值的练习。只输出 JSON 数组。',
+          },
           { role: 'user', content: prompt },
         ],
         { temperature: 0.5, maxTokens: 2048, tier: 'pro' },
       );
-
       const questions = this.extractJsonFromLLM(result);
-      if (questions && Array.isArray(questions)) {
-        await this.knowledgeBase.saveQuiz(skill, questions, difficulty);
-        console.log(`[ResourceAgent] Quiz generated: ${skill} (${questions.length} questions)`);
+      if (Array.isArray(questions)) {
+        await this.knowledgeBase.saveQuiz(ability, questions, difficulty);
+        console.log(`[ResourceAgent] Quiz generated: ${ability} (${questions.length} questions)`);
         return questions;
       }
-    } catch (e) {
-      console.error(`[ResourceAgent] Quiz generation failed for ${skill}:`, e.message);
+    } catch (error: any) {
+      console.error(`[ResourceAgent] Quiz generation failed for ${ability}:`, error.message);
     }
     return null;
   }
 
-  /** 为技能点生成编程题 — 对齐 Python generate_coding_problems() */
+  /** Explicit coding resources remain available, but are never implied by a non-software path. */
   async generateCodingProblems(skill: string, count = 2, difficulty = 'beginner'): Promise<any[] | null> {
     const prompt = `请为技能「${skill}」生成 ${count} 道编程练习题。
 
@@ -123,19 +134,17 @@ export class ResourceAgentService {
     "title": "题目标题",
     "description": "题目描述（Markdown格式）",
     "template": "代码模板（函数签名+注释）",
-    "test_cases": [
-      {"input": "输入描述", "expected": "预期输出"}
-    ],
+    "test_cases": [{"input": "输入描述", "expected": "预期输出"}],
     "hint": "解题提示",
     "solution": "参考答案"
   }
 ]
 
 要求：
-1. 题目要实际可编码，不是纯理论
-2. 代码模板要给好函数签名
-3. 测试用例要覆盖正常和边界情况
-4. 只输出JSON数组，不要其他文字`;
+1. 题目实际可编码，不是纯理论
+2. 代码模板提供函数签名
+3. 测试用例覆盖正常和边界情况
+4. 只输出JSON数组`;
 
     try {
       const result = await this.llmService.chatCompletion(
@@ -145,72 +154,84 @@ export class ResourceAgentService {
         ],
         { temperature: 0.5, maxTokens: 3072, tier: 'pro' },
       );
-
       const problems = this.extractJsonFromLLM(result);
-      if (problems && Array.isArray(problems)) {
+      if (Array.isArray(problems)) {
         await this.knowledgeBase.saveCoding(skill, problems, difficulty);
         console.log(`[ResourceAgent] Coding problems generated: ${skill} (${problems.length})`);
         return problems;
       }
-    } catch (e) {
-      console.error(`[ResourceAgent] Coding generation failed for ${skill}:`, e.message);
+    } catch (error: any) {
+      console.error(`[ResourceAgent] Coding generation failed for ${skill}:`, error.message);
     }
     return null;
   }
 
-  /** 为学习路径中的所有技能点生成资源 — 对齐 Python generate_resources_for_path() */
-  async generateResourcesForPath(pathData: Record<string, any>): Promise<{ generated: number; skipped: number; failed: number }> {
+  async generateResourcesForPath(
+    pathData: Record<string, any>,
+  ): Promise<{ generated: number; skipped: number; failed: number }> {
     const phases = pathData.phases || [];
     const stats = { generated: 0, skipped: 0, failed: 0 };
+    const context = this.contextFromPathData(pathData);
 
     for (const phase of phases) {
-      const skills = phase.skills || [];
       const difficulty = this.phaseToDifficulty(phase, phases);
-
-      for (const skillItem of skills) {
-        const skillName = typeof skillItem === 'string' ? skillItem : skillItem.name || '';
-        if (!skillName) continue;
-
-        // 跳过已生成的
-        const existing = await this.knowledgeBase.getContent(skillName, 'lecture');
+      for (const abilityItem of phase.skills || []) {
+        const abilityName = typeof abilityItem === 'string' ? abilityItem : abilityItem.name || '';
+        if (!abilityName) continue;
+        const existing = await this.knowledgeBase.getContent(abilityName, 'lecture');
         if (existing) {
           stats.skipped++;
           continue;
         }
-
         try {
-          await this.generateLecture(skillName, difficulty);
-          await this.generateQuiz(skillName, 5, difficulty);
+          await this.generateLecture(abilityName, difficulty, context);
+          await this.generateQuiz(abilityName, 5, difficulty, context);
           stats.generated++;
-        } catch (e) {
-          console.error(`[ResourceAgent] Resource generation failed for ${skillName}:`, e.message);
+        } catch (error: any) {
+          console.error(`[ResourceAgent] Resource generation failed for ${abilityName}:`, error.message);
           stats.failed++;
         }
       }
     }
-
-    console.log(`[ResourceAgent] Resource generation done:`, stats);
+    console.log('[ResourceAgent] Resource generation done:', stats);
     return stats;
   }
 
-  // ── 工具函数 ──
+  contextFromPathData(pathData: Record<string, any>): LearningResourceContext {
+    return {
+      domainId: pathData?.domainId,
+      domainName: pathData?.domainName,
+      goalType: pathData?.goalType,
+      goalTitle: pathData?.goalTitle,
+      terminology: pathData?.terminology,
+      assessmentModes: pathData?.assessmentModes,
+      evidenceTypes: pathData?.evidenceTypes,
+    };
+  }
 
-  /** 从 LLM 回复中提取 JSON — 使用公共 json-repair 工具 */
+  private buildDomainContext(context: LearningResourceContext): string {
+    const lines: string[] = [];
+    if (context.domainName || context.domainId) lines.push(`学习领域：${context.domainName || context.domainId}`);
+    if (context.goalTitle || context.goalType) lines.push(`学习目标：${context.goalTitle || context.goalType}`);
+    if (context.assessmentModes?.length) lines.push(`适用评价方式：${context.assessmentModes.join('、')}`);
+    if (context.evidenceTypes?.length) lines.push(`可沉淀证据：${context.evidenceTypes.join('、')}`);
+    return lines.length ? `\n领域上下文：\n${lines.join('\n')}\n` : '';
+  }
+
   private extractJsonFromLLM(text: string): any | null {
     try {
       return extractJson(text);
-    } catch (e) {
-      console.error('[ResourceAgent] JSON parse failed:', e.message);
+    } catch (error: any) {
+      console.error('[ResourceAgent] JSON parse failed:', error.message);
       return null;
     }
   }
 
-  /** 根据阶段推断难度级别 — 对齐 Python _phase_to_difficulty() */
   private phaseToDifficulty(phase: any, allPhases: any[]): string {
-    const idx = allPhases.indexOf(phase);
+    const index = allPhases.indexOf(phase);
     const total = allPhases.length;
     if (total <= 1) return 'beginner';
-    const ratio = idx / (total - 1);
+    const ratio = index / (total - 1);
     if (ratio < 0.33) return 'beginner';
     if (ratio < 0.66) return 'intermediate';
     return 'advanced';

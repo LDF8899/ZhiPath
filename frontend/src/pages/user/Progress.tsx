@@ -123,7 +123,7 @@ export default function ProgressPage() {
   };
 
   const handleMerge = async (branch: LearningBranch) => {
-    if (!window.confirm(`Merge ${branch.branchName} into main?`)) return;
+    if (!window.confirm(`将「${branch.branchName}」的学习证据汇总到核心成长档案吗？`)) return;
     setBusy(`merge-${branch.id}`);
     try {
       await mergeGitBranch(branch.id);
@@ -134,7 +134,7 @@ export default function ProgressPage() {
   };
 
   const handleRollback = async (commit: LearningCommit) => {
-    if (!window.confirm(`Rollback branch head to commit #${commit.id}?`)) return;
+    if (!window.confirm(`将当前学习轨迹恢复到证据记录 #${commit.id} 吗？`)) return;
     setBusy(`rollback-${commit.id}`);
     try {
       await rollbackGitCommit(commit.id);
@@ -168,9 +168,11 @@ export default function ProgressPage() {
       <div className="hd-page-wrap">
         <div className="hd-header">
           <div>
-            <h1>Git 学习系统</h1>
+            <h1>成长档案</h1>
             <p style={{ margin: '4px 0 0', color: 'var(--pencil)', font: '14px/1.4 var(--hand)' }}>
-              {activeBranch ? `${activeBranch.branchName} / head #${activeBranch.headCommitId || '-'}` : 'main branch initializing'}
+              {activeBranch
+                ? `${ability?.domainName || '跨专业学习'} · ${branchTypeLabel(activeBranch.branchType)} · 最新记录 #${activeBranch.headCommitId || '-'}`
+                : '正在建立第一份成长档案'}
             </p>
           </div>
           <button className="hd-btn small secondary" onClick={() => load(activeBranchId)}>刷新</button>
@@ -179,7 +181,7 @@ export default function ProgressPage() {
         <div className="hd-grid-2" style={{ alignItems: 'start', gap: 18 }}>
           <div className="hd-flex-col" style={{ gap: 14 }}>
             <section className="hd-card-accent">
-              <div className="hd-section-label"><h3>分支</h3></div>
+              <div className="hd-section-label"><h3>学习轨迹</h3></div>
               <div className="hd-flex" style={{ gap: 8, flexWrap: 'wrap' }}>
                 {branches.map((branch) => (
                   <button
@@ -187,7 +189,7 @@ export default function ProgressPage() {
                     className={`hd-tab${branch.id === activeBranchId ? ' active' : ''}`}
                     onClick={() => load(branch.id)}
                   >
-                    {branch.branchName} · {branch.branchType}
+                    {branch.branchName} · {branchTypeLabel(branch.branchType)}
                   </button>
                 ))}
               </div>
@@ -197,17 +199,17 @@ export default function ProgressPage() {
                   style={{ maxWidth: 220 }}
                   value={branchName}
                   onChange={(e) => setBranchName(e.target.value)}
-                  placeholder="branch name"
+                  placeholder="新的探索主题"
                 />
-                <button className="hd-btn small" disabled={busy === 'branch'} onClick={() => handleCreateBranch('side')}>创建 side</button>
-                <button className="hd-btn small secondary" disabled={busy === 'branch'} onClick={() => handleCreateBranch('experiment')}>创建 experiment</button>
+                <button className="hd-btn small" disabled={busy === 'branch'} onClick={() => handleCreateBranch('side')}>创建并行探索</button>
+                <button className="hd-btn small secondary" disabled={busy === 'branch'} onClick={() => handleCreateBranch('experiment')}>创建实验探索</button>
               </div>
             </section>
 
             <section className="hd-card-accent">
-              <div className="hd-section-label"><h3>Commit 时间轴</h3></div>
+              <div className="hd-section-label"><h3>学习证据时间轴</h3></div>
               {commits.length === 0 ? (
-                <div className="hd-empty">暂无 commit</div>
+                <div className="hd-empty">暂无学习证据</div>
               ) : (
                 <div className="hd-flex-col" style={{ gap: 10 }}>
                   {commits.map((commit) => (
@@ -220,14 +222,14 @@ export default function ProgressPage() {
                         <button
                           className="hd-tab"
                           onClick={() => handleSelectCommit(commit.id)}
-                          title="查看该 commit 的 snapshot"
+                          title="查看这条记录对应的成长快照"
                         >
-                          #{commit.id} {commit.commitType}
+                          #{commit.id} {commitTypeLabel(commit.commitType)}
                         </button>
                         <div className="hd-flex" style={{ gap: 8 }}>
                           <span className="hd-pill">{formatTime(commit.createTime)}</span>
                           <button className="hd-btn small secondary" disabled={busy === `rollback-${commit.id}`} onClick={() => handleRollback(commit)}>
-                            rollback
+                            恢复至此
                           </button>
                         </div>
                       </div>
@@ -242,7 +244,7 @@ export default function ProgressPage() {
 
           <aside className="hd-flex-col" style={{ gap: 14 }}>
             <section className="hd-card-accent">
-              <div className="hd-section-label"><h3>{selectedCommit ? `Snapshot #${selectedCommit.id}` : '当前雷达'}</h3></div>
+              <div className="hd-section-label"><h3>{selectedCommit ? `成长快照 #${selectedCommit.id}` : '当前能力雷达'}</h3></div>
               {radar.length >= 3 ? (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -284,7 +286,7 @@ export default function ProgressPage() {
                       </div>
                       <ImpactExplanation item={item} />
                       <div className="hd-flex" style={{ gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                        {item.impact?.commitId && <span className="hd-badge">commit #{item.impact.commitId}</span>}
+                        {item.impact?.commitId && <span className="hd-badge">证据 #{item.impact.commitId}</span>}
                         <span className="hd-badge">置信度 {Math.round(Number(item.result?.confidence || 0) * 100)}%</span>
                         {Number(item.impact?.matchScoreDelta || 0) !== 0 && (
                           <span className={`hd-badge ${Number(item.impact?.matchScoreDelta || 0) > 0 ? 'green' : 'red'}`}>
@@ -299,7 +301,7 @@ export default function ProgressPage() {
             </section>
 
             <section className="hd-card-accent">
-              <div className="hd-section-label"><h3>Commit 对比</h3></div>
+              <div className="hd-section-label"><h3>成长快照对比</h3></div>
               <div className="hd-flex" style={{ gap: 8 }}>
                 <CommitSelect value={compareA} commits={commitOptions} onChange={setCompareA} />
                 <CommitSelect value={compareB} commits={commitOptions} onChange={setCompareB} />
@@ -313,7 +315,7 @@ export default function ProgressPage() {
             </section>
 
             <section className="hd-card-accent">
-              <div className="hd-section-label"><h3>Branch 对比 / 合并</h3></div>
+              <div className="hd-section-label"><h3>学习轨迹对比与汇总</h3></div>
               <select className="hd-select" value={branchCompareTarget} onChange={(e) => setBranchCompareTarget(e.target.value ? Number(e.target.value) : '')}>
                 <option value="">选择目标分支</option>
                 {branches.filter((b) => b.id !== activeBranch?.id).map((branch) => (
@@ -333,7 +335,7 @@ export default function ProgressPage() {
                   disabled={busy === `merge-${branch.id}` || Boolean(branch.mergedAt)}
                   onClick={() => handleMerge(branch)}
                 >
-                  {branch.mergedAt ? `${branch.branchName} merged` : `merge ${branch.branchName} to main`}
+                  {branch.mergedAt ? `${branch.branchName} 已汇总` : `汇总 ${branch.branchName} 到核心档案`}
                 </button>
               ))}
             </section>
@@ -347,9 +349,9 @@ export default function ProgressPage() {
 function CommitSelect({ value, commits, onChange }: { value: number | ''; commits: LearningCommit[]; onChange: (value: number | '') => void }) {
   return (
     <select className="hd-select" value={value} onChange={(e) => onChange(e.target.value ? Number(e.target.value) : '')}>
-      <option value="">commit</option>
+      <option value="">选择成长快照</option>
       {commits.map((commit) => (
-        <option key={commit.id} value={commit.snapshotId || ''}>#{commit.id} {commit.commitType}</option>
+        <option key={commit.id} value={commit.snapshotId || ''}>#{commit.id} {commitTypeLabel(commit.commitType)}</option>
       ))}
     </select>
   );
@@ -369,7 +371,7 @@ function DeltaSummary({ delta }: { delta: CommitDelta }) {
     <div style={{ marginTop: 10 }}>
       <div className="hd-flex" style={{ gap: 6, flexWrap: 'wrap' }}>
         <span className="hd-badge">综合 {signed(delta.metricsChange?.overallScore)}</span>
-        <span className="hd-badge">匹配 {signed(delta.metricsChange?.matchScore)}</span>
+        <span className="hd-badge">职业匹配 {signed(delta.metricsChange?.matchScore)}</span>
         <span className="hd-badge">深度 {signed(delta.metricsChange?.depthScore)}</span>
         <span className="hd-badge">广度 {signed(delta.metricsChange?.breadthScore)}</span>
       </div>
@@ -416,16 +418,16 @@ function ImpactExplanation({ item }: { item: EvaluationListItem }) {
   const radarText = radarChanges.slice(0, 2).map((change) => `${change.dimension} ${signed(change.delta)}`).join('、');
   const matchDelta = Number(impact.matchScoreDelta || impact.metricsChangeJson?.matchScore || 0);
   const parts = [
-    skillText ? `技能变化：${skillText}` : '',
+    skillText ? `能力变化：${skillText}` : '',
     radarText ? `雷达变化：${radarText}` : '',
-    matchDelta ? `岗位匹配 ${signed(matchDelta)}` : '',
+    matchDelta ? `职业匹配 ${signed(matchDelta)}` : '',
   ].filter(Boolean);
 
   return (
     <div className="hd-dashed" style={{ marginTop: 8, font: '12px/1.5 var(--hand)', color: 'var(--ink)' }}>
       <strong>为什么变化：</strong>
       {parts.length > 0
-        ? `${parts.join('；')}。这些变化会进入画像和后续岗位匹配计算。`
+        ? `${parts.join('；')}。这些变化会进入成长画像，职业目标还会用于匹配计算。`
         : '本次评价没有显著改变能力分或匹配度，系统仍保留记录用于后续复盘。'}
     </div>
   );
@@ -435,15 +437,41 @@ function labelAttempt(type: string) {
   const labels: Record<string, string> = {
     progress_read: '讲义',
     progress_quiz: '测验',
-    progress_code: '代码',
+    progress_code: '领域实践',
     skill_complete: '完成',
     quick_test: '快测',
-    exam: '考试',
+    exam: '综合测评',
     ai_assessment: 'AI评估',
     chat_resource: '资源',
     manual: '手动',
   };
   return labels[type] || type;
+}
+
+function branchTypeLabel(type: LearningBranch['branchType']) {
+  const labels: Record<LearningBranch['branchType'], string> = {
+    main: '核心档案',
+    plan: '计划轨迹',
+    side: '并行探索',
+    experiment: '实验探索',
+  };
+  return labels[type];
+}
+
+function commitTypeLabel(type: LearningCommit['commitType']) {
+  const labels: Record<LearningCommit['commitType'], string> = {
+    baseline: '起点画像',
+    lecture_read: '讲义阅读',
+    quiz_passed: '练习通过',
+    quiz_failed: '练习复盘',
+    code_done: '领域实践',
+    skill_complete: '能力完成',
+    task_done: '任务完成',
+    manual: '手动记录',
+    merge: '轨迹汇总',
+    rollback: '状态恢复',
+  };
+  return labels[type];
 }
 
 function signed(value: number) {

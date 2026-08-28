@@ -299,10 +299,14 @@ function normalizeGeneratedPayload(resource: GeneratedResource, actionType: stri
     };
   }
   if (['animation', 'diagram', 'video', 'avatar'].includes(actionType) && skillName) {
+    const isDone = payload.status === 'completed' || resource.resourceStatus === 'success';
     return {
       ...payload,
       skill: payload.skill || skillName,
       skillName: payload.skillName || skillName,
+      status: isDone ? 'completed' : payload.status,
+      render_status: payload.render_status,
+      render_error: payload.render_error,
       resourceId: resource.id,
     };
   }

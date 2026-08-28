@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SkillSnapshotV3 } from '../entities/skill-snapshot-v3.entity';
+import { LearningAssessmentContextService } from '../domains/learning-assessment-context.service';
 
 export interface SkillDimension {
   name: string;
@@ -34,6 +35,16 @@ export interface AbilityMetrics {
   balance: number;
   learningSpeed: number;
   consistency: number;
+  domainId?: string;
+  domainName?: string;
+  goalTitle?: string;
+}
+
+interface RadarConfig {
+  name: string;
+  category: string;
+  skills: string[];
+  weight: number;
 }
 
 export interface CommitDelta {
@@ -61,6 +72,7 @@ export class SkillSnapshotService {
   constructor(
     @InjectRepository(SkillSnapshotV3)
     private readonly snapshotRepo: Repository<SkillSnapshotV3>,
+    private readonly assessmentContext: LearningAssessmentContextService,
   ) {}
 
   async saveSnapshot(input: {
@@ -75,8 +87,19 @@ export class SkillSnapshotService {
   }): Promise<SkillSnapshotV3> {
     const skills = this.normalizeSkills(input.skills);
     const previousRadar = (input.previous?.radarJson || []) as RadarDimension[];
-    const radar = this.calculateRadarData(skills, previousRadar, input.commitId);
-    const abilityMetrics = this.calculateAbilityMetrics(skills, radar, input.learningSpeed || 0, input.consistency || 0);
+    const context = await this.assessmentContext.resolve(input.userId);
+    const radarConfig: RadarConfig[] = context?.radarDimensions?.length
+      ? context.radarDimensions
+      : RADAR_DIMENSIONS;
+    const radar = this.calculateRadarData(skills, previousRadar, input.commitId, radarConfig);
+    const abilityMetrics = this.calculateAbilityMetrics(
+      skills,
+      radar,
+      input.learningSpeed || 0,
+      input.consistency || 0,
+      radarConfig,
+      context ? { domainId: context.domainId, domainName: context.domainName, goalTitle: context.goalTitle } : undefined,
+    );
 
     return this.snapshotRepo.save({
       userId: input.userId,
@@ -203,11 +226,16 @@ export class SkillSnapshotService {
       .sort((a, b) => b.effectiveMastery - a.effectiveMastery || a.name.localeCompare(b.name));
   }
 
-  calculateRadarData(skills: SkillDimension[], previousRadar: RadarDimension[] = [], commitId?: number): RadarDimension[] {
+  calculateRadarData(
+    skills: SkillDimension[],
+    previousRadar: RadarDimension[] = [],
+    commitId?: number,
+    dimensions: RadarConfig[] = RADAR_DIMENSIONS,
+  ): RadarDimension[] {
     const skillMap = new Map(skills.map((s) => [this.key(s.name), s]));
     const previous = new Map(previousRadar.map((r) => [r.name, r.score]));
 
-    return RADAR_DIMENSIONS.map((dim) => {
+    return dimensions.map((dim) => {
       const matched = dim.skills
         .map((name) => skillMap.get(this.key(name)))
         .filter(Boolean) as SkillDimension[];
@@ -227,11 +255,18 @@ export class SkillSnapshotService {
     });
   }
 
-  calculateAbilityMetrics(skills: SkillDimension[], radar: RadarDimension[], learningSpeed = 0, consistency = 0): AbilityMetrics {
+  calculateAbilityMetrics(
+    skills: SkillDimension[],
+    radar: RadarDimension[],
+    learningSpeed = 0,
+    consistency = 0,
+    dimensions: RadarConfig[] = RADAR_DIMENSIONS,
+    domain?: { domainId: string; domainName: string; goalTitle: string },
+  ): AbilityMetrics {
     const scores = radar.map((r) => Number(r.score) || 0);
     const overall = scores.length
       ? this.round(radar.reduce((sum, dim) => {
-        const config = RADAR_DIMENSIONS.find((d) => d.name === dim.name);
+        const config = dimensions.find((d) => d.name === dim.name);
         return sum + dim.score * (config?.weight || 0);
       }, 0))
       : 0;
@@ -255,6 +290,7 @@ export class SkillSnapshotService {
       balance,
       learningSpeed: this.round(learningSpeed),
       consistency: this.round(consistency),
+      ...(domain || {}),
     };
   }
 

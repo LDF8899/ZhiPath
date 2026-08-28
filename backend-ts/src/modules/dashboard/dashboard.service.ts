@@ -111,6 +111,9 @@ export class DashboardService {
       id: p.id,
       planName: p.planName,
       planType: p.planType,
+      domainId: p.domainId,
+      goalType: p.goalType,
+      goalTitle: p.goalTitle,
       currentPhase: p.currentPhase,
       estimatedDate: p.estimatedDate || '',
       totalSkills: (p.pathData?.phases || []).reduce((sum: number, ph: any) => sum + (ph.skills?.length || 0), 0),
@@ -126,12 +129,27 @@ export class DashboardService {
         id: currentPlan.id,
         userId: currentPlan.userId,
         planName: currentPlan.planName,
+        planType: currentPlan.planType,
         targetJobId: currentPlan.targetJobId,
+        domainId: currentPlan.domainId,
+        goalType: currentPlan.goalType,
+        goalTitle: currentPlan.goalTitle || currentPlan.planName,
+        planStatus: currentPlan.planStatus,
+        scheduleEnabled: currentPlan.scheduleEnabled,
         currentPhase: currentPlan.currentPhase,
         matchScore: Number(currentPlan.matchScore) || 0,
         estimatedDate: currentPlan.estimatedDate || '',
         dailyHours: Number(currentPlan.dailyHours) || 0,
-        pathData: { phases: pathData.phases || [] },
+        pathData: {
+          domainId: pathData.domainId || currentPlan.domainId,
+          domainName: pathData.domainName || '',
+          goalType: pathData.goalType || currentPlan.goalType,
+          goalTitle: pathData.goalTitle || currentPlan.goalTitle || currentPlan.planName,
+          terminology: pathData.terminology || {},
+          assessmentModes: pathData.assessmentModes || [],
+          evidenceTypes: pathData.evidenceTypes || [],
+          phases: pathData.phases || [],
+        },
         status: currentPlan.status,
         createTime: currentPlan.createTime ? new Date(currentPlan.createTime).getTime() : Date.now(),
       };
@@ -679,6 +697,13 @@ export class DashboardService {
     const hasTargetJob = Boolean(input.targetJob);
     const hasLearningPlan = Boolean(input.learningPath);
     const hasSkillProgress = input.doneSkills > 0 || input.examCount > 0;
+    const isCareerGoal = input.learningPath?.goalType === 'career'
+      || (!input.learningPath?.goalType && hasTargetJob);
+
+    if (!isCareerGoal) {
+      return this.buildLearningJourney(input);
+    }
+
     const steps = [
       {
         key: 'onboarding',
@@ -755,6 +780,86 @@ export class DashboardService {
       nextAction: current
         ? { label: current.label, path: current.path, summary: current.summary }
         : { label: '复盘并投递', path: '/user/jobs', summary: '黄金路径已完成，可以进入岗位投递和面试准备' },
+    };
+  }
+
+  private buildLearningJourney(input: {
+    student: any;
+    learningPath: any;
+    totalSkills: number;
+    doneSkills: number;
+    examCount: number;
+    resourceSuccessCount: number;
+  }) {
+    const hasLearningPlan = Boolean(input.learningPath);
+    const hasLearningGoal = hasLearningPlan || Boolean(input.student?.interests?.length);
+    const hasLearningProgress = input.doneSkills > 0;
+    const goalTitle = input.learningPath?.goalTitle || input.learningPath?.planName || '';
+    const domainName = input.learningPath?.pathData?.domainName
+      || input.student?.interests?.[0]
+      || '学习领域';
+    const steps = [
+      {
+        key: 'onboarding',
+        label: '学习画像',
+        path: '/onboarding',
+        completed: Boolean(input.student?.onboardingCompleted),
+        summary: input.student?.onboardingCompleted ? '背景与学习节奏已建立' : '先补齐背景、领域与学习时间',
+      },
+      {
+        key: 'learning_goal',
+        label: '学习目标',
+        path: hasLearningPlan ? '/user/learning' : '/plan/create',
+        completed: hasLearningGoal,
+        summary: hasLearningGoal ? (goalTitle || `已选择${domainName}`) : '选择专业领域和当前目标',
+      },
+      {
+        key: 'learning_plan',
+        label: '学习计划',
+        path: hasLearningPlan ? '/user/learning' : '/plan/create',
+        completed: hasLearningPlan,
+        summary: hasLearningPlan ? `${input.learningPath.planName} · ${input.totalSkills} 个能力项` : '把目标拆成可执行阶段',
+      },
+      {
+        key: 'generate_resource',
+        label: '学习资源',
+        path: '/user/agent-office',
+        completed: input.resourceSuccessCount > 0,
+        summary: input.resourceSuccessCount > 0 ? `已生成 ${input.resourceSuccessCount} 个领域资源` : '生成讲义、练习与领域案例',
+      },
+      {
+        key: 'learning_action',
+        label: '学习行动',
+        path: '/user/learning',
+        completed: hasLearningProgress,
+        summary: hasLearningProgress ? `已掌握 ${input.doneSkills}/${input.totalSkills} 个能力项` : '完成首个任务并留下学习证据',
+      },
+      {
+        key: 'assessment',
+        label: '能力测评',
+        path: '/user/quick-test',
+        completed: input.examCount > 0,
+        summary: input.examCount > 0 ? `已完成 ${input.examCount} 次测评` : '用测评校准当前水平',
+      },
+      {
+        key: 'profile_change',
+        label: '成长画像',
+        path: '/user/progress',
+        completed: hasLearningProgress && input.examCount > 0,
+        summary: hasLearningProgress && input.examCount > 0 ? '学习证据已沉淀到成长画像' : '完成学习与测评后查看能力变化',
+      },
+    ];
+    const current = steps.find((step) => !step.completed) || null;
+    const completedCount = steps.filter((step) => step.completed).length;
+    return {
+      steps: steps.map((step) => ({ ...step, current: current?.key === step.key })),
+      completedCount,
+      totalCount: steps.length,
+      completionRate: percent(completedCount, steps.length),
+      currentKey: current?.key || null,
+      nextAction: current
+        ? { label: current.label, path: current.path, summary: current.summary }
+        : { label: '开启下一轮', path: '/user/learning', summary: '本轮目标已形成证据，可以继续深化或添加新目标' },
     };
   }
 }

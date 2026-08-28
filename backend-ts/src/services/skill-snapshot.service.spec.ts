@@ -6,7 +6,7 @@ describe('SkillSnapshotService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new SkillSnapshotService(repo as any);
+    service = new SkillSnapshotService(repo as any, { resolve: jest.fn().mockResolvedValue(null) } as any);
   });
 
   it('calculates fixed radar dimensions and ability metrics', () => {
@@ -56,5 +56,38 @@ describe('SkillSnapshotService', () => {
       depthScore: 30,
       breadthScore: 10,
     });
+  });
+
+  it('persists radar dimensions from the active learning domain', async () => {
+    const context = {
+      resolve: jest.fn().mockResolvedValue({
+        domainId: 'english',
+        domainName: '英语',
+        goalTitle: '大学英语六级 CET-6',
+        radarDimensions: [
+          { id: 'listening', name: '听力理解', category: 'english:listening', skills: ['六级听力理解'], weight: 0.5 },
+          { id: 'reading', name: '阅读理解', category: 'english:reading', skills: ['六级阅读理解'], weight: 0.5 },
+        ],
+      }),
+    };
+    const domainService = new SkillSnapshotService(repo as any, context as any);
+    repo.save.mockImplementation(async (value) => value);
+
+    const snapshot: any = await domainService.saveSnapshot({
+      userId: 1,
+      branchId: 2,
+      commitId: 3,
+      skills: [
+        { name: '六级听力理解', masteryPct: 80, trustWeight: 1, source: 'exam' },
+        { name: '六级阅读理解', masteryPct: 60, trustWeight: 1, source: 'exam' },
+      ],
+    });
+
+    expect(snapshot.radarJson.map((item: any) => item.name)).toEqual(['听力理解', '阅读理解']);
+    expect(snapshot.abilityMetricsJson).toEqual(expect.objectContaining({
+      overallScore: 70,
+      domainId: 'english',
+      domainName: '英语',
+    }));
   });
 });

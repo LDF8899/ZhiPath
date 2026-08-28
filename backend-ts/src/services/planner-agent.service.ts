@@ -9,6 +9,7 @@ import { SkillService } from './skill.service';
 import { getPlanTemplate } from '../modules/student/plan-templates';
 import { BranchService } from './branch.service';
 import { QueueService } from '../modules/queue/queue.service';
+import type { LearningDomain, LearningGoalType, StarterLearningPath } from '../domains/learning-domain.types';
 
 /**
  * PlannerAgent — 学习路径 LLM 生成服务
@@ -164,6 +165,9 @@ export class PlannerAgentService {
       planName: customPlanName || `${jobTitle || direction}学习计划`,
       planType,
       targetJobId: planType === 'main' ? effectiveJobId : null,
+      domainId: 'software-engineering',
+      goalType: planType === 'main' ? 'career' : 'interest',
+      goalTitle: customPlanName || jobTitle || direction,
       planStatus: 'active',
       scheduleEnabled: 1,
       pathData,
@@ -198,6 +202,91 @@ export class PlannerAgentService {
     // 11. §5.2 异步提交资源生成任务（讲义/题目/编程题）
     await this.enqueuePathResources(userId, pathData);
 
+    return { plan, tasks, gapSkills };
+  }
+
+  /** Generate a domain-defined path without requiring a job or programming skill template. */
+  async generateDomainPath(
+    userId: number,
+    domain: LearningDomain,
+    starterPath: StarterLearningPath,
+    goalType: LearningGoalType,
+    goalTitle: string,
+    dailyHours: number,
+    planType: 'main' | 'side',
+  ): Promise<{ plan: LearningPlan; tasks: LearningTask[]; gapSkills: string[] }> {
+    const now = Date.now();
+    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    if (!student) throw new Error('用户未完成 Onboarding');
+
+    const effectiveDailyHours = Math.max(0.5, Math.min(8, Number(dailyHours || student.dailyHours || 2)));
+    const availableMinutesPerDay = effectiveDailyHours * 60 * (planType === 'main' ? 0.8 : 0.2);
+    const phases = starterPath.phases.map((phase, index) => ({
+      name: phase.name,
+      index,
+      skills: phase.abilities.map((ability) => ({
+        abilityId: ability.id,
+        name: ability.name,
+        estimatedMin: ability.estimatedMin,
+        priority: ability.priority,
+        isRequired: true,
+        status: 'pending',
+      })),
+    }));
+    const totalDays = this.estimateTotalDays(phases, availableMinutesPerDay);
+    const estimatedDate = new Date(now + totalDays * 86400000).toISOString().slice(0, 10);
+    const pathData = {
+      domainId: domain.id,
+      domainName: domain.name,
+      goalType,
+      goalTitle,
+      starterPathId: starterPath.id,
+      terminology: domain.terminology,
+      assessmentModes: domain.assessmentModes,
+      evidenceTypes: domain.evidenceTypes,
+      passScore: domain.passScore,
+      radarDimensions: domain.radarDimensions,
+      phases,
+    };
+
+    const plan = await this.planRepo.save({
+      userId,
+      planName: goalTitle,
+      planType,
+      targetJobId: null,
+      domainId: domain.id,
+      goalType,
+      goalTitle,
+      planStatus: 'active',
+      scheduleEnabled: 1,
+      pathData,
+      currentPhase: 0,
+      dailyHours: effectiveDailyHours,
+      mainRatio: 80,
+      matchScore: 0,
+      estimatedDate,
+      createTime: now,
+      updateTime: now,
+      status: 1,
+    });
+
+    if (planType === 'main') {
+      await this.planRepo.createQueryBuilder()
+        .update(LearningPlan)
+        .set({ planStatus: 'archived', scheduleEnabled: 0, updateTime: now })
+        .where('user_id = :userId AND plan_type = :planType AND plan_status = :status AND id <> :id', {
+          userId,
+          planType: 'main',
+          status: 'active',
+          id: plan.id,
+        })
+        .execute();
+    }
+
+    await this.branchService.ensurePlanBranch(userId, plan);
+    const tasks = await this.generateDailyTasks(plan.id, userId, phases, availableMinutesPerDay, now, planType);
+    await this.enqueuePathResources(userId, pathData);
+    const gapSkills = phases.flatMap((phase) => phase.skills.map((ability) => ability.name));
     return { plan, tasks, gapSkills };
   }
 

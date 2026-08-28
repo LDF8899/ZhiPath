@@ -100,7 +100,7 @@ export class GeneratedResourceService {
     return this.resourceRepo.find({
       where,
       order: { updateTime: 'DESC', createTime: 'DESC' },
-      take: Math.min(Math.max(filters.limit || 100, 1), 200),
+      take: Math.min(Math.max(filters.limit || 100, 1), 500),
     });
   }
 

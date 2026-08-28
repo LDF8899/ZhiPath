@@ -50,18 +50,16 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
 
   const loadResources = useCallback(async () => {
     try {
-      const localResources = JSON.parse(localStorage.getItem('zhpath_resources') || '[]') as ResourceItem[];
-      const remoteRes = await getGeneratedResources({ limit: 100 }).catch(() => ({ data: [] }));
-      const remoteResources = ((remoteRes.data || []) as GeneratedResource[])
+      // 后端为准（generated_resources_v3 持久层，跨浏览器/重登可恢复），
+      // localStorage 仅在后端无数据时作一次性迁移兜底，避免把客户端缓存当成数据源。
+      const remoteRes = await getGeneratedResources({ limit: 500 }).catch(() => ({ data: [] }));
+      let merged = ((remoteRes.data || []) as GeneratedResource[])
         .map(resourceItemFromGenerated)
         .filter(Boolean) as ResourceItem[];
-      const seen = new Set<string>();
-      const merged = [...remoteResources, ...localResources].filter((item) => {
-        const key = `${item.type}:${item.skill}:${item.title}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+      if (merged.length === 0) {
+        const localResources = JSON.parse(localStorage.getItem('zhpath_resources') || '[]') as ResourceItem[];
+        if (localResources.length) merged = localResources;
+      }
       setResources(merged);
     } catch {}
   }, []);
@@ -323,9 +321,15 @@ export default function AgentPanel({ isOpen, onToggle, onAgentClick }: { isOpen:
                             {item.type === 'diagram' ? `Mermaid 图表 (${item.data?.diagramType || 'flowchart'})` : `HTML 动画演示`}
                           </div>
                         )}
-                        {resSubTab === 'video' && (
-                          <div className="res-video-preview">教学视频 · {item.skill}</div>
-                        )}
+                        {resSubTab === 'video' && (() => {
+                          const vp = item.data?.video_file_path || item.data?.videoFilePath || item.data?.video_file || item.data?.videoFile || item.data?.url || '';
+                          const filename = vp ? String(vp).split(/[\\/]/).pop() : '';
+                          const src = filename ? `/api/video/${filename}` : '';
+                          if (!src) {
+                            return <div className="res-video-preview">视频未实际渲染 · {item.skill}（已生成脚本/音频，缺视频文件，可在聊天重新生成）</div>;
+                          }
+                          return <video src={src} controls style={{ width: '100%', borderRadius: 8, border: '2px solid var(--pencil)', display: 'block', background: '#000', maxHeight: 300 }} />;
+                        })()}
                         <div className="res-actions">
                           {resSubTab === 'quiz' && (
                             <button className="hd-btn small" onClick={(e) => { e.stopPropagation(); window.location.href = `/user/exams`; }}>

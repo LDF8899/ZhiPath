@@ -68,8 +68,27 @@ export const RemotionRoot: React.FC = () => {
         width={VIDEO_THEME.canvas.width}
         height={VIDEO_THEME.canvas.height}
         defaultProps={{
-          scenes: [],
+          scenes: [
+            {
+              id: 'preview_01',
+              chapter: '01 Motion System',
+              title: 'Frame-driven motion',
+              subtitle: 'GSAP easing, Remotion timing, deterministic output.',
+              asset: '__placeholder__',
+              assetKind: 'diagram' as const,
+              narration: 'Preview scene for the visual and motion style system.',
+              durationSec: 12,
+              focus: { x: 58, y: 48, scaleStart: 1.01, scaleEnd: 1.07 },
+              callouts: [{ text: 'Motion preset', x: 62, y: 43 }],
+              stats: [
+                { label: 'GSAP runtime', value: '3.15' },
+                { label: 'Render rate', value: '30 FPS' },
+              ],
+            },
+          ],
           audioSegments: [],
+          visualStyle: 'editorial-paper',
+          motionStyle: 'gentle-editorial',
         }}
       />
     </>

@@ -9,6 +9,7 @@ import { NotificationModule } from '../notification/notification.module';
 import { LearningProgressService } from '../../services/learning-progress.service';
 import { GitLearningModule } from '../git-learning/git-learning.module';
 import { EvaluationModule } from '../evaluation/evaluation.module';
+import { LearningDomainModule } from '../../domains/learning-domain.module';
 
 /**
  * 学习进度模块 — Phase 9 补齐 + §17 三层存储
@@ -20,7 +21,7 @@ import { EvaluationModule } from '../evaluation/evaluation.module';
  * GET  /api/user/progress/restore  — §17.2 恢复学习进度（Redis→MongoDB→MySQL）
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([LearningPlan, LearningTask, ExamRecord]), SkillModule, NotificationModule, GitLearningModule, EvaluationModule],
+  imports: [TypeOrmModule.forFeature([LearningPlan, LearningTask, ExamRecord]), SkillModule, NotificationModule, GitLearningModule, EvaluationModule, LearningDomainModule],
   controllers: [ProgressController],
   providers: [LearningProgressService],
 })

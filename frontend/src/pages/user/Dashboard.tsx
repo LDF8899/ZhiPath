@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getDashboard, getBestMatch, getTodayActions } from '../../api/user';
+import WeakPointCard from '../../components/WeakPointCard';
 import { useSSE } from '../../hooks/useSSE';
 import { useMatchScoreToast, useCelebration, StreakBanner } from '../../components/MatchScoreToast';
 import PlanWelcomeModal from '../../components/PlanWelcomeModal';
@@ -19,6 +20,7 @@ import {
   IconNewspaper,
   IconGradCap,
   IconTarget,
+  IconRobot,
 } from '../../components/icons';
 import type { DashboardData, TodayActions } from '../../types';
 
@@ -284,7 +286,7 @@ export default function Dashboard() {
 
   const totalSkills = data.stats.total_skills || 1;
   const donePct = Math.round((data.stats.done_skills / totalSkills) * 100);
-  const currentPhaseName = data.learning_path?.pathData.phases[data.learning_path.currentPhase]?.name || '—';
+  const currentPhaseName = data.learning_path?.pathData?.phases[data.learning_path.currentPhase]?.name || '尚未开始';
 
   /* 模拟火花线数据（真实数据到位后替换） */
   const weekActivity = [2, 3, 1, 4, 3, 2, 5];
@@ -301,6 +303,11 @@ export default function Dashboard() {
   const actionSubs = (todayActions?.subs || []).filter(s =>
     !(s.id > 0 && data.today_tasks.some(t => t.id === s.id && t.status !== 'done' && t.status !== 'exam_done'))
   );
+  const isCareerGoal = data.learning_path
+    ? data.learning_path.goalType === 'career'
+    : Boolean(data.target_job);
+  const learningGoalTitle = data.learning_path?.goalTitle || data.learning_path?.planName || '还没有学习目标';
+  const learningDomainName = data.learning_path?.pathData?.domainName || data.learning_path?.domainId || '跨专业学习';
   const targetScore = data.target_job
     ? (gapCardScore ?? bestMatch?.matchScore ?? data.learning_path?.matchScore ?? 0)
     : (bestMatch?.matchScore ?? data.learning_path?.matchScore ?? 0);
@@ -310,7 +317,7 @@ export default function Dashboard() {
       ? { label: '生成学习计划', path: '/plan/create', icon: IconTarget }
       : primaryTask
         ? { label: '继续今日任务', path: '/user/learning', icon: IconBook }
-        : { label: '做一次快速测试', path: '/user/quick-test', icon: IconGradCap };
+        : { label: '做一次能力测评', path: '/user/quick-test', icon: IconGradCap };
   const NextActionIcon = nextAction.icon;
   const goldenPath = data.golden_path;
 
@@ -328,6 +335,9 @@ export default function Dashboard() {
 
       {/* 连续学习天数 */}
       {data.stats.active_days > 0 && <StreakBanner days={data.stats.active_days} />}
+
+      {/* 成长画像 · 薄弱与补强 */}
+      <WeakPointCard />
 
       {/* ═══════════════════════════════════════
           GREETING — 有温度的欢迎区
@@ -402,7 +412,7 @@ export default function Dashboard() {
                 >
                   {data.plans.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.planName} {p.planType === 'main' ? '（主线）' : '（支线）'}
+                      {p.planName} {p.planType === 'main' ? '（核心）' : '（并行）'}
                     </option>
                   ))}
                 </select>
@@ -419,7 +429,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 黄金路径行动中枢 */}
+      {/* 学习行动中枢 */}
       <div className="dash-action-hub">
         <div className="dash-action-card primary">
           <div className="dash-action-kicker">今日最重要任务</div>
@@ -479,9 +489,9 @@ export default function Dashboard() {
               onScoreChange={setGapCardScore}
             />
           </div>
-        ) : (
+        ) : isCareerGoal ? (
           <div className="dash-action-card">
-            <div className="dash-action-kicker">目标岗位差距</div>
+            <div className="dash-action-kicker">职业目标差距</div>
             <div className="dash-action-title">未选择目标岗位</div>
             <div className="dash-action-desc">选择一个岗位作为学习主线，差距卡会告诉你差什么、先补什么。</div>
             <button
@@ -491,17 +501,39 @@ export default function Dashboard() {
               选择目标岗位
             </button>
           </div>
+        ) : (
+          <div className="dash-action-card">
+            <div className="dash-action-kicker">当前学习目标</div>
+            <div className="dash-action-title">{learningGoalTitle}</div>
+            <div className="dash-action-desc">
+              {data.learning_path
+                ? `${learningDomainName} · 每日 ${data.learning_path.dailyHours || 2} 小时`
+                : '从一个专业领域和明确目标开始，系统会生成可执行的阶段路线。'}
+            </div>
+            <button
+              className="hd-btn small secondary"
+              onClick={() => navigate(data.learning_path ? '/user/learning' : '/plan/create')}
+            >
+              {data.learning_path ? '查看路径' : '创建目标'}
+            </button>
+          </div>
         )}
 
         <div className="dash-action-card">
-          <div className="dash-action-kicker">下一步提升匹配度</div>
+          <div className="dash-action-kicker">{isCareerGoal ? '下一步提升匹配度' : '当前学习阶段'}</div>
           <div className="dash-action-title">
-            {targetScore ? `当前 ${Math.round(targetScore)}%` : '先建立基准'}
+            {isCareerGoal
+              ? targetScore ? `当前 ${Math.round(targetScore)}%` : '先建立基准'
+              : currentPhaseName}
           </div>
           <div className="dash-action-desc">
-            {data.learning_path
-              ? `完成学习和测评后，画像与岗位匹配度会重新计算。`
-              : '先绑定目标岗位并生成学习计划，才能形成可解释的闭环。'}
+            {isCareerGoal
+              ? data.learning_path
+                ? '完成学习和测评后，画像与岗位匹配度会重新计算。'
+                : '选择职业方向并生成学习计划，才能形成可解释的成长闭环。'
+              : data.learning_path
+                ? `已掌握 ${data.stats.done_skills}/${data.stats.total_skills} 个能力项，继续用任务与测评留下证据。`
+                : '建立目标后，这里会显示当前阶段、能力进度和下一步行动。'}
           </div>
           <button className="hd-btn small highlight" onClick={() => navigate(nextAction.path)}>
             <NextActionIcon size={14} style={{ marginRight: 6 }} />
@@ -511,11 +543,13 @@ export default function Dashboard() {
       </div>
 
       {goldenPath && (
-        <section className="dash-golden-path" aria-label="MVP 黄金路径进度">
+        <section className="dash-golden-path" aria-label={isCareerGoal ? '职业成长进度' : '学习成长进度'}>
           <div className="dash-golden-head">
             <div>
-              <div className="dash-action-kicker">MVP 黄金路径</div>
-              <h3>从目标岗位到简历建议的可验收闭环</h3>
+              <div className="dash-action-kicker">{isCareerGoal ? '职业成长闭环' : '学习成长闭环'}</div>
+              <h3>{isCareerGoal
+                ? '从职业方向到能力证据与发展建议'
+                : `${learningGoalTitle}：从目标到能力证据`}</h3>
             </div>
             <div className="dash-golden-score">
               <strong>{goldenPath.completedCount}/{goldenPath.totalCount}</strong>
@@ -536,7 +570,7 @@ export default function Dashboard() {
             ))}
           </div>
           <div className="dash-golden-next">
-            <span>当前卡点：{goldenPath.nextAction.label}</span>
+            <span>下一步：{goldenPath.nextAction.label}</span>
             <em>{goldenPath.nextAction.summary}</em>
             <button className="hd-btn small secondary" onClick={() => navigate(goldenPath.nextAction.path)}>
               继续推进
@@ -549,10 +583,10 @@ export default function Dashboard() {
           KPI — 有手绘感的数据卡
          ═══════════════════════════════════════ */}
       <div className="hd-kpis" style={{ marginTop: 20 }}>
-        {/* 已掌握技能 */}
+        {/* 已掌握能力 */}
         <div className="dash-kpi dash-kpi-tilt-1">
           <div className="dash-kpi-icon"><IconBook size={18} /></div>
-          <div className="hd-kpi-label">已掌握技能</div>
+          <div className="hd-kpi-label">已掌握能力</div>
           <div className="hd-kpi-value">
             {data.stats.done_skills}
             <span style={{ font: '15px/1 var(--hand)', color: 'var(--pencil)' }}>/{data.stats.total_skills}</span>
@@ -577,30 +611,41 @@ export default function Dashboard() {
           <div className="hd-kpi-small">活跃 {data.stats.active_days} 天</div>
         </div>
 
-        {/* 考试次数 */}
+        {/* 测评次数 */}
         <div className="dash-kpi dash-kpi-tilt-3">
           <div className="dash-kpi-icon"><IconGradCap size={18} /></div>
-          <div className="hd-kpi-label">考试次数</div>
+          <div className="hd-kpi-label">测评次数</div>
           <div className="hd-kpi-value ink">{data.stats.exam_count}</div>
           <div className="dash-kpi-spark">
             <MiniSparkline values={[0, 1, 0, 2, 1, 0, data.stats.exam_count]} color="var(--ink)" />
           </div>
-          <div className="hd-kpi-small">已完成考试</div>
+          <div className="hd-kpi-small">已完成测评</div>
         </div>
 
-        {/* 匹配岗位 */}
-        <div className="dash-kpi dash-kpi-tilt-4">
-          <div className="dash-kpi-icon"><IconBriefcase size={18} /></div>
-          <div className="hd-kpi-label">匹配岗位</div>
-          <div className="hd-kpi-value">{data.stats.job_count}</div>
-          <div className="dash-kpi-spark">
-            <MiniSparkline values={[2, 3, 3, 4, 5, 4, data.stats.job_count]} color="var(--accent)" />
+        {isCareerGoal ? (
+          <div className="dash-kpi dash-kpi-tilt-4">
+            <div className="dash-kpi-icon"><IconBriefcase size={18} /></div>
+            <div className="hd-kpi-label">职业机会</div>
+            <div className="hd-kpi-value">{data.stats.job_count}</div>
+            <div className="dash-kpi-spark">
+              <MiniSparkline values={[2, 3, 3, 4, 5, 4, data.stats.job_count]} color="var(--accent)" />
+            </div>
+            <div className="hd-kpi-small">已匹配方向</div>
           </div>
-          <div className="hd-kpi-small">推荐职位</div>
-        </div>
+        ) : (
+          <div className="dash-kpi dash-kpi-tilt-4">
+            <div className="dash-kpi-icon"><IconTarget size={18} /></div>
+            <div className="hd-kpi-label">学习计划</div>
+            <div className="hd-kpi-value">{data.plans.length}</div>
+            <div className="dash-kpi-spark">
+              <MiniSparkline values={[0, 0, 1, 1, 1, 2, data.plans.length]} color="var(--accent)" />
+            </div>
+            <div className="hd-kpi-small">核心与并行目标</div>
+          </div>
+        )}
 
         {/* 最佳匹配度 — 仅在有目标岗位时显示 */}
-        {bestMatch && (
+        {isCareerGoal && bestMatch && (
           <div className="dash-kpi" style={{ cursor: 'pointer' }} onClick={() => navigate(`/user/jobs/${bestMatch.jobId}`)}>
             <div className="dash-kpi-icon"><IconTarget size={18} /></div>
             <div className="hd-kpi-label">最佳匹配</div>
@@ -815,7 +860,7 @@ export default function Dashboard() {
 
                       {/* 标签 */}
                       <span className={`hd-badge ${task.taskType === 'main' ? 'accent' : ''}`}>
-                        {task.taskType === 'main' ? '主线' : '支线'}
+                        {task.taskType === 'main' ? '核心' : '并行'}
                       </span>
 
                       {/* 时间 */}
@@ -856,13 +901,20 @@ export default function Dashboard() {
               <IconBook size={20} />
               <span>学习路径</span>
             </button>
-            <button className="dash-quick-btn" onClick={() => navigate('/user/jobs')}>
-              <IconBriefcase size={20} />
-              <span>岗位匹配</span>
-            </button>
+            {isCareerGoal ? (
+              <button className="dash-quick-btn" onClick={() => navigate('/user/jobs')}>
+                <IconBriefcase size={20} />
+                <span>职业方向</span>
+              </button>
+            ) : (
+              <button className="dash-quick-btn" onClick={() => navigate('/user/agent-office')}>
+                <IconRobot size={20} />
+                <span>学习工坊</span>
+              </button>
+            )}
             <button className="dash-quick-btn" onClick={() => navigate('/user/exams')}>
               <IconGradCap size={20} />
-              <span>考试中心</span>
+              <span>能力测评</span>
             </button>
             <button className="dash-quick-btn" onClick={() => navigate('/user/chat')}>
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -871,7 +923,7 @@ export default function Dashboard() {
                 <circle cx="10" cy="9" r="0.8" fill="currentColor" />
                 <circle cx="13" cy="9" r="0.8" fill="currentColor" />
               </svg>
-              <span>AI 助手</span>
+              <span>AI 学习导师</span>
             </button>
           </div>
 

@@ -7,6 +7,7 @@ import { LlmService } from '../../services/llm.service';
 import { extractJson } from '../../common/json-repair';
 import { LearningCommitService } from '../../services/learning-commit.service';
 import { EvaluationService } from '../../services/evaluation.service';
+import { LearningAssessmentContextService, LearningAssessmentContext } from '../../domains/learning-assessment-context.service';
 
 /**
  * 5分钟速测服务
@@ -25,6 +26,7 @@ export class QuickTestService {
     private llmService: LlmService,
     private learningCommitService: LearningCommitService,
     private evaluationService: EvaluationService,
+    private assessmentContext: LearningAssessmentContextService,
   ) {}
 
   /**
@@ -36,7 +38,8 @@ export class QuickTestService {
   }> {
     // 获取用户方向
     const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
-    const skillName = direction || student?.interests?.[0] || 'JavaScript';
+    const context = await this.assessmentContext.resolve(userId);
+    const skillName = direction || context?.currentAbilityName || student?.interests?.[0] || '通用学习能力';
 
     // 先从题库找
     const existingQuestions = await this.questionRepo.find({
@@ -58,7 +61,7 @@ export class QuickTestService {
     }
 
     // 题库不够，用 LLM 生成
-    const generated = await this.generateQuestions(skillName);
+    const generated = await this.generateQuestions(skillName, context);
     return { questions: generated, skillName };
   }
 
@@ -104,7 +107,9 @@ export class QuickTestService {
 
     const totalCount = questions.length;
     const score = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
-    const passed = score >= 70;
+    const context = await this.assessmentContext.resolve(userId);
+    const passScore = context?.passScore || 70;
+    const passed = score >= passScore;
 
     // 保存考试记录
     const examRecord = await this.examRepo.save({
@@ -134,7 +139,9 @@ export class QuickTestService {
         score,
         correctCount,
         totalCount,
-        passScore: 70,
+        passScore,
+        domainId: context?.domainId,
+        goalType: context?.goalType,
       },
     });
     const evaluation = await this.evaluationService.record({
@@ -143,18 +150,47 @@ export class QuickTestService {
       sourceType: 'exam_record',
       sourceId: examRecord.id,
       skillName,
+      goal: context?.goalTitle,
+      rubricKey: this.assessmentContext.rubricKey(context, 'quick_test'),
+      rubricName: context ? `${context.domainName}${context.terminology.assessment || '能力测评'}` : undefined,
+      rubricDimensions: context?.radarDimensions.map((dimension) => ({
+        key: dimension.id,
+        name: dimension.name,
+        assessmentModes: context.assessmentModes,
+      })),
+      rubricWeights: context ? Object.fromEntries(context.radarDimensions.map((dimension) => [dimension.id, dimension.weight])) : undefined,
+      passScore,
       score,
       passed,
       confidence: passed ? 0.88 : 0.76,
       evaluatorType: 'objective',
       evaluatorName: 'quick_test_objective_grader',
-      summary: `Quick test ${passed ? 'passed' : 'failed'} for ${skillName}: ${correctCount}/${totalCount}.`,
-      evidence: { questions, answers, results, score, correctCount, totalCount, passScore: 70 },
+      summary: `${context?.domainName || '通用'}速测${passed ? '通过' : '未通过'}：${skillName} ${correctCount}/${totalCount}。`,
+      evidenceSummary: `${skillName} · ${context?.evidenceTypes?.join('、') || '答题记录'}`,
+      evidence: {
+        questions,
+        answers,
+        results,
+        score,
+        correctCount,
+        totalCount,
+        passScore,
+        domainId: context?.domainId,
+        assessmentModes: context?.assessmentModes,
+        evidenceTypes: context?.evidenceTypes,
+      },
       commitOutcome: git,
-      dimensions: this.dimensionsFromGit(git, skillName, score),
+      dimensions: this.dimensionsFromGit(git, skillName, score, context),
+      metadata: context ? {
+        planId: context.planId,
+        domainId: context.domainId,
+        domainName: context.domainName,
+        goalType: context.goalType,
+        goalTitle: context.goalTitle,
+      } : null,
       nextActions: passed
-        ? [{ type: 'learning_path', label: 'Continue learning path', skillName }]
-        : [{ type: 'review', label: 'Review quick test misses', skillName }],
+        ? [{ type: 'learning_path', label: '继续学习路径', skillName }]
+        : [{ type: 'review', label: '复盘本次薄弱项', skillName }],
     });
 
     return {
@@ -191,7 +227,12 @@ export class QuickTestService {
     }
   }
 
-  private dimensionsFromGit(git: any, fallbackSkill: string, fallbackScore: number) {
+  private dimensionsFromGit(
+    git: any,
+    fallbackSkill: string,
+    fallbackScore: number,
+    context: LearningAssessmentContext | null,
+  ) {
     const changes = git?.delta?.radarChanges || [];
     if (Array.isArray(changes) && changes.length > 0) {
       return changes.map((change: any) => ({
@@ -202,14 +243,27 @@ export class QuickTestService {
         detail: `Radar ${change.dimension}: ${change.before ?? 0} -> ${change.after ?? 0}`,
       }));
     }
-    return [{ name: fallbackSkill, score: fallbackScore, maxScore: 100, trend: 'stable' }];
+    const domainDimension = this.assessmentContext.dimensionForSkill(context, fallbackSkill);
+    return [{
+      key: domainDimension?.id,
+      name: domainDimension?.name || fallbackSkill,
+      score: fallbackScore,
+      maxScore: 100,
+      weight: domainDimension?.weight || 1,
+      trend: 'stable',
+      detail: context ? `${context.domainName} · ${context.assessmentModes.join('、')}` : undefined,
+    }];
   }
 
   /**
    * 使用 LLM 生成题目
    */
-  private async generateQuestions(skillName: string): Promise<any[]> {
-    const prompt = `请为技能「${skillName}」生成 5 道选择题（适合入门水平速测）。
+  private async generateQuestions(skillName: string, context: LearningAssessmentContext | null): Promise<any[]> {
+    const prompt = `请为${context?.domainName || '通用学习'}能力「${skillName}」生成 5 道选择题（适合入门水平速测）。
+
+目标：${context?.goalTitle || '诊断当前基础'}
+适用评价方式：${context?.assessmentModes?.join('、') || '客观题测验'}
+需要沉淀的证据：${context?.evidenceTypes?.join('、') || '答题正确率与错题原因'}
 
 输出JSON格式：
 {
@@ -235,7 +289,7 @@ export class QuickTestService {
 
     try {
       const result = await this.llmService.chatCompletion([
-        { role: 'system', content: '你是出题专家，生成高质量选择题。' },
+        { role: 'system', content: `你是${context?.domainName || '跨专业学习'}测评专家，题目必须符合该领域语境，非软件领域不要强行使用代码题。` },
         { role: 'user', content: prompt },
       ], { temperature: 0.5, maxTokens: 1000 });
 

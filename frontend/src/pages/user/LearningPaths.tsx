@@ -9,7 +9,7 @@ import {
 import { useSession } from '../../hooks/useSession';
 import { useWorkspaceStore } from '../../stores/workspace';
 import AddCourseModal from '../../components/AddCourseModal';
-import type { LearningPath, SkillNode } from '../../types';
+import type { LearningGoalType, LearningPath, SkillNode } from '../../types';
 import '../../styles/hand-draw.css';
 import './learning-paths.css';
 import {
@@ -33,6 +33,15 @@ const STATUS_TEXT: Record<PlanStatus, string> = {
   archived: '已归档',
 };
 
+const GOAL_TEXT: Record<LearningGoalType, string> = {
+  career: '职业发展',
+  course: '课程学习',
+  exam: '考试备考',
+  certificate: '证书认证',
+  project: '项目实践',
+  interest: '兴趣探索',
+};
+
 function progressOf(plan: LearningPath) {
   const skills = (plan.pathData?.phases || []).flatMap((phase) => phase.skills || []);
   const done = skills.filter((skill) => skill.status === 'done').length;
@@ -48,7 +57,7 @@ function TaskRow({ task, planName, onOpen }: { task: any; planName: string; onOp
         <strong>{task.skillName}</strong>
         <small>{planName}</small>
       </span>
-      <span className={`lp-type-badge ${task.taskType}`}>{task.taskType === 'main' ? '主线' : '自选'}</span>
+      <span className={`lp-type-badge ${task.taskType}`}>{task.taskType === 'main' ? '核心' : '并行'}</span>
       <span className="lp-task-time">{task.estimatedMin || 0} min</span>
     </button>
   );
@@ -166,7 +175,7 @@ export default function LearningPaths() {
             <p>能力主干持续记录，计划按目标独立推进</p>
           </div>
           <button className="hd-btn" onClick={() => navigate(`/plan/create?type=${activeTab === 'job' ? 'main' : 'side'}`)}>
-            <IconPlus size={16} /> 新建{activeTab === 'job' ? '岗位主线' : '自选计划'}
+            <IconPlus size={16} /> 新建{activeTab === 'job' ? '核心目标' : '并行目标'}
           </button>
         </header>
 
@@ -176,26 +185,26 @@ export default function LearningPaths() {
         <section className="lp-spine" aria-label="学习组合概览">
           <div className="lp-spine-node canonical"><IconGraph size={18} /><span><strong>个人能力主干</strong><small>已验证能力</small></span></div>
           <span className="lp-spine-line" />
-          <div className="lp-spine-node"><IconBriefcase size={18} /><span><strong>{activeMain ? '1 条岗位主线' : '暂无岗位主线'}</strong><small>{activeMain?.planName || '等待创建'}</small></span></div>
+          <div className="lp-spine-node"><IconTarget size={18} /><span><strong>{activeMain ? '1 个核心目标' : '暂无核心目标'}</strong><small>{activeMain?.planName || '等待创建'}</small></span></div>
           <span className="lp-spine-line" />
-          <div className="lp-spine-node"><IconBook size={18} /><span><strong>{activeSides.length} 条自选计划</strong><small>{activeSides.length ? '共享支线时间预算' : '暂未排期'}</small></span></div>
+          <div className="lp-spine-node"><IconBook size={18} /><span><strong>{activeSides.length} 个并行目标</strong><small>{activeSides.length ? '共享并行时间预算' : '暂未排期'}</small></span></div>
         </section>
 
         <div className="hd-tabs lp-tabs">
           <button className={`hd-tab${activeTab === 'job' ? ' active' : ''}`} onClick={() => switchTab('job')}>
-            <IconBriefcase size={16} /> 岗位驱动 <span>{mainPlans.length}</span>
+            <IconTarget size={16} /> 核心目标 <span>{mainPlans.length}</span>
           </button>
           <button className={`hd-tab${activeTab === 'self' ? ' active' : ''}`} onClick={() => switchTab('self')}>
-            <IconBook size={16} /> 自选学习 <span>{sidePlans.length}</span>
+            <IconBook size={16} /> 并行目标 <span>{sidePlans.length}</span>
           </button>
         </div>
 
         {visiblePlans.length === 0 ? (
           <section className="lp-empty">
             {activeTab === 'job' ? <IconTarget size={42} /> : <IconBook size={42} />}
-            <h2>{activeTab === 'job' ? '还没有岗位主线' : '还没有自选计划'}</h2>
+            <h2>{activeTab === 'job' ? '还没有核心目标' : '还没有并行目标'}</h2>
             <button className="hd-btn" onClick={() => navigate(`/plan/create?type=${activeTab === 'job' ? 'main' : 'side'}`)}>
-              创建{activeTab === 'job' ? '岗位主线' : '自选计划'}
+              创建{activeTab === 'job' ? '核心目标' : '并行目标'}
             </button>
           </section>
         ) : (
@@ -219,7 +228,7 @@ export default function LearningPaths() {
                       <div><strong>{phases.length}</strong><span>学习阶段</span></div>
                       <div><strong>{pendingSkills}</strong><span>待完成项</span></div>
                       <div><strong>{selectedPlan.dailyHours || 2}h</strong><span>每日投入</span></div>
-                      <div><strong>{selectedPlan.matchScore || 0}%</strong><span>{selectedPlan.planType === 'main' ? '岗位匹配' : '目标进度'}</span></div>
+                      <div><strong>{selectedPlan.goalType === 'career' ? selectedPlan.matchScore || 0 : progress.percent}%</strong><span>{selectedPlan.goalType === 'career' ? '岗位匹配' : '目标达成'}</span></div>
                     </div>
                     <div className="lp-rail-current">
                       <span>当前阶段</span>
@@ -229,14 +238,14 @@ export default function LearningPaths() {
 
                   <section className="lp-rail-panel">
                     <div className="lp-rail-title"><strong>今日排期</strong><span>{mainTaskMinutes + sideTaskMinutes} min</span></div>
-                    <div className="lp-allocation-bar" aria-label="今日主线与自选任务时间分配">
+                    <div className="lp-allocation-bar" aria-label="今日核心目标与并行目标时间分配">
                       <i className="main" style={{ flexGrow: mainTaskMinutes || 0 }} />
                       <i className="side" style={{ flexGrow: sideTaskMinutes || 0 }} />
                       {mainTaskMinutes + sideTaskMinutes === 0 && <i className="empty" />}
                     </div>
                     <div className="lp-allocation-legend">
-                      <span><i className="main" />主线 {mainTaskMinutes} min</span>
-                      <span><i className="side" />自选 {sideTaskMinutes} min</span>
+                      <span><i className="main" />核心 {mainTaskMinutes} min</span>
+                      <span><i className="side" />并行 {sideTaskMinutes} min</span>
                     </div>
                   </section>
 
@@ -253,10 +262,11 @@ export default function LearningPaths() {
               <main className="lp-plan-main">
                 <section className="lp-plan-heading">
                   <div>
-                    <span className={`lp-plan-kicker ${selectedPlan.planType}`}>{selectedPlan.planType === 'main' ? '岗位主线' : '自选计划'} · #{selectedPlan.branchId || '--'}</span>
+                    <span className={`lp-plan-kicker ${selectedPlan.planType}`}>{selectedPlan.goalType ? GOAL_TEXT[selectedPlan.goalType] : selectedPlan.planType === 'main' ? '核心目标' : '并行目标'} · #{selectedPlan.branchId || '--'}</span>
                     <h2>{selectedPlan.planName}</h2>
                     <div className="lp-plan-facts">
-                      {selectedPlan.planType === 'main' && <span><IconTarget size={14} />岗位 #{selectedPlan.targetJobId}</span>}
+                      {selectedPlan.goalType === 'career' && selectedPlan.targetJobId && <span><IconBriefcase size={14} />岗位 #{selectedPlan.targetJobId}</span>}
+                      {selectedPlan.pathData?.domainName && <span><IconBook size={14} />{selectedPlan.pathData.domainName}</span>}
                       <span><IconClock size={14} />每日 {selectedPlan.dailyHours || 2} 小时</span>
                       <span><IconCalendar size={14} />{selectedPlan.estimatedDate || '待估算'}</span>
                     </div>
@@ -296,7 +306,7 @@ export default function LearningPaths() {
                 </div>
 
                 <section className="lp-phases">
-                  <div className="lp-section-title"><strong>学习阶段</strong><span>{phases.length} 个阶段</span></div>
+                  <div className="lp-section-title"><strong>{selectedPlan.pathData?.terminology?.phase || '学习阶段'}</strong><span>{phases.length} 个阶段</span></div>
                   {phases.length === 0 ? <p className="lp-muted">计划正在生成学习路径</p> : phases.map((phase, phaseIndex) => (
                     <div className={`lp-phase${phaseIndex === selectedPlan.currentPhase ? ' current' : ''}`} key={`${phase.name}-${phaseIndex}`}>
                       <div className="lp-phase-marker">{phaseIndex < selectedPlan.currentPhase ? <IconCheck size={13} /> : phaseIndex + 1}</div>

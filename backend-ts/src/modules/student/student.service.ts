@@ -11,6 +11,8 @@ import { PlannerAgentService } from '../../services/planner-agent.service';
 import { getPlanTemplate } from './plan-templates';
 import { BranchService } from '../../services/branch.service';
 import { SkillSnapshotService } from '../../services/skill-snapshot.service';
+import { LearningDomainRegistry } from '../../domains/learning-domain.registry';
+import type { LearningGoalType } from '../../domains/learning-domain.types';
 
 /**
  * Student 服务 — 对齐 Python api/user/profile.py + api/user/onboarding.py
@@ -27,6 +29,7 @@ export class StudentService {
     private plannerAgent: PlannerAgentService,
     private branchService: BranchService,
     private snapshotService: SkillSnapshotService,
+    private domainRegistry: LearningDomainRegistry,
   ) {}
 
   /** 根据 userId 获取学生信息 */
@@ -138,7 +141,7 @@ export class StudentService {
         school: data.school || '',
         major: data.major || '',
         grade: data.grade || '',
-        interests: data.direction ? [data.direction] : [],
+        interests: data.domainId || data.direction ? [data.domainId || data.direction] : [],
         dailyHours: data.dailyHours || 2,
         skills: data.skills || [],
         onboardingCompleted: 1,
@@ -152,7 +155,7 @@ export class StudentService {
         school: data.school || student.school,
         major: data.major || student.major,
         grade: data.grade || student.grade,
-        interests: data.direction ? [data.direction] : student.interests,
+        interests: data.domainId || data.direction ? [data.domainId || data.direction] : student.interests,
         dailyHours: data.dailyHours || student.dailyHours,
         skills: data.skills || student.skills,
         onboardingCompleted: 1,
@@ -185,9 +188,21 @@ export class StudentService {
       school: data.school || '',
       major: data.major || '',
       grade: data.grade || '',
-      direction: data.direction || '',
+      direction: data.domainId || data.direction || '',
       dailyHours: data.dailyHours || 2,
     });
+
+    if (data.domainId && data.goalType) {
+      await this.profileService.mergeProfileDelta(userId, {
+        goals_to_update: {
+          learning_domain_id: data.domainId,
+          goal_type: data.goalType,
+          goal_title: data.goalTitle || '',
+          starter_path_id: data.starterPathId || '',
+          daily_hours: data.dailyHours || 2,
+        },
+      }, 'onboarding_learning_goal');
+    }
 
     if (data.skills?.length) {
       await this.profileService.updateSkills(userId, data.skills);
@@ -205,6 +220,10 @@ export class StudentService {
     targetJobId?: number;
     dailyHours?: number;
     importFromPlanId?: number;
+    domainId?: string;
+    goalType?: LearningGoalType;
+    goalTitle?: string;
+    starterPathId?: string;
   }) {
     const now = Date.now();
     const student = await this.getByUserId(userId);
@@ -215,37 +234,59 @@ export class StudentService {
     const dailyHours = Math.max(0.5, Math.min(8, Number(data.dailyHours || student.dailyHours || 2)));
     let targetJob: JobPosition | null = null;
     let customSkills: string[] | undefined;
+    let result: Awaited<ReturnType<PlannerAgentService['generatePath']>>;
+    const isDomainPlan = Boolean(data.domainId || data.starterPathId || (data.goalType && data.goalType !== 'career'));
 
-    if (planType === 'main') {
-      if (data.targetJobId) {
-        targetJob = await this.jobRepo.findOne({ where: { id: data.targetJobId, status: 1 } });
-      } else {
-        const template = getPlanTemplate(direction);
-        targetJob = await this.jobRepo.findOne({
-          where: { title: template.targetJobTitle, status: 1 },
-          order: { id: 'ASC' },
-        });
+    if (isDomainPlan) {
+      if (!data.domainId || !data.goalType || !data.starterPathId) {
+        throw new Error('请选择完整的学习领域、目标类型和起步路线');
       }
-      if (!targetJob) throw new Error('岗位驱动计划必须选择一个有效岗位');
+      const { domain, starterPath } = this.domainRegistry.resolvePath(
+        data.domainId,
+        data.goalType,
+        data.starterPathId,
+      );
+      const goalTitle = data.goalTitle?.trim() || data.planName?.trim() || starterPath.title;
+      result = await this.plannerAgent.generateDomainPath(
+        userId,
+        domain,
+        starterPath,
+        data.goalType,
+        goalTitle,
+        dailyHours,
+        planType,
+      );
     } else {
-      customSkills = Array.from(new Set((data.skills || [])
-        .map((skill) => String(skill).trim())
-        .filter(Boolean)));
-      if (customSkills.length === 0) {
-        const fallback = data.planName?.trim() || direction.trim();
-        if (!fallback) throw new Error('自选计划至少需要一个学习主题');
-        customSkills = [fallback];
+      if (planType === 'main') {
+        if (data.targetJobId) {
+          targetJob = await this.jobRepo.findOne({ where: { id: data.targetJobId, status: 1 } });
+        } else {
+          const template = getPlanTemplate(direction);
+          targetJob = await this.jobRepo.findOne({
+            where: { title: template.targetJobTitle, status: 1 },
+            order: { id: 'ASC' },
+          });
+        }
+        if (!targetJob) throw new Error('岗位驱动计划必须选择一个有效岗位');
+      } else {
+        customSkills = Array.from(new Set((data.skills || [])
+          .map((skill) => String(skill).trim())
+          .filter(Boolean)));
+        if (customSkills.length === 0) {
+          const fallback = data.planName?.trim() || direction.trim();
+          if (!fallback) throw new Error('自选计划至少需要一个学习主题');
+          customSkills = [fallback];
+        }
       }
+      result = await this.plannerAgent.generatePath(
+        userId,
+        targetJob?.id,
+        dailyHours,
+        customSkills,
+        data.planName?.trim() || undefined,
+        planType,
+      );
     }
-
-    const result = await this.plannerAgent.generatePath(
-      userId,
-      targetJob?.id,
-      dailyHours,
-      customSkills,
-      data.planName?.trim() || undefined,
-      planType,
-    );
 
     if (data.importFromPlanId) {
       const oldPlan = await this.planRepo.findOne({ where: { id: data.importFromPlanId, userId, status: 1 } });
@@ -285,6 +326,9 @@ export class StudentService {
       id: result.plan.id,
       planName: result.plan.planName,
       planType: result.plan.planType,
+      domainId: result.plan.domainId,
+      goalType: result.plan.goalType,
+      goalTitle: result.plan.goalTitle,
       branchId: branch.id,
       estimatedDate: result.plan.estimatedDate,
       totalSkills: (result.plan.pathData?.phases || []).reduce((sum: number, phase: any) => sum + (phase.skills?.length || 0), 0),
@@ -317,6 +361,9 @@ export class StudentService {
         planStatus: p.planStatus,
         scheduleEnabled: p.scheduleEnabled === 1,
         targetJobId: p.targetJobId,
+        domainId: p.domainId,
+        goalType: p.goalType,
+        goalTitle: p.goalTitle,
         currentPhase: p.currentPhase,
         dailyHours: Number(p.dailyHours) || 0,
         estimatedDate: p.estimatedDate || '',

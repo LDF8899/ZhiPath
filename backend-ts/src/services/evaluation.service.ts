@@ -38,6 +38,10 @@ export interface EvaluationRecordInput {
   goal?: string | null;
   rubricKey?: string;
   rubricVersion?: string;
+  rubricName?: string;
+  rubricDimensions?: any[];
+  rubricWeights?: Record<string, number>;
+  passScore?: number;
   evaluatorType?: EvaluationEvaluatorType;
   evaluatorName?: string | null;
   score: number;
@@ -76,7 +80,16 @@ export class EvaluationService {
     const maxScore = input.maxScore || 100;
     const normalizedScore = this.normalizeScore(input.score, maxScore);
 
-    await this.ensureRubric(rubricKey, rubricVersion, input.attemptType, maxScore);
+    await this.ensureRubric(
+      rubricKey,
+      rubricVersion,
+      input.attemptType,
+      maxScore,
+      input.passScore,
+      input.rubricName,
+      input.rubricDimensions,
+      input.rubricWeights,
+    );
 
     const attempt = await this.attemptRepo.save({
       userId: input.userId,
@@ -243,18 +256,27 @@ export class EvaluationService {
     });
   }
 
-  private async ensureRubric(key: string, version: string, attemptType: EvaluationAttemptType, maxScore: number) {
+  private async ensureRubric(
+    key: string,
+    version: string,
+    attemptType: EvaluationAttemptType,
+    maxScore: number,
+    passScore?: number,
+    name?: string,
+    dimensions?: any[],
+    weights?: Record<string, number>,
+  ) {
     const existing = await this.rubricRepo.findOne({ where: { rubricKey: key, version, status: 1 } });
     if (existing) return existing;
     const now = Date.now();
     return this.rubricRepo.save({
       rubricKey: key,
-      name: this.rubricName(attemptType),
+      name: name || this.rubricName(attemptType),
       version,
       targetType: attemptType === 'ai_assessment' ? 'learning_action' : 'skill',
-      passScore: Math.min(100, Math.round(maxScore * 0.7)),
-      dimensionsJson: null,
-      weightsJson: null,
+      passScore: this.clamp(passScore ?? Math.round(maxScore * 0.7), 0, maxScore),
+      dimensionsJson: dimensions || null,
+      weightsJson: weights || null,
       createTime: now,
       updateTime: now,
       status: 1,

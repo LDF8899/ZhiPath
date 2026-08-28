@@ -1,8 +1,12 @@
 import { Injectable, Inject } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
+import * as fs from 'fs';
+import * as path from 'path';
+import { spawn, type ChildProcess } from 'child_process';
 import Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../database/redis.module';
 import { JobPosition } from '../../entities/job.entity';
@@ -15,7 +19,13 @@ import { PlannerAgentService } from '../../services/planner-agent.service';
 import { MultimodalService } from '../../services/multimodal.service';
 import { VideoAgentService } from '../../services/agents/video-agent.service';
 import { AgentOfficeBridgeService } from '../../services/agent-office-bridge.service';
+import { QuestionGenerationService } from '../question-generation/question-generation.service';
+import { normalizeGenerationConfig } from '../question-generation/question-generation.contracts';
+import { GEOGEBRA_FIGURE_GUIDE } from '../question-generation/question-generation.prompts';
+import { RemediationService } from '../remediation/remediation.service';
 import { extractJson } from '../../common/json-repair';
+import { LearningDomainRegistry } from '../../domains/learning-domain.registry';
+import type { LearningGoalType } from '../../domains/learning-domain.types';
 
 /**
  * 动作执行系统 — 对齐 Python agents/actions.py
@@ -128,12 +138,16 @@ export class ActionExecutorService {
     @InjectRepository(ExamRecord) private examRepo: Repository<ExamRecord>,
     @Inject(REDIS_CLIENT) private redis: Redis,
     @InjectConnection() private mongoConnection: Connection,
+    private config: ConfigService,
     private llmService: LlmService,
     private matchAgent: MatchAgentService,
     private plannerAgent: PlannerAgentService,
     private multimodal: MultimodalService,
     private videoAgent: VideoAgentService,
     private officeBridge: AgentOfficeBridgeService,
+    private domainRegistry: LearningDomainRegistry,
+    private questionGeneration: QuestionGenerationService,
+    private remediation: RemediationService,
   ) {}
 
   /** 从 AI 回复中提取所有 ```action ... ``` 块 — 对齐 Python extract_actions() */
@@ -250,6 +264,8 @@ export class ActionExecutorService {
         return this.recommendResources(action, userId);
       case 'generate_exam':
         return this.generateExam(action, userId);
+      case 'question_config':
+        return this.questionConfig(action);
       case 'show_progress':
         return this.showProgress(userId);
       case 'show_today_tasks':
@@ -258,6 +274,8 @@ export class ActionExecutorService {
         return this.multimodal.generateAnimation(action.skillName || action.skill_name);
       case 'generate_diagram':
         return this.multimodal.generateDiagram(action.skillName || action.skill_name, action.diagramType || action.diagram_type || 'flowchart');
+      case 'generate_geogebra':
+        return this.generateGeogebra(action);
       case 'generate_avatar':
         return this.multimodal.generateAvatar(action.skillName || action.skill_name);
       default:
@@ -354,15 +372,21 @@ export class ActionExecutorService {
     const jobId = action.targetJobId || action.target_job_id;
     const customSkills: string[] | undefined = action.skills;
     const customPlanName: string | undefined = action.plan_name;
+    const domainId = action.domainId || action.domain_id;
+    const goalType = (action.goalType || action.goal_type) as LearningGoalType | undefined;
+    const starterPathId = action.starterPathId || action.starter_path_id;
+    const goalTitle = action.goalTitle || action.goal_title || customPlanName;
 
     try {
-      const result = await this.plannerAgent.generatePath(
-        userId,
-        jobId || undefined,
-        undefined,
-        customSkills,
-        customPlanName,
-      );
+      const result = domainId && goalType && starterPathId
+        ? await this.generateDomainPath(userId, domainId, goalType, starterPathId, goalTitle, action)
+        : await this.plannerAgent.generatePath(
+            userId,
+            jobId || undefined,
+            action.dailyHours || action.daily_hours,
+            customSkills,
+            customPlanName,
+          );
       return {
         type: 'path_generated',
         data: {
@@ -370,13 +394,33 @@ export class ActionExecutorService {
           planName: result.plan.planName,
           totalSkills: result.gapSkills.length,
           estimatedDate: result.plan.estimatedDate,
-          message: `学习路径已生成：${result.plan.planName}，共 ${result.gapSkills.length} 个技能点`,
+          message: `学习路径已生成：${result.plan.planName}，共 ${result.gapSkills.length} 个能力项`,
         },
       };
     } catch (e: any) {
       console.error('[ActionExecutor] generatePath failed:', e.message);
       return { type: 'error', message: `路径生成失败：${e.message}` };
     }
+  }
+
+  private async generateDomainPath(
+    userId: number,
+    domainId: string,
+    goalType: LearningGoalType,
+    starterPathId: string,
+    goalTitle: string | undefined,
+    action: any,
+  ) {
+    const { domain, starterPath } = this.domainRegistry.resolvePath(domainId, goalType, starterPathId);
+    return this.plannerAgent.generateDomainPath(
+      userId,
+      domain,
+      starterPath,
+      goalType,
+      goalTitle || starterPath.title,
+      Number(action.dailyHours || action.daily_hours || 2),
+      action.planType === 'side' || action.plan_type === 'side' ? 'side' : 'main',
+    );
   }
 
   /** 4. 推荐学习资源 — 对齐 Python _recommend_resources() */
@@ -424,52 +468,38 @@ export class ActionExecutorService {
     }
   }
 
-  /** 5. 生成练习题 — 对齐 Python _generate_exam() */
+  /** 5. 生成练习题 — 与出题器共享高质量提示词（逆向构建/难度阶梯/干扰项），并复用现有反馈链路 */
   private async generateExam(action: any, userId: number): Promise<any> {
     const skillName = action.skillName || action.skill_name || '';
     if (!skillName) {
       return { type: 'error', data: { message: '请告诉我你想练习哪个技能？比如「出5道React题」' } };
     }
-    const count = action.question_count || 5;
+    const count = Number(action.question_count ?? action.questionCount ?? 5);
     const qType = action.question_type || 'mixed';
-
-    const typeDesc = qType === 'mixed' ? '选择题和编程题混合' : qType === 'choice' ? '选择题' : '编程题';
-
-    const prompt = `请为技能「${skillName}」生成 ${count} 道练习题。
-
-题型要求：${typeDesc}
-
-输出严格JSON格式：
-{
-  "skill": "${skillName}",
-  "questions": [
-    {
-      "type": "choice",
-      "question": "题目描述",
-      "options": ["选项A", "选项B", "选项C", "选项D"],
-      "answer": 0,
-      "explanation": "解析"
-    },
-    {
-      "type": "coding",
-      "question": "编程题描述",
-      "template": "代码模板",
-      "hint": "提示"
-    }
-  ]
-}
-
-只输出JSON，不要其他文字。`;
+    const questionTypes = qType === 'mixed' ? ['choice', 'coding'] : qType === 'choice' ? ['choice'] : qType === 'coding' ? ['coding'] : [qType];
+    const difficulty = Number(action.difficulty ?? action.difficulty_level ?? 5);
 
     try {
-      const result = await this.llmService.chatCompletion([
-        { role: 'system', content: '你是出题专家，根据技能名称生成高质量练习题。' },
-        { role: 'user', content: prompt },
-      ], { temperature: 0.5, tier: 'pro' });
+      // 补弱模式：读取弱项知识点，作为出题考点的「由浅入深」补弱练习
+      let weakTopics: Array<{ label: string }> = [];
+      let instructions = String(action.instructions || '');
+      if (action.remediation) {
+        const weakPoints = await this.remediation.weakPoints(userId);
+        weakTopics = weakPoints.map((w) => ({ label: w.label }));
+        instructions = `${instructions} 这是针对薄弱点的补弱练习，请由浅入深（先基础巩固，再进阶应用，最后综合/判断），并参考题库避免与已掌握/已出题目重复。`.trim();
+      }
 
-      const examData = extractJson(result);
+      const examData = await this.questionGeneration.generateForChat(userId, {
+        subject: skillName,
+        count,
+        questionTypes,
+        difficulty,
+        topics: weakTopics.length ? weakTopics : undefined,
+        instructions,
+        referenceLibrary: true,
+      });
 
-      // 存入 MySQL
+      // 写入 exam_records_v3，后续答题经 ExamsService.submitExam 回灌掌握度/画像
       try {
         const exam = await this.examRepo.save({
           userId: userId,
@@ -582,6 +612,12 @@ export class ActionExecutorService {
 
   /** 生成教学视频 — 异步执行，立即返回 taskId */
   private async generateVideo(action: any, userId?: number): Promise<any> {
+    // 素材展示模式：提供了素材文件夹时，走 vibing 素材展示管线
+    const assets = action.assets || action.materialFolder || action.material_folder || '';
+    if (assets) {
+      return this.generateShowcaseVideo(action, userId);
+    }
+
     const skillName = action.skillName || action.skill_name || '';
     const difficulty = action.difficulty || 'beginner';
     const taskId = `chat_video_${Date.now()}`;
@@ -693,9 +729,252 @@ export class ActionExecutorService {
     };
   }
 
+  /** 生成素材展示视频 — 异步执行 vibing 管线，立即返回 taskId */
+  private async generateShowcaseVideo(action: any, userId: number | undefined): Promise<any> {
+    const assets = (action.assets || action.materialFolder || action.material_folder || '').toString();
+    const projectName = action.projectName || action.project_name || action.skillName || action.skill_name || 'ZhiPath 项目视频';
+    const prompt = action.prompt || action._userMessage || action.userMessage || action.message || projectName;
+    const taskId = `chat_showcase_${Date.now()}`;
+    const contextSummary = this.compactContextText(prompt, 160);
+
+    const officeTask = userId
+      ? await this.officeBridge.startActionTask(
+        userId,
+        { ...action, type: 'generate_video', showcase: true, contextSummary },
+        { externalId: taskId, title: `生成素材视频: ${projectName}`, description: '来自对话触发的素材展示视频任务' },
+      )
+      : null;
+
+    await this.saveVideoTask(taskId, { status: 'script', progress: 0, message: '正在准备生成素材视频...', startTime: Date.now() });
+
+    const rendererDir = path.resolve(process.cwd(), this.config.get('VIDEO_RENDERER_DIR', '../video-renderer'));
+    const outputDir = this.config.get('VIDEO_OUTPUT_DIR', '/tmp/zhipath/video');
+    const scheduleCleanup = () => setTimeout(() => ActionExecutorService.videoTasks.delete(taskId), 1800000);
+
+    const fail = async (message: string, error?: string) => {
+      const task = ActionExecutorService.videoTasks.get(taskId);
+      if (task) {
+        task.status = 'failed';
+        task.error = error || message;
+        task.message = message;
+        await this.syncVideoTask(taskId);
+      }
+      if (userId && officeTask) {
+        await this.officeBridge.failTask(userId, officeTask.id, officeTask.agentType, error || message).catch(() => {});
+      }
+      scheduleCleanup();
+    };
+
+    if (!fs.existsSync(rendererDir)) {
+      await fail(`video-renderer 目录不存在: ${rendererDir}`, 'video-renderer missing');
+      return { type: 'video_pending', data: { taskId, message: `素材视频生成失败：渲染器未安装（${rendererDir}）` } };
+    }
+
+    try { fs.mkdirSync(outputDir, { recursive: true }); } catch {}
+
+    const outputPath = path.join(outputDir, `${taskId}.mp4`);
+
+    const args: string[] = [
+      'tsx', 'src/vibing.ts',
+      '--prompt', prompt,
+      '--duration', String(action.targetDurationSec || action.duration || 300),
+      '--output', outputPath,
+      '--project-name', projectName,
+      '--visual-style', action.visualStyle || action.visual_style || 'auto',
+      '--voice', action.voice || 'zh-CN-YunyangNeural',
+      '--rate', action.rate || '+0%',
+      '--llm-provider', action.llmProvider || action.llm_provider || 'auto',
+      '--job-id', taskId,
+    ];
+    if (assets) args.push('--assets', path.resolve(assets));
+    if (action.llmInputPrice != null) args.push('--llm-input-price', String(action.llmInputPrice));
+    if (action.llmOutputPrice != null) args.push('--llm-output-price', String(action.llmOutputPrice));
+    if (action.motionStyle || action.motion_style) args.push('--motion-style', action.motionStyle || action.motion_style);
+    if (action.llmModel) args.push('--llm-model', String(action.llmModel));
+
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    const deepseekKey = this.config.get('DEEPSEEK_API_KEY', '');
+    if (deepseekKey) {
+      env.DEEPSEEK_API_KEY = deepseekKey;
+      env.DEEPSEEK_BASE_URL = this.config.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com');
+      env.DEEPSEEK_MODEL = this.config.get('DEEPSEEK_FLASH_MODEL', 'deepseek-chat') || 'deepseek-chat';
+    }
+
+    const apply = async (patch: Partial<VideoTaskProgress>) => {
+      const task = ActionExecutorService.videoTasks.get(taskId);
+      if (!task) return;
+      Object.assign(task, patch);
+      await this.syncVideoTask(taskId);
+      if (userId && officeTask) {
+        await this.officeBridge.reportProgress(userId, officeTask.id, officeTask.agentType, Math.min(task.progress, 99), task.message).catch(() => {});
+      }
+    };
+
+    const meta = { sceneCount: 0, durationSec: 0, outputPath: '' };
+    const handle = (chunk: Buffer | string) => {
+      for (const line of chunk.toString().split(/\r?\n/)) {
+        this.applyShowcaseLine(line, apply, meta);
+      }
+    };
+
+    let child: ChildProcess;
+    try {
+      child = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', args, { cwd: rendererDir, env, windowsHide: true });
+    } catch (e: any) {
+      await fail(`素材视频启动失败: ${e.message}`, e.message);
+      return { type: 'video_pending', data: { taskId, message: `素材视频启动失败: ${e.message}` } };
+    }
+
+    child.stdout?.on('data', handle);
+    child.stderr?.on('data', handle);
+    child.on('error', (e: any) => { void fail(`素材视频进程错误: ${e.message}`, e.message); });
+    child.on('close', async (code) => {
+      const task = ActionExecutorService.videoTasks.get(taskId);
+      if (!task) { scheduleCleanup(); return; }
+      if (code === 0) {
+        task.status = 'completed';
+        task.progress = 100;
+        task.message = '素材视频生成完成';
+        task.result = {
+          video_file_path: meta.outputPath || outputPath,
+          audio_file_path: '',
+          duration_sec: meta.durationSec,
+          segments_count: meta.sceneCount,
+          skill_name: projectName,
+          context_summary: contextSummary,
+          showcase: true,
+        };
+        if (userId && officeTask) {
+          await this.officeBridge.completeTask(userId, officeTask.id, officeTask.agentType, task.result).catch(() => {});
+        }
+      } else {
+        task.status = 'failed';
+        task.error = `素材视频渲染失败: ${code}`;
+        task.message = `素材视频渲染失败 (exit ${code})`;
+        if (userId && officeTask) {
+          await this.officeBridge.failTask(userId, officeTask.id, officeTask.agentType, task.error).catch(() => {});
+        }
+      }
+      await this.syncVideoTask(taskId);
+      scheduleCleanup();
+    });
+
+    await apply({ status: 'script', progress: 2, message: '素材视频任务已启动...' });
+
+    return {
+      type: 'video_pending',
+      data: {
+        taskId,
+        projectName,
+        assets,
+        showcase: true,
+        contextSummary,
+        message: `正在为你生成「${projectName}」的素材展示视频（${action.targetDurationSec || action.duration || 300} 秒），预计需要 3-6 分钟...`,
+      },
+    };
+  }
+
+  /** 解析 vibing 子进程输出行，更新任务进度 / 阶段 / 成本 / 元信息 */
+  private async applyShowcaseLine(
+    line: string,
+    apply: (patch: Partial<VideoTaskProgress>) => Promise<void>,
+    meta: { sceneCount: number; durationSec: number; outputPath: string },
+  ) {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    if (trimmed.startsWith('[heartbeat]')) {
+      try {
+        const packet = JSON.parse(trimmed.slice('[heartbeat]'.length).trim());
+        const stage = String(packet.stage || '');
+        let status: VideoTaskProgress['status'];
+        if (stage === 'tts') status = 'tts';
+        else if (stage === 'render') status = 'render';
+        else if (stage === 'completed') status = 'compose';
+        else status = 'script';
+        const patch: Partial<VideoTaskProgress> = { status, message: this.showcaseStageMessage(stage) };
+        if (typeof packet.progress === 'number') patch.progress = Math.max(0, Math.min(99, packet.progress));
+        await apply(patch);
+      } catch { /* 忽略畸形心跳 */ }
+      return;
+    }
+
+    if (trimmed.startsWith('[cost]')) {
+      try {
+        const cost = JSON.parse(trimmed.slice('[cost]'.length).trim());
+        await apply({ message: `LLM 成本估算：$${Number(cost.estimatedTotalCost || 0).toFixed(4)}（${cost.inputTokens ?? 0}/${cost.outputTokens ?? 0} tokens）` });
+      } catch { /* 忽略 */ }
+      return;
+    }
+
+    if (trimmed.startsWith('[scenes]')) {
+      const n = parseInt(trimmed.slice('[scenes]'.length).trim(), 10);
+      if (!isNaN(n)) meta.sceneCount = n;
+      return;
+    }
+    if (trimmed.startsWith('[duration]')) {
+      const m = parseFloat(trimmed.slice('[duration]'.length).trim());
+      if (!isNaN(m)) meta.durationSec = Math.round(m * 60);
+      return;
+    }
+    if (trimmed.startsWith('[done]')) {
+      meta.outputPath = trimmed.slice('[done]'.length).trim();
+      return;
+    }
+  }
+
+  private showcaseStageMessage(stage: string): string {
+    switch (stage) {
+      case 'assets': return '正在扫描素材文件夹...';
+      case 'storyboard': return '正在生成分镜脚本...';
+      case 'tts': return '正在合成配音...';
+      case 'render': return '正在渲染视频（Remotion）...';
+      case 'completed': return '渲染完成，正在收尾...';
+      default: return '素材视频生成中...';
+    }
+  }
+
+  /** 解析用户出题需求为配置（不生成），供前端把配置注入出题器。 */
+  private questionConfig(action: any): any {
+    const config = normalizeGenerationConfig({
+      subject: action.subject || action.skillName || action.skill_name || '',
+      count: action.count ?? action.question_count ?? 5,
+      difficulty: action.difficulty ?? action.difficulty_level ?? 5,
+      questionTypes: action.questionTypes || action.question_types || ['choice'],
+      topics: action.topics || [],
+      instructions: action.instructions || '',
+      referenceLibrary: action.referenceLibrary ?? action.reference_library ?? false,
+    });
+    const summary = `主题「${config.subject}」；${config.count} 题；难度 ${config.difficulty}/10${config.topics?.length ? `；考点：${config.topics.map((t: any) => t.label || t.id).join('、')}` : ''}`;
+    return { type: 'question_config', data: { config, summary } };
+  }
+
+  /** 生成 GeoGebra 作图（几何/函数/数形结合）— 供聊天智能体按需出图。 */
+  private async generateGeogebra(action: any): Promise<any> {
+    const topic = action.skillName || action.skill_name || action.topic || action.subject || '';
+    if (!topic) return { type: 'error', data: { message: '请告诉我要画什么几何/函数图' } };
+    try {
+      const prompt = `你是 GeoGebra 作图专家。请为「${topic}」生成可渲染的 GeoGebra 作图。\n${GEOGEBRA_FIGURE_GUIDE}\n只输出严格 JSON：{"type":"geogebra","commands":["Circle((0,0),3)","Segment(A,B)","f(x)=x^2"],"view":[-5,8,8,-5],"axes":true,"grid":false}`;
+      const raw = await this.llmService.chatCompletion([
+        { role: 'system', content: '你是 GeoGebra 作图专家。' },
+        { role: 'user', content: prompt },
+      ], { temperature: 0.3, maxTokens: 1600, tier: 'pro', jsonObject: true });
+      const data = extractJson(raw);
+      return { type: 'geogebra', data: { ...(typeof data === 'object' ? data : {}), subject: topic } };
+    } catch (e) {
+      console.error('[ActionExecutor] generateGeogebra failed:', e.message);
+      return { type: 'error', data: { message: '生成 GeoGebra 图失败，请稍后再试' } };
+    }
+  }
+
   /** 直接触发视频生成（供 controller 调用，跳过 IntentRouter） */
   async generateVideoDirect(skillName: string, difficulty = 'beginner', userId?: number) {
     const result = await this.generateVideo({ skillName, difficulty }, userId);
     return result.data;
+  }
+
+  /** 直接触发视频生成 — 完整 action，支持素材展示（assets）/ 教学视频，返回完整 result（含 taskId） */
+  async generateVideoFromAction(action: any, userId?: number): Promise<any> {
+    return this.generateVideo(action, userId);
   }
 }

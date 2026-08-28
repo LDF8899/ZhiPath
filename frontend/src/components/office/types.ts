@@ -100,13 +100,13 @@ export const AGENT_CONFIGS: Record<string, AgentConfig> = {
   'recommend_resources':{ id: 'resources', animal: 'hamster', color: '#ff69b4', name: '资源推荐官', intent: 'recommend_resources' },
   'set_target_job':     { id: 'target',    animal: 'bear',    color: '#8b6b4a', name: '目标设定师', intent: 'set_target_job' },
   'match_analysis':     { id: 'gap',       animal: 'duck',    color: '#4169e1', name: '差距分析师', intent: 'match_analysis' },
-  'chat':               { id: 'chat',      animal: 'hamster', color: '#ff69b4', name: 'AI 助教',    intent: 'chat' },
+  'chat':               { id: 'chat',      animal: 'hamster', color: '#ff69b4', name: 'AI 学习导师', intent: 'chat' },
 };
 
 export const DEFAULT_AGENT: AgentConfig = {
   id: 'chat',
   animal: 'hamster',
   color: '#ff69b4',
-  name: 'AI 助教',
+  name: 'AI 学习导师',
   intent: 'chat',
 };

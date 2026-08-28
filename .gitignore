@@ -70,3 +70,8 @@ backend-ts/data/chat_history/
 PPT素材包/
 比赛/
 video-renderer/public/project-showcase/*.mp4
+
+# ── Local archives / delivery bundles ──
+*.zip
+*.rar
+*.7z

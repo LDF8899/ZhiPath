@@ -93,7 +93,9 @@ export default function AdminLayout() {
   return (
     <div className="hd-page">
       <div className="hd-layout">
-        <aside className="hd-sidebar" style={{ background: 'var(--note-pink)' }}>
+        {/* ── Sidebar — desktop ──────────────────────────── */}
+        <aside className="hd-sidebar hd-sidebar-admin">
+          {/* Brand */}
           <div className="hd-sidebar-brand">
             <span style={{ color: 'var(--accent)' }}>A</span>
             <span style={{ marginLeft: 8 }}>智途管理</span>
@@ -103,9 +105,36 @@ export default function AdminLayout() {
         </aside>
 
         {sidebarOpen && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 200 }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(43,38,32,0.35)' }} onClick={() => setSidebarOpen(false)} />
-            <aside className="hd-sidebar open" style={{ background: 'var(--note-pink)', position: 'absolute', left: 0, top: 0, bottom: 0, width: 260, zIndex: 201 }}>
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 200,
+            }}
+          >
+            {/* Backdrop */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'rgba(43,38,32,0.35)',
+              }}
+              onClick={() => setSidebarOpen(false)}
+            />
+
+            {/* Drawer */}
+            <aside
+              className="hd-sidebar hd-sidebar-admin open"
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 260,
+                zIndex: 201,
+              }}
+            >
+              {/* Brand */}
               <div className="hd-sidebar-brand">
                 <span style={{ color: 'var(--accent)' }}>A</span>
                 <span style={{ marginLeft: 8 }}>智途管理</span>

@@ -12,6 +12,7 @@ import {
   IconChat,
   IconChevronDown,
   IconDocument,
+  IconFilm,
   IconGradCap,
   IconHome,
   IconRobot,
@@ -22,23 +23,32 @@ import {
 
 const navSections = [
   {
-    label: '黄金路径',
+    label: '学习成长',
     items: [
-      { key: '/user/home', icon: IconHome, label: '行动中枢' },
-      { key: '/user/jobs', icon: IconBriefcase, label: '目标岗位' },
+      { key: '/user/home', icon: IconHome, label: '学习首页' },
       { key: '/user/learning', icon: IconBook, label: '学习计划' },
-      { key: '/user/agent-office', icon: IconRobot, label: '生成资源' },
-      { key: '/user/exams', icon: IconGradCap, label: '测评' },
-      { key: '/user/progress', icon: IconChart, label: '画像变化' },
+      { key: '/user/agent-office', icon: IconRobot, label: '学习工坊' },
+      { key: '/user/question-generator', icon: IconBook, label: '通用出题器' },
+      { key: '/user/question-bank', icon: IconBook, label: '题库 / 组卷' },
+      { key: '/user/video-showcase', icon: IconFilm, label: '素材演示视频' },
+      { key: '/user/exams', icon: IconGradCap, label: '能力测评' },
+      { key: '/user/progress', icon: IconChart, label: '成长画像' },
       { key: '/user/growth-report', icon: IconTrophy, label: '成长报告' },
       { key: '/user/resume', icon: IconDocument, label: '简历建议' },
     ],
   },
   {
-    label: '辅助工具',
+    label: '学习支持',
     items: [
-      { key: '/user/chat', icon: IconChat, label: 'AI 助教' },
-      { key: '/user/wrong-answers', icon: IconDocument, label: '错题本' },
+      { key: '/user/chat', icon: IconChat, label: 'AI 学习导师' },
+      { key: '/user/wrong-answers', icon: IconDocument, label: '错题与复盘' },
+    ],
+  },
+  {
+    label: '职业发展',
+    items: [
+      { key: '/user/jobs', icon: IconBriefcase, label: '职业方向' },
+      { key: '/user/resume', icon: IconDocument, label: '简历建议' },
     ],
   },
 ];

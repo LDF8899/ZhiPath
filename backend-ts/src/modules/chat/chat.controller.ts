@@ -163,17 +163,13 @@ export class ChatController {
     });
   }
 
-  /** POST /api/user/video-task — 直接触发视频生成（跳过 IntentRouter） */
+  /** POST /api/user/video-task — 直接触发视频生成（跳过 IntentRouter），支持素材展示（assets） */
   @Post('video-task')
   async createVideoTask(
     @CurrentUser('sub') userId: number,
-    @Body() body: { skillName: string; difficulty?: string },
+    @Body() body: any,
   ) {
-    const result = await this.actionExecutor.generateVideoDirect(
-      body.skillName,
-      body.difficulty || 'beginner',
-      userId,
-    );
+    const result = await this.actionExecutor.generateVideoFromAction(body, userId);
     return success(result);
   }
 

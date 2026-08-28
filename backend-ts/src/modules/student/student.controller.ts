@@ -1,8 +1,10 @@
-import { Controller, Get, Put, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Post, Body, Query, Param, UseGuards } from '@nestjs/common';
 import { StudentService } from './student.service';
 import { AuthGuard } from '../../common/auth.guard';
 import { CurrentUser } from '../../common/current-user.decorator';
 import { success } from '../../common/api-response';
+import { LearningDomainRegistry } from '../../domains/learning-domain.registry';
+import type { LearningGoalType } from '../../domains/learning-domain.types';
 
 /**
  * Student 控制器
@@ -10,7 +12,22 @@ import { success } from '../../common/api-response';
 @Controller('user')
 @UseGuards(AuthGuard)
 export class StudentController {
-  constructor(private readonly studentService: StudentService) {}
+  constructor(
+    private readonly studentService: StudentService,
+    private readonly domainRegistry: LearningDomainRegistry,
+  ) {}
+
+  /** GET /api/user/learning-domains */
+  @Get('learning-domains')
+  getLearningDomains() {
+    return success(this.domainRegistry.list());
+  }
+
+  /** GET /api/user/learning-domains/:domainId */
+  @Get('learning-domains/:domainId')
+  getLearningDomain(@Param('domainId') domainId: string) {
+    return success(this.domainRegistry.get(domainId));
+  }
 
   /** GET /api/user/profile */
   @Get('profile')
@@ -70,6 +87,10 @@ export class StudentController {
     targetJobId?: number;
     dailyHours?: number;
     importFromPlanId?: number;
+    domainId?: string;
+    goalType?: LearningGoalType;
+    goalTitle?: string;
+    starterPathId?: string;
   }) {
     const result = await this.studentService.createPlan(user.sub, body);
     return success(result);

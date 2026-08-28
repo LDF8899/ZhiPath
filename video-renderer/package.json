@@ -5,12 +5,17 @@
   "scripts": {
     "start": "remotion studio",
     "build": "tsc -b",
-    "render": "npx tsx src/render.ts"
+    "render": "npx tsx src/render.ts",
+    "create": "npx tsx src/vibing.ts",
+    "render:manifest": "npx tsx src/render-manifest.ts",
+    "render:showcase": "npx tsx src/render-project-showcase.ts",
+    "studio": "remotion studio"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.0",
     "@remotion/cli": "^4.0.0",
     "@remotion/renderer": "^4.0.0",
+    "gsap": "^3.12.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "remotion": "^4.0.0"

@@ -157,6 +157,30 @@ export interface SkillEvidence {
   };
 }
 
+export type LearningGoalType = 'career' | 'course' | 'exam' | 'certificate' | 'project' | 'interest';
+
+export interface StarterLearningPath {
+  id: string;
+  title: string;
+  description: string;
+  goalType: LearningGoalType;
+  phases: Array<{
+    name: string;
+    abilities: Array<{ id: string; name: string; estimatedMin: number; priority: number }>;
+  }>;
+}
+
+export interface LearningDomain {
+  id: string;
+  name: string;
+  description: string;
+  goalTypes: LearningGoalType[];
+  terminology: Record<string, string>;
+  assessmentModes: string[];
+  evidenceTypes: string[];
+  starterPaths: StarterLearningPath[];
+}
+
 /** 学习路径 */
 export interface LearningPath {
   id: number;
@@ -164,6 +188,9 @@ export interface LearningPath {
   planName: string;
   planType: 'main' | 'side';
   targetJobId: number | null;
+  domainId: string;
+  goalType: LearningGoalType;
+  goalTitle: string;
   planStatus: 'active' | 'paused' | 'archived';
   scheduleEnabled: number;
   branchId?: number;
@@ -172,6 +199,13 @@ export interface LearningPath {
   estimatedDate: string;
   dailyHours: number;
   pathData: {
+    domainId?: string;
+    domainName?: string;
+    goalType?: LearningGoalType;
+    goalTitle?: string;
+    terminology?: Record<string, string>;
+    assessmentModes?: string[];
+    evidenceTypes?: string[];
     phases: Phase[];
   } | null;
   status: number;
@@ -197,6 +231,7 @@ export interface Phase {
 
 /** 技能节点 */
 export interface SkillNode {
+  abilityId?: string;
   name: string;
   status: 'pending' | 'done';
   duration?: string;
@@ -367,6 +402,9 @@ export interface AbilityMetrics {
   balance: number;
   learningSpeed: number;
   consistency: number;
+  domainId?: string;
+  domainName?: string;
+  goalTitle?: string;
 }
 
 export interface CommitDelta {
@@ -384,7 +422,7 @@ export interface LearningBranch {
   id: number;
   userId: number;
   branchName: string;
-  branchType: 'main' | 'side' | 'experiment';
+  branchType: 'main' | 'plan' | 'side' | 'experiment';
   baseCommitId: number | null;
   headCommitId: number | null;
   sourceBranchId: number | null;

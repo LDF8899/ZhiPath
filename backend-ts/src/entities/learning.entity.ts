@@ -1,5 +1,6 @@
 import { Entity, Column } from 'typeorm';
 import { BaseEntity } from '../common/base.entity';
+import { LearningGoalType } from '../domains/learning-domain.types';
 
 /**
  * 学习计划表 v3.0 — learning_plans_v3
@@ -18,6 +19,21 @@ export class LearningPlan extends BaseEntity {
 
   @Column({ type: 'bigint', nullable: true, name: 'target_job_id', comment: '主线计划绑定的目标岗位' })
   targetJobId: number | null;
+
+  @Column({ type: 'varchar', length: 80, default: 'software-engineering', name: 'domain_id', comment: '学习领域标识' })
+  domainId: string;
+
+  @Column({
+    type: 'enum',
+    enum: ['career', 'course', 'exam', 'certificate', 'project', 'interest'],
+    default: 'interest',
+    name: 'goal_type',
+    comment: '学习目标类型',
+  })
+  goalType: LearningGoalType;
+
+  @Column({ type: 'varchar', length: 160, default: '', name: 'goal_title', comment: '用户可读的学习目标' })
+  goalTitle: string;
 
   @Column({
     type: 'enum',

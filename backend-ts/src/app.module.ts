@@ -34,6 +34,9 @@ import { MultimodalModule } from './modules/multimodal/multimodal.module';
 import { CoursesModule } from './modules/courses/courses.module';
 import { GitLearningModule } from './modules/git-learning/git-learning.module';
 import { EvaluationModule } from './modules/evaluation/evaluation.module';
+import { QuestionGenerationModule } from './modules/question-generation/question-generation.module';
+import { BankImportModule } from './modules/bank-import/bank-import.module';
+import { RemediationModule } from './modules/remediation/remediation.module';
 
 /**
  * ZhiPath API 根模块
@@ -74,6 +77,9 @@ import { EvaluationModule } from './modules/evaluation/evaluation.module';
     CoursesModule,
     GitLearningModule,
     EvaluationModule,
+    QuestionGenerationModule,
+    BankImportModule,
+    RemediationModule,
 
     // 定时任务
     SchedulerModule,

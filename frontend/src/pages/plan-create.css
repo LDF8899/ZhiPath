@@ -13,9 +13,9 @@
   --accent: #d8482b;
   --highlight: #f9d27c;
   --note-green: #c9f5c0;
-  --serif: 'DM Serif Display', 'Iowan Old Style', Georgia, serif;
-  --hand: 'Patrick Hand', 'Caveat', cursive;
-  --hand-bold: 'Caveat', 'Patrick Hand', cursive;
+  --serif: 'DM Serif Display', 'Songti SC', STSong, Georgia, serif;
+  --hand: 'Patrick Hand', 'Kaiti SC', STKaiti, KaiTi, 'Noto Serif SC', serif;
+  --hand-bold: 'Caveat', 'Kaiti SC', STKaiti, KaiTi, serif;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
 
   color: var(--ink);
@@ -195,6 +195,7 @@
 }
 
 .pc-path-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pc-path-switch-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .pc-path-switch > button { display: grid; grid-template-columns: 24px minmax(0, 1fr) 18px; align-items: center; gap: 9px; min-height: 66px; padding: 10px 12px; text-align: left; color: var(--ink); border: 1.5px solid var(--rule); border-radius: 6px; background: var(--paper); cursor: pointer; }
 .pc-path-switch > button.selected { border-color: var(--ink); box-shadow: 3px 3px 0 var(--rule); }
 .pc-path-switch span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -212,6 +213,18 @@
 .pc-job-note small { color: var(--pencil); font: 11px/1.2 var(--hand); }
 .pc-topic-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .pc-topic-list span { padding: 4px 8px; color: #497060; border: 1px solid #9bb6a9; border-radius: 4px; background: var(--note-green); font: 11px/1 var(--mono); }
+.pc-field-note { margin: 8px 2px 0; color: var(--pencil); font: 12px/1.5 var(--hand); }
+.pc-goal-types { display: flex; flex-wrap: wrap; gap: 8px; }
+.pc-goal-types button { min-height: 38px; padding: 8px 13px; color: var(--pencil); border: 1.5px solid var(--rule); border-radius: 5px; background: rgba(255,250,240,.72); cursor: pointer; font: 13px/1.2 var(--hand); }
+.pc-goal-types button.selected { color: var(--ink); border-color: var(--ink); background: var(--note-yellow); box-shadow: 2px 2px 0 var(--rule); font-family: var(--hand-bold); font-weight: 700; }
+.pc-starter-list { display: grid; gap: 9px; }
+.pc-starter-list > button { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; min-height: 72px; padding: 11px 12px; color: var(--ink); text-align: left; border: 1.5px solid var(--rule); border-radius: 5px 9px 6px 8px / 7px 5px 9px 6px; background: rgba(255,250,240,.75); cursor: pointer; }
+.pc-starter-list > button.selected { border-color: var(--ink); background: var(--paper-tint); box-shadow: 3px 3px 0 var(--rule); }
+.pc-starter-list span { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.pc-starter-list strong { font: 700 14px/1.25 var(--hand-bold); }
+.pc-starter-list small { color: var(--pencil); font: 12px/1.4 var(--hand); }
+.pc-starter-list em { color: var(--accent); white-space: nowrap; font: normal 11px/1.2 var(--mono); }
+.pc-source-note { margin: 0 0 20px; }
 .pc-native-range { width: 100%; accent-color: var(--accent); cursor: pointer; }
 .pc-import-row { display: flex; align-items: center; gap: 9px; margin-bottom: 20px; padding: 11px 12px; border: 1px dashed var(--rule); border-radius: 6px; cursor: pointer; font: 13px/1.3 var(--hand); }
 .pc-import-row input { width: 17px; height: 17px; accent-color: var(--accent); }
@@ -219,10 +232,79 @@
 .pc-plan-card { color: var(--ink); text-align: left; }
 @media (max-width: 620px) {
   .pc-path-switch { grid-template-columns: 1fr; }
+  .pc-starter-list > button { grid-template-columns: 1fr; }
+  .pc-starter-list em { white-space: normal; }
 }
 
 /* ── Responsive ── */
 @media (max-width: 520px) {
   .pc-direction-grid { grid-template-columns: repeat(2, 1fr); }
   .pc-page { padding: 20px 14px 36px; }
+}
+
+/* Tactile paper pass. */
+.pc {
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(circle at 18% 12%, rgba(43,38,32,0.052) 0 0.7px, transparent 0.9px),
+    radial-gradient(circle at 78% 68%, rgba(216,72,43,0.024) 0 0.8px, transparent 1px),
+    repeating-linear-gradient(97deg, rgba(43,38,32,0.014) 0 1px, transparent 1px 9px);
+  background-size: 19px 21px, 31px 27px, auto;
+}
+
+.pc-nav {
+  border-bottom-color: var(--ink);
+  box-shadow: 0 3px 0 -1px rgba(43,38,32,0.22);
+}
+
+.pc .logo-mark,
+.pc-card,
+.pc-plan-card,
+.pc-direction-card,
+.pc-path-switch > button,
+.pc-goal-types button,
+.pc-starter-list > button,
+.pc-btn,
+.pc-full-input {
+  border-radius: 4px 9px 5px 8px / 8px 4px 10px 5px;
+}
+
+.pc-card,
+.pc-plan-card {
+  background-color: rgba(255,250,240,0.82);
+  box-shadow: 1px 2px 0 rgba(43,38,32,0.16), 5px 6px 0 -3px rgba(43,38,32,0.2);
+}
+
+.pc-plan-card:nth-child(odd) { transform: rotate(-0.18deg); }
+.pc-plan-card:nth-child(even) { transform: rotate(0.18deg); }
+
+.pc-card-title,
+.pc-existing-title {
+  letter-spacing: 0;
+  text-shadow: 0.7px 0.8px 0 rgba(43,38,32,0.12);
+}
+
+.pc-mode-switch button.active {
+  background: linear-gradient(178deg, transparent 0 28%, rgba(249,210,124,0.58) 29% 83%, transparent 84%);
+}
+
+.pc-full-input {
+  background-color: rgba(255,250,240,0.84);
+  border: 1.5px solid var(--rule);
+  box-shadow: inset 0 -2px 0 rgba(200,191,169,0.34);
+}
+
+.pc-btn-create {
+  border-color: var(--ink);
+  box-shadow: 2px 3px 0 var(--ink);
+  transform: rotate(-0.4deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc *, .pc *::before, .pc *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .pc-plan-card, .pc-btn-create { transform: none; }
 }

@@ -204,11 +204,18 @@ export class VideoAgentService {
       }
 
       const videoFilePath = `${this.renderService.outputDir}/${task_id}.mp4`;
+      const rendered = fs.existsSync(videoFilePath);
+      // 渲染环境未就绪 / 渲染失败时，videoFilePath 实际不存在 —— 不要写一个假路径，
+      // 否则知识库/资源行/前端会被标记为"已完成"却在播放 404/黑屏（重登后尤甚）。
+      const render_status: 'completed' | 'not_rendered' = rendered ? 'completed' : 'not_rendered';
+      const render_error = rendered ? '' : '视频未实际渲染（渲染环境未就绪或渲染失败），仅生成脚本与音频，请检查 Chrome / ffmpeg 后重新生成';
 
       const videoData = {
         script,
         audio_file: mergedAudioPath,
-        video_file: videoFilePath,
+        video_file: rendered ? videoFilePath : null,
+        render_status,
+        render_error,
         duration_sec: totalDuration,
         segments_count: script.total_segments,
         style: input.style || 'default',
@@ -226,13 +233,17 @@ export class VideoAgentService {
       }
 
       const renderTime = (Date.now() - startTime) / 1000;
-      onProgress?.('compose', 100, `视频生成完成（${totalDuration.toFixed(1)}秒）`);
+      onProgress?.('compose', 100, rendered
+        ? `视频生成完成（${totalDuration.toFixed(1)}秒）`
+        : `脚本与音频已生成，但视频未渲染（渲染环境未就绪）`);
 
       const result = {
-        video_file_path: videoFilePath,
+        video_file_path: rendered ? videoFilePath : '',
         audio_file_path: mergedAudioPath,
         duration_sec: totalDuration,
         segments_count: script.total_segments,
+        render_status,
+        render_error,
         script,
         cost_estimate: {
           llm_tokens: llmTokens,

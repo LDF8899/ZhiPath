@@ -11,6 +11,7 @@ import { EventsModule } from '../events/events.module';
 import { SkillSnapshotService } from '../../services/skill-snapshot.service';
 import { LearningCommitService } from '../../services/learning-commit.service';
 import { BranchService } from '../../services/branch.service';
+import { LearningDomainModule } from '../../domains/learning-domain.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { BranchService } from '../../services/branch.service';
     SkillModule,
     MatchModule,
     EventsModule,
+    LearningDomainModule,
   ],
   controllers: [GitLearningController],
   providers: [SkillSnapshotService, LearningCommitService, BranchService],

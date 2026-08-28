@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>智途 ZhiPath · 出题质量预览</title>
+<style>
+  :root { --ink:#2a2a2a; --pencil:#7a7a7a; --accent:#c8502b; --rule:#e2ddd2; --paper:#fbf8f2; --highlight:#f5e4c8; --hand:"Segoe Print","Bradley Hand",cursive; }
+  body{ font-family:"Segoe Print","Bradley Hand",KaiTi,serif; background:var(--paper); color:var(--ink); margin:0; padding:24px; }
+  .wrap{ max-width:920px; margin:0 auto; }
+  .hd-header{ text-align:center; margin-bottom:20px; }
+  .hd-header h1{ font-size:28px; margin:0; }
+  .hd-header p{ color:var(--pencil); margin:6px 0 0; }
+  .card{ background:#fff; border:2px solid var(--rule); border-radius:10px; padding:18px 20px; margin-bottom:18px; box-shadow:3px 4px 0 var(--rule); }
+  .tag{ display:inline-block; background:var(--highlight); color:var(--ink); border:2px solid var(--ink); border-radius:8px; padding:2px 8px; font-size:12px; margin-right:6px; }
+  .qtype{ display:inline-block; background:#fff; border:1.5px solid var(--accent); color:var(--accent); border-radius:8px; padding:2px 8px; font-size:12px; margin-right:8px; }
+  .stem{ font-weight:700; font-size:16px; margin:10px 0 8px; }
+  .opts{ color:var(--pencil); font-size:14px; margin:0 0 10px; }
+  .sol{ background:var(--highlight); border:1px dashed var(--rule); border-radius:8px; padding:8px 10px; font-size:13px; color:var(--ink); }
+  .fig { margin-bottom:6px; }
+  .fig iframe{ display:block; border:1px solid var(--rule); border-radius:8px; background:#fff; }
+  .fig3d{ width:640px; height:420px; border:1px solid var(--rule); border-radius:8px; }
+</style>
+</head>
+<body><div class="wrap">
+  <div class="hd-header"><h1>智途 ZhiPath · 出题质量预览</h1><p>多学科 · 数形结合 · GeoGebra / three.js 双渲染</p></div>
+
+  <!-- Q1 数学几何 -->
+  <div class="card">
+    <span class="qtype">单选</span><span class="tag">第 1 题 · 数学几何</span>
+    <div class="stem">如图，圆 O 的半径为 5，点 P 在圆外且 OP=8，PA、PB 为圆 O 的两条切线，切点分别为 A、B。求弦 AB 的长。</div>
+    <ol class="opts">
+      <li>6</li><li>7.5</li><li>8</li><li>9.6</li>
+    </ol>
+    <div class="fig" id="fig1"></div>
+    <div class="sol">解析：在 Rt△PAO 中，OA⊥PA，OA=5，OP=8，故 PA=√(8²-5²)=√39。切线 AB 被 OP 垂直平分，设交于 M，由射影定理 AM²=OA²-OM²…；AM·OP=OA·PA ⇒ AM=5√39/8，故 AB=2AM=5√39/4≈7.5。（选 B）</div>
+  </div>
+
+  <!-- Q2 结构力学 -->
+  <div class="card">
+    <span class="qtype">单选</span><span class="tag">第 2 题 · 建筑土木 · 结构力学</span>
+    <div class="stem">简支梁 AB 跨度 6m，受全跨均布荷载 q=12kN/m。求支座 A 的竖向反力，并判断跨中弯矩图的大致形状。</div>
+    <ol class="opts">
+      <li>RA=36kN，跨中弯矩为抛物线</li><li>RA=48kN，跨中弯矩为抛物线</li><li>RA=72kN，跨中弯矩为三角形</li><li>RA=36kN，跨中弯矩为三角形</li>
+    </ol>
+    <div class="fig" id="fig2"></div>
+    <div class="sol">解析：对称，RA=RB=qL/2=36kN。均布荷载下弯矩图为抛物线（二次），跨中最大 M=qL²/8=54kN·m。（选 A）</div>
+  </div>
+
+  <!-- Q3 金融 -->
+  <div class="card">
+    <span class="qtype">单选</span><span class="tag">第 3 题 · 金融 · 投资学</span>
+    <div class="stem">无风险利率 rf=3%，市场组合期望收益 rm=10%。证券 A 的 β=1.2。用 CAPM 求 A 的期望收益，并判断其相对市场组合的风险-收益位置。</div>
+    <ol class="opts">
+      <li>11.4%，位于 SML 上（β&gt;1）</li><li>9.6%，位于 SML 上（β&lt;1）</li><li>8.4%，位于 SML 下方</li><li>13%，位于 SML 上方</li>
+    </ol>
+    <div class="fig" id="fig3"></div>
+    <div class="sol">解析：E(R)=rf+β(Rm−rf)=3%+1.2×7%=11.4%。β=1.2&gt;1 为进取型，位于证券市场线 SML 上、市场组合点右侧。（选 A）</div>
+  </div>
+
+  <!-- Q4 建筑 three.js -->
+  <div class="card">
+    <span class="qtype">简答</span><span class="tag">第 4 题 · 建筑 · 三维示意</span>
+    <div class="stem">某建筑为两跨两层框架结构，层高 3m，柱截面 400×400mm，梁截面 300×600mm。请识别其结构组成，并说明竖向荷载的传递路径。</div>
+    <div class="fig" id="fig4"></div>
+    <div class="sol">解析：框架柱→框架梁→楼板；竖向荷载（自重+活载）由楼板传给梁、梁传柱、柱传基础。（配 three.js 3D 框架示意）</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script>
+const GGB_URL = '/geogebra/GeoGebra.html';
+function ggb(divId, commands, view){
+  const host = document.getElementById(divId);
+  const iframe = document.createElement('iframe');
+  iframe.src = GGB_URL; iframe.width = 640; iframe.height = 473;
+  host.appendChild(iframe);
+  let n = 0;
+  const poll = setInterval(()=>{
+    let w; try{ w = iframe.contentWindow; }catch(e){}
+    if(w && w.ggbApplet){
+      clearInterval(poll);
+      try{ w.ggbApplet.setAxesVisible(true,true); w.ggbApplet.setGridVisible(false); if(view) w.ggbApplet.setCoordSystem(view[0],view[1],view[2],view[3]); else w.ggbApplet.setCoordSystem(-1,8,8,-1); }
+      catch(e){}
+      (commands||[]).forEach(c=>{ try{ if(!/^set|^show|^delete|^rename/i.test(c.trim())) w.ggbApplet.evalCommand(c); }catch(e){} });
+    } else if(++n>200){ clearInterval(poll); }
+  }, 200);
+}
+ggb('fig1', ['O=(0,0)','A=(3,4)','B=(5,0)','c=Circle((0,0),5)','t=Tangent(A,c)','Segment(A,B)','Segment(O,A)'], [-1,7,7,-1]);
+ggb('fig2', ['A=(0,0)','B=(6,0)','Segment(A,B)','v1=Vector((1,1.6),(1,0))','v2=Vector((2,1.6),(2,0))','v3=Vector((3,1.6),(3,0))','v4=Vector((4,1.6),(4,0))','v5=Vector((5,1.6),(5,0))'], [-1,7,5,-2]);
+ggb('fig3', ['rf=(0,3)','M=(1,10)','A=(1.2,11.4)','f(x)=3+7x'], [-0.2,1.6,0,13]);
+
+// three.js 框架示意
+(function(){
+  const host = document.getElementById('fig4');
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0xffffff);
+  const cam = new THREE.PerspectiveCamera(45, 640/420, 0.1, 1000); cam.position.set(10,8,12); cam.lookAt(0,3,0);
+  const ren = new THREE.WebGLRenderer({antialias:true}); ren.setSize(640,420); ren.setClearColor(0xffffff);
+  host.appendChild(ren.domElement);
+  scene.add(new THREE.AmbientLight(0xffffff,0.7));
+  const dl = new THREE.DirectionalLight(0xffffff,0.8); dl.position.set(6,10,8); scene.add(dl);
+  const mat = new THREE.MeshStandardMaterial({color:0x9ab4c9, transparent:true, opacity:0.92});
+  scene.add(new THREE.GridHelper(16,8,0xccc,0xe5e5e5));
+  const box=(s,p)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(s[0],s[1],s[2]),mat); m.position.set(p[0],p[1],p[2]); scene.add(m); };
+  // 柱
+  [[0,0],[3,0],[6,0],[0,3],[3,3],[6,3]].forEach(p=>box([0.4,6,0.4],[p[0],3,p[1]]));
+  // 梁（两层）
+  box([6,0.6,0.4],[3,6,0]); box([6,0.6,0.4],[3,6,3]); box([6,0.6,0.4],[3,3,0]); box([6,0.6,0.4],[3,3,3]);
+  box([0.4,0.6,3],[0,6,1.5]); box([0.4,0.6,3],[6,6,1.5]); box([0.4,0.6,3],[0,3,1.5]); box([0.4,0.6,3],[6,3,1.5]);
+  // 板
+  box([6.4,0.2,3.4],[3,6.3,1.5]); box([6.4,0.2,3.4],[3,3.3,1.5]);
+  (function anim(){ requestAnimationFrame(anim); ren.render(scene,cam); })();
+})();
+</script>
+</body></html>

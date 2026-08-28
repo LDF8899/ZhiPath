@@ -3,11 +3,26 @@ import { ActionExecutorService } from './action-executor.service';
 describe('ActionExecutorService video context', () => {
   let service: any;
   let videoAgent: any;
+  let plannerAgent: any;
+  let domainRegistry: any;
 
   beforeEach(() => {
     jest.useFakeTimers();
     videoAgent = {
       generate: jest.fn().mockReturnValue(new Promise(() => {})),
+    };
+    plannerAgent = {
+      generateDomainPath: jest.fn().mockResolvedValue({
+        plan: { id: 9, planName: '大学英语六级 CET-6', estimatedDate: '2026-12-01' },
+        gapSkills: ['六级听力理解'],
+        tasks: [],
+      }),
+    };
+    domainRegistry = {
+      resolvePath: jest.fn().mockReturnValue({
+        domain: { id: 'english', name: '英语' },
+        starterPath: { id: 'cet-6', title: '大学英语六级 CET-6' },
+      }),
     };
 
     service = new ActionExecutorService(
@@ -17,9 +32,10 @@ describe('ActionExecutorService video context', () => {
       {} as any,
       { setex: jest.fn().mockResolvedValue('OK') } as any,
       {} as any,
+      { get: jest.fn().mockImplementation((k: string, d?: any) => d ?? '') } as any,
       {} as any,
       {} as any,
-      {} as any,
+      plannerAgent,
       {} as any,
       videoAgent,
       {
@@ -28,6 +44,9 @@ describe('ActionExecutorService video context', () => {
         completeTask: jest.fn(),
         failTask: jest.fn(),
       } as any,
+      domainRegistry,
+      { generateForChat: jest.fn() } as any,
+      { weakPoints: jest.fn().mockResolvedValue([]) } as any,
     );
   });
 
@@ -60,5 +79,28 @@ describe('ActionExecutorService video context', () => {
     expect(input.knowledge_content).toContain('Suspense 边界和 fallback');
     expect(input.knowledge_content).toContain('Page context');
     expect(result.data.contextSummary).toContain('React Suspense 数据加载方案');
+  });
+
+  it('creates a registered domain path without a target job', async () => {
+    const result = await service.generatePath({
+      type: 'generate_path',
+      domainId: 'english',
+      goalType: 'exam',
+      starterPathId: 'cet-6',
+      goalTitle: '大学英语六级 CET-6',
+      dailyHours: 2,
+    }, 24);
+
+    expect(domainRegistry.resolvePath).toHaveBeenCalledWith('english', 'exam', 'cet-6');
+    expect(plannerAgent.generateDomainPath).toHaveBeenCalledWith(
+      24,
+      expect.objectContaining({ id: 'english' }),
+      expect.objectContaining({ id: 'cet-6' }),
+      'exam',
+      '大学英语六级 CET-6',
+      2,
+      'main',
+    );
+    expect(result.data.message).toContain('1 个能力项');
   });
 });

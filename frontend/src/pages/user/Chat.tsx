@@ -29,6 +29,8 @@ import JobCard from '../../components/JobCard';
 import ProgressCard from '../../components/ProgressCard';
 import TaskCard from '../../components/TaskCard';
 import ExamCard from '../../components/ExamCard';
+import QuestionConfigCard from '../../components/QuestionConfigCard';
+import GeoGebraCard from '../../components/GeoGebraCard';
 import ResourceCard from '../../components/ResourceCard';
 import AnimationCard from '../../components/AnimationCard';
 import DiagramCard from '../../components/DiagramCard';
@@ -527,7 +529,7 @@ export default function Chat() {
         </button>
         <div className="chat-mobile-title">
           <IconRobot size={18} />
-          <span>AI 助教</span>
+          <span>AI 学习导师</span>
         </div>
         <button className="chat-mobile-new" onClick={handleNewSession}>
           <IconPlus size={16} />
@@ -542,7 +544,7 @@ export default function Chat() {
         {/* Brand */}
         <div className="chat-sidebar-brand">
           <span className="chat-sidebar-logo">智途</span>
-          <span className="chat-sidebar-tag">AI 助教</span>
+          <span className="chat-sidebar-tag">AI 学习导师</span>
         </div>
 
         {/* New session button */}
@@ -618,7 +620,7 @@ export default function Chat() {
               <IconRobot size={20} />
             </div>
             <div>
-              <h2>AI 助教</h2>
+              <h2>AI 学习导师</h2>
               <span className="chat-header-status">
                 <span className="chat-status-dot" />
                 在线
@@ -666,7 +668,7 @@ export default function Chat() {
                 </svg>
               </div>
 
-              <h2 className="chat-empty-title">你好，我是智途 AI 助教</h2>
+              <h2 className="chat-empty-title">你好，我是智途 AI 学习导师</h2>
               <p className="chat-empty-desc">
                 直接告诉我你想做什么，我会自动匹配最合适的智能体。<br />
                 也可以从右侧办公室拖一个智能体过来。
@@ -976,12 +978,16 @@ function ActionRenderer({ action }: { action: ChatAction }) {
       return <TaskCard data={action.data} />;
     case 'exam':
       return <ExamCard data={action.data} />;
+    case 'question_config':
+      return <QuestionConfigCard data={action.data} />;
     case 'resources':
       return <ResourceCard data={action.data} />;
     case 'animation':
       return <AnimationCard data={action.data} />;
     case 'diagram':
       return <DiagramCard data={action.data} />;
+    case 'geogebra':
+      return <GeoGebraCard data={action.data} />;
     case 'video':
       return <VideoCard data={action.data} />;
     case 'video_pending':

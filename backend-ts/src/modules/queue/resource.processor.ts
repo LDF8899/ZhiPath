@@ -137,6 +137,7 @@ export class ResourceProcessor extends WorkerHost {
           // 批量为学习路径中所有技能生成资源 — 逐技能推送进度
           await job.updateProgress(5);
           const skills = this.extractSkills(params.pathData);
+          const resourceContext = this.resourceAgent.contextFromPathData(params.pathData || {});
           const total = skills.length || 1;
           let done = 0;
           let generated = 0;
@@ -145,8 +146,8 @@ export class ResourceProcessor extends WorkerHost {
 
           for (const skill of skills) {
             try {
-              const lecture = await this.resourceAgent.generateLecture(skill.name, skill.difficulty);
-              await this.resourceAgent.generateQuiz(skill.name, 5, skill.difficulty);
+              const lecture = await this.resourceAgent.generateLecture(skill.name, skill.difficulty, resourceContext);
+              await this.resourceAgent.generateQuiz(skill.name, 5, skill.difficulty, resourceContext);
               if (lecture) generated++; else skipped++;
               this.events.emitResourceReady(userId, skill.name, 'lecture');
             } catch (e: any) {

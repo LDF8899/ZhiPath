@@ -216,33 +216,74 @@ export default function VideoCard({ data }: Props) {
       )}
 
       {/* ── 完成 ── */}
-      {status === 'completed' && result && (
-        <div>
-          <video
-            src={getVideoSrc(result)}
-            controls
-            style={{
-              width: '100%',
+      {status === 'completed' && result && (() => {
+        const videoSrc = getVideoSrc(result);
+        const notRendered = !videoSrc || result?.render_status === 'not_rendered';
+        if (notRendered) {
+          return (
+            <div style={{
+              border: '2px dashed var(--rule)',
               borderRadius: 8,
-              border: '2px solid var(--pencil)',
-              display: 'block',
-              background: '#000',
-            }}
-          />
-          <div style={{
-            display: 'flex',
-            gap: 16,
-            marginTop: 8,
-            fontFamily: 'var(--mono)',
-            fontSize: 12,
-            color: 'var(--pencil)',
-          }}>
-            {(result.duration_sec || result.durationSec) && <span>时长 {Math.round(result.duration_sec || result.durationSec)}s</span>}
-            {(result.segments_count || result.segmentsCount) && <span>{result.segments_count || result.segmentsCount} 个片段</span>}
-            {elapsedSec > 0 && <span>耗时 {elapsedSec}s</span>}
+              padding: 16,
+              background: 'var(--paper-tint)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <IconWarning size={16} style={{ color: '#8a6d00' }} />
+                <span style={{ fontFamily: 'var(--hand-bold)', fontSize: 14, color: '#8a6d00' }}>
+                  视频未实际渲染
+                </span>
+              </div>
+              <p style={{ fontFamily: 'var(--hand)', fontSize: 13, color: 'var(--pencil)', margin: 0, lineHeight: 1.6, marginBottom: 10 }}>
+                {result?.render_error || '已生成脚本与音频，但缺少视频文件（渲染环境未就绪）。请确认本机已安装 Chrome / ffmpeg 后重新生成。'}
+              </p>
+              <button
+                onClick={handleRegenerate}
+                style={{
+                  width: '100%',
+                  padding: '8px 0',
+                  border: '1px solid var(--accent)',
+                  borderRadius: 6,
+                  background: 'transparent',
+                  color: 'var(--accent)',
+                  fontFamily: 'var(--hand-bold)',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                <IconRefresh size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                重新生成
+              </button>
+            </div>
+          );
+        }
+        return (
+          <div>
+            <video
+              src={videoSrc}
+              controls
+              style={{
+                width: '100%',
+                borderRadius: 8,
+                border: '2px solid var(--pencil)',
+                display: 'block',
+                background: '#000',
+              }}
+            />
+            <div style={{
+              display: 'flex',
+              gap: 16,
+              marginTop: 8,
+              fontFamily: 'var(--mono)',
+              fontSize: 12,
+              color: 'var(--pencil)',
+            }}>
+              {(result.duration_sec || result.durationSec) && <span>时长 {Math.round(result.duration_sec || result.durationSec)}s</span>}
+              {(result.segments_count || result.segmentsCount) && <span>{result.segments_count || result.segmentsCount} 个片段</span>}
+              {elapsedSec > 0 && <span>耗时 {elapsedSec}s</span>}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── 失败 ── */}
       {status === 'failed' && (

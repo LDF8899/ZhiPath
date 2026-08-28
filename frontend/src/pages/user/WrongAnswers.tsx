@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getWrongAnswers } from '../../api/user';
+import { remediationApi } from '../../api/remediation';
 import '../../styles/hand-draw.css';
 import {
   IconArrowLeft,
@@ -61,6 +62,21 @@ export default function WrongAnswers() {
     if (t === 2) return '岗位考试';
     if (t === 3) return '速测';
     return '技能考试';
+  };
+
+  const [remediatingSkill, setRemediatingSkill] = useState<string | null>(null);
+  const remediateSkill = async (skill: string) => {
+    setRemediatingSkill(skill);
+    try {
+      const res = await remediationApi.generate({ topics: [{ label: skill }], count: 5, difficulty: 6, questionTypes: ['choice', 'fill'] });
+      const taskId = res.data?.taskId;
+      if (taskId) navigate(`/user/question-generator?taskId=${taskId}`);
+      else alert('补强出题未返回任务，请稍后再试');
+    } catch (e: any) {
+      alert(`补强出题失败：${e?.message || ''}`);
+    } finally {
+      setRemediatingSkill(null);
+    }
   };
 
   return (
@@ -161,16 +177,18 @@ export default function WrongAnswers() {
                   </div>
                 ))}
 
-                {/* Go to study button */}
+                {/* Go to study / remediation buttons */}
                 {group.skill && group.skill !== '未知' && group.skill !== '未知技能' && (
-                  <button
-                    className="hd-btn"
-                    style={{ marginTop: 8 }}
-                    onClick={() => navigate(`/user/knowledge/${encodeURIComponent(group.skill)}`)}
-                  >
-                    <IconLightbulb size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
-                    重新学习「{group.skill}」
-                  </button>
+                  <div className="hd-flex" style={{ gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                    <button className="hd-btn" onClick={() => navigate(`/user/knowledge/${encodeURIComponent(group.skill)}`)}>
+                      <IconLightbulb size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                      重新学习「{group.skill}」
+                    </button>
+                    <button className="hd-btn secondary" disabled={remediatingSkill === group.skill} onClick={() => remediateSkill(group.skill)}>
+                      <IconTarget size={14} style={{ marginRight: 4, verticalAlign: -2 }} />
+                      {remediatingSkill === group.skill ? '补强出题中...' : '一键补强出题'}
+                    </button>
+                  </div>
                 )}
               </div>
             )}

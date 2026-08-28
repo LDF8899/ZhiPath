@@ -30,6 +30,9 @@ import { MultimodalModule } from '../multimodal/multimodal.module';
 import { AgentsModule } from '../agents/agents.module';
 import { EventsModule } from '../events/events.module';
 import { EvidenceModule } from '../evidence/evidence.module';
+import { LearningDomainModule } from '../../domains/learning-domain.module';
+import { QuestionGenerationModule } from '../question-generation/question-generation.module';
+import { RemediationModule } from '../remediation/remediation.module';
 
 /**
  * Chat 模块 — Phase 6 核心模块
@@ -49,6 +52,9 @@ import { EvidenceModule } from '../evidence/evidence.module';
     AgentsModule,
     EventsModule,
     EvidenceModule,
+    LearningDomainModule,
+    QuestionGenerationModule,
+    RemediationModule,
   ],
   controllers: [ChatController],
   providers: [

@@ -204,6 +204,8 @@ DROP TABLE IF EXISTS `exam_questions_v3`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `exam_questions_v3` (
   `id` bigint NOT NULL AUTO_INCREMENT,
+  `generation_task_id` bigint DEFAULT NULL COMMENT '出题任务ID（通用出题器）',
+  `source_order` int DEFAULT NULL COMMENT '出题任务内题目序号',
   `exam_type` tinyint NOT NULL COMMENT '1=通用技能 2=岗位考试 3=5分钟速测',
   `skill_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `job_id` bigint DEFAULT NULL,
@@ -217,12 +219,14 @@ CREATE TABLE `exam_questions_v3` (
   `status` tinyint NOT NULL DEFAULT '0' COMMENT '0=待审核 1=已上架 2=已下架',
   `created_by` enum('agent','manual','enterprise') COLLATE utf8mb4_unicode_ci DEFAULT 'agent',
   `reviewed_by` bigint DEFAULT NULL,
+  `reviewed_at` bigint DEFAULT NULL COMMENT '审核时间戳ms',
   `create_time` bigint DEFAULT NULL,
   `update_time` bigint DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_exam_type` (`exam_type`),
   KEY `idx_skill` (`skill_name`),
-  KEY `idx_status` (`status`)
+  KEY `idx_status` (`status`),
+  KEY `idx_exam_question_generation_task` (`generation_task_id`,`source_order`)
 ) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -350,6 +354,9 @@ CREATE TABLE `learning_plans_v3` (
   `plan_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Default Plan' COMMENT '计划名称（中文由应用层写入）',
   `plan_type` enum('main','side') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'main' COMMENT '主线/支线 §4.3',
   `target_job_id` bigint DEFAULT NULL COMMENT '目标岗位',
+  `domain_id` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'software-engineering' COMMENT '学习领域标识',
+  `goal_type` enum('career','course','exam','certificate','project','interest') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'interest' COMMENT '学习目标类型',
+  `goal_title` varchar(160) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '' COMMENT '用户可读的学习目标',
   `path_data` json DEFAULT NULL COMMENT '阶段→技能点→资源 完整结构',
   `current_phase` int NOT NULL DEFAULT '0' COMMENT '当前阶段索引',
   `daily_hours` decimal(3,1) DEFAULT NULL COMMENT '本计划每日时长',
@@ -365,6 +372,7 @@ CREATE TABLE `learning_plans_v3` (
   PRIMARY KEY (`id`),
   KEY `idx_user` (`user_id`),
   KEY `idx_type` (`plan_type`),
+  KEY `idx_learning_domain_goal` (`domain_id`,`goal_type`),
   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -679,6 +687,66 @@ CREATE TABLE `users_v3` (
   UNIQUE KEY `uk_username` (`username`),
   KEY `idx_role` (`role`)
 ) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `question_generation_tasks`
+--
+
+DROP TABLE IF EXISTS `question_generation_tasks`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `question_generation_tasks` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` bigint NOT NULL,
+  `subject` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `curriculum` varchar(120) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `locale` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'zh-CN',
+  `grade` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
+  `question_types` json NOT NULL,
+  `question_count` tinyint NOT NULL,
+  `difficulty` tinyint NOT NULL DEFAULT '5',
+  `difficulty_mix` json DEFAULT NULL,
+  `topics` json DEFAULT NULL,
+  `instructions` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `metadata` json DEFAULT NULL,
+  `task_status` enum('pending','running','completed','failed','cancelled') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `progress` json DEFAULT NULL,
+  `result_count` int NOT NULL DEFAULT '0',
+  `error_message` text COLLATE utf8mb4_unicode_ci,
+  `started_at` bigint DEFAULT NULL,
+  `completed_at` bigint DEFAULT NULL,
+  `status` tinyint NOT NULL DEFAULT '1',
+  `create_time` bigint DEFAULT NULL,
+  `update_time` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_question_generation_user_status` (`user_id`,`task_status`),
+  KEY `idx_question_generation_user_time` (`user_id`,`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Generic AI question generation tasks';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `question_generation_snapshots`
+--
+
+DROP TABLE IF EXISTS `question_generation_snapshots`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `question_generation_snapshots` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `task_id` bigint NOT NULL,
+  `user_id` bigint NOT NULL,
+  `questions` json NOT NULL,
+  `config` json DEFAULT NULL,
+  `review_statuses` json DEFAULT NULL,
+  `version` int NOT NULL DEFAULT '1',
+  `status` tinyint NOT NULL DEFAULT '1',
+  `create_time` bigint DEFAULT NULL,
+  `update_time` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_question_generation_snapshot_task` (`task_id`),
+  KEY `idx_question_generation_snapshot_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Latest resumable review snapshot';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --

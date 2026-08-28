@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { reportExamQuestionFeedback, startExam, submitExam } from '../../api/user';
+import GeoGebraFigure from '../../components/GeoGebraFigure';
+import FigureRenderer from '../../components/FigureRenderer';
 import '../../styles/hand-draw.css';
 import {
   IconArrowLeft,
@@ -492,6 +494,9 @@ export default function ExamTake() {
           <h2 style={{ fontFamily: 'var(--hand-bold)', fontSize: 18, color: 'var(--ink)', marginBottom: 20 }}>
             {question.question || question.title}
           </h2>
+
+          {/* GeoGebra / three.js figure（数形结合题） */}
+          {(question.figure || question.content?.figure) && <FigureRenderer figure={question.figure || question.content?.figure} />}
 
           {/* Choice */}
           {question.type === 'choice' && question.options && (

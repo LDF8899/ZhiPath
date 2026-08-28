@@ -7,6 +7,12 @@ import { BaseEntity } from '../common/base.entity';
  */
 @Entity('exam_questions_v3')
 export class ExamQuestion extends BaseEntity {
+  @Column({ type: 'bigint', nullable: true, name: 'generation_task_id' })
+  generationTaskId: number | null;
+
+  @Column({ type: 'int', nullable: true, name: 'source_order' })
+  sourceOrder: number | null;
+
   @Column({ type: 'tinyint', name: 'exam_type', comment: '1=通用技能 2=岗位考试 3=5分钟速测' })
   examType: number;
 
@@ -45,6 +51,9 @@ export class ExamQuestion extends BaseEntity {
 
   @Column({ type: 'bigint', nullable: true, name: 'reviewed_by' })
   reviewedBy: number;
+
+  @Column({ type: 'bigint', nullable: true, name: 'reviewed_at' })
+  reviewedAt: number | null;
 }
 
 /**
