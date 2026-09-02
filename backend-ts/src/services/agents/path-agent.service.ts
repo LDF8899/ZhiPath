@@ -55,8 +55,8 @@ export class PathAgentService {
     const messages = this.buildPrompt(goal.trim(), currentLevel, availableTime, preferences);
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.7,
-      maxTokens: 4096,
-      tier: 'pro',
+      maxTokens: 16384,
+      tier: 'pro', thinking: 'on', effort: 'high',
     });
 
     return this.parseResponse(raw, goal.trim(), currentLevel);

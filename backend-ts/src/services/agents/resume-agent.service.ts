@@ -140,8 +140,8 @@ export class ResumeAgentService {
     const messages = this.buildPrompt(profile, targetJob);
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.4,
-      maxTokens: 4096,
-      tier: 'pro',
+      maxTokens: 16384,
+      tier: 'pro', thinking: 'on', effort: 'high',
     });
 
     return this.parseResponse(raw, profile, targetJob, version);
@@ -178,7 +178,7 @@ ${profile.exams.length > 0 ? `考试成绩：${profile.exams.map(e => `${e.skill
 
     return this.llmService.chatCompletion(messages, {
       temperature: 0.6,
-      maxTokens: 512,
+      maxTokens: 16384,
       tier: 'flash',
     });
   }

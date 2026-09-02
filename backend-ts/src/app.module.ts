@@ -37,6 +37,7 @@ import { EvaluationModule } from './modules/evaluation/evaluation.module';
 import { QuestionGenerationModule } from './modules/question-generation/question-generation.module';
 import { BankImportModule } from './modules/bank-import/bank-import.module';
 import { RemediationModule } from './modules/remediation/remediation.module';
+import { CompetitionModule } from './modules/competition/competition.module';
 
 /**
  * ZhiPath API 根模块
@@ -80,6 +81,7 @@ import { RemediationModule } from './modules/remediation/remediation.module';
     QuestionGenerationModule,
     BankImportModule,
     RemediationModule,
+    CompetitionModule,
 
     // 定时任务
     SchedulerModule,

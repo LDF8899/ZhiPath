@@ -222,15 +222,22 @@ export class DashboardService {
       this.resumeRepo.count({ where: { userId, status: 1 } }),
     ]);
 
-    // 从 pathData 统计总技能数和已完成数
+    // 从 pathData 统计总技能数、已完成数和进行中数。
+    // status 只在显式调用完成接口时才置 'done'，而用户可能讲义/测验/实操都过了却还没点完成，
+    // 只报 done 会显示 0/N 让人误以为没动过，所以额外统计「有任一环节进度」的能力项。
     let totalSkills = 0;
     let doneSkills = 0;
+    let inProgressSkills = 0;
     for (const plan of plans) {
       const phases = plan.pathData?.phases || [];
       for (const phase of phases) {
         for (const skill of phase.skills || []) {
           totalSkills++;
-          if (skill.status === 'done') doneSkills++;
+          if (skill.status === 'done') {
+            doneSkills++;
+          } else if (skill.read_at || skill.quiz_passed || skill.code_done || skill.quiz_at) {
+            inProgressSkills++;
+          }
         }
       }
     }
@@ -274,6 +281,7 @@ export class DashboardService {
       stats: {
         total_skills: totalSkills,
         done_skills: doneSkills,
+        in_progress_skills: inProgressSkills,
         exam_count: examCount,
         job_count: jobCount,
         total_learned_hours: Math.round(totalLearnedMin / 60 * 10) / 10,

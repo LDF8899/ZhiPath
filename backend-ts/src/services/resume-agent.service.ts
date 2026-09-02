@@ -292,7 +292,7 @@ export class ResumeAgentService {
             },
           }),
         },
-      ], { temperature: 0.2, maxTokens: 2000, tier: 'pro' });
+      ], { temperature: 0.2, maxTokens: 8192, tier: 'gen', thinking: 'off' });
       enhancement = extractJson(result) || {};
     } catch (e: any) {
       console.warn('[ResumeAgent] Copy enhancement failed:', e.message);

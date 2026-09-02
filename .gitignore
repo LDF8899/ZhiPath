@@ -78,3 +78,15 @@ video-renderer/public/project-showcase/*.mp4
 
 # ── Local tooling ──
 .reasonix/
+
+# Local browser QA artifacts
+.playwright-cli/
+output/playwright/
+
+# ── Generated media & stale builds ──
+backend-ts/dist_old_*/
+backend-ts/output/
+video-renderer/public/_audio/seg_*.wav
+codenovafrontend/dist_bak_*/
+codenovafrontend/output/
+codenovafrontend/_*.json

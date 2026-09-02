@@ -60,8 +60,10 @@ export class TtsService {
     this.baseUrl = this.config.get('MIMO_BASE_URL', 'https://token-plan-ams.xiaomimimo.com/v1');
     this.defaultModel = this.config.get('MIMO_TTS_MODEL', 'mimo-v2.5-tts');
     this.defaultVoice = this.config.get('MIMO_TTS_VOICE', '冰糖');
-    this.outputDir = this.config.get('TTS_OUTPUT_DIR', '/tmp/zhipath/tts');
-    this.ttsProvider = this.config.get<'mimo' | 'edge'>('TTS_PROVIDER', 'mimo');
+    // 默认输出到 backend-ts/output/tts：跨平台安全（原 '/tmp/zhipath/tts' 在 Windows 丢盘符）
+    this.outputDir = this.config.get('TTS_OUTPUT_DIR', path.join(process.cwd(), 'output', 'tts'));
+    // 默认走 Edge TTS：免费无需 key；配好 MIMO_API_KEY 后可切回 mimo
+    this.ttsProvider = this.config.get<'mimo' | 'edge'>('TTS_PROVIDER', 'edge');
     this.edgeVoice = this.config.get('EDGE_TTS_VOICE', 'zh-CN-XiaoxiaoNeural');
     this.edgePythonCmd = this.config.get('EDGE_TTS_PYTHON', 'python');
 

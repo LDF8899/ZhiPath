@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { LlmService } from '../llm.service';
 import { AgentCacheService } from './cache.service';
 import { TokenTrackerService } from './token-tracker.service';
+import { isWellFormedMarkdown } from '../resource-agent.service';
 
 /**
  * 讲义生成 Agent
@@ -81,15 +82,25 @@ export class LectureAgentService {
 
     // 调用 LLM
     const messages = this.buildPrompt(skillName.trim(), level, extra);
-    const modelInfo = this.llmService.getModelInfo({ tier: 'pro' });
+    const modelInfo = this.llmService.getModelInfo({ tier: 'gen' });
 
-    const result = await this.llmService.chatCompletionWithUsage(messages, {
-      temperature: 0.7,
-      maxTokens: 8192,
-      tier: 'pro',
-    });
+    // 内容生成走 gen 档并关闭思考：pro 的思考会吃掉大部分预算导致输出截断
+    const result = await this.llmService.chatCompletionComplete(
+      messages,
+      { temperature: 0.7, maxTokens: 8192, tier: 'gen', thinking: 'off' },
+      // 本 Agent 用的是开篇/核心直觉/动手验证…那套模板，不能套 ResourceAgent 的 6 章节；
+      // 只做结构体检，并要求 parseResponse 真正依赖的「知识点总结」存在
+      (md) => isWellFormedMarkdown(md, ['知识点总结']),
+    );
 
     const durationMs = Date.now() - startTime;
+
+    if (!result.complete) {
+      console.error(
+        `[LectureAgent] 输出不完整：${skillName} 长度=${result.content.length} ` +
+        `finish=${result.finishReason}`,
+      );
+    }
 
     // 记录 token 用量
     this.tokenTracker.record({

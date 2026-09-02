@@ -1,0 +1,137 @@
+/* ────────────────────────────────────────────────────────────
+   CodeNova 设计令牌 v2 —— 「NOVA 超新星」
+   品牌意象：超新星爆发 / 星空探索未知。
+   · 深空（hero/品牌时刻）：冰蓝星核 → 靛 → 紫 → 粉（冕层渐变）
+   · 星野（工作台）：浅色高效底 + 星尘环境光 + 星体发光层级
+   旧令牌名全部保留，向后兼容。
+   ──────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── 星野底色（工作台） ─────────────────────── */
+  --bg-canvas: #f4f6fc;
+  --bg-surface: #ffffff;
+  --bg-sunken: #eef1f8;
+  --bg-hover: #f1f4fb;
+  --bg-active: #e9edfb;
+
+  /* ── 深空底色（品牌时刻 / hero） ─────────────── */
+  --space-950: #04040d;
+  --space-900: #0a0a1f;
+  --space-800: #12122e;
+  --space-700: #1c1c42;
+
+  /* ── 文字层次 ──────────────────────────────── */
+  --text-strong: #12141f;
+  --text-body: #3c4257;
+  --text-muted: #6a7086;
+  --text-faint: #9aa0b4;
+  --text-invert: #ffffff;
+  --text-space: #e8eaf8;        /* 深空上的正文 */
+  --text-space-dim: #9aa0c4;    /* 深空上的次要文字 */
+
+  /* ── 星体色（语义 + 渐变原料） ───────────────── */
+  --nova-ice: #22d3ee;          /* 冰蓝星核 */
+  --nova-blue: #6366f1;         /* 靛蓝 */
+  --nova-violet: #a855f7;       /* 紫 */
+  --nova-pink: #ec4899;         /* 冕层粉 */
+  --nova-gold: #fbbf24;         /* 恒星金 */
+
+  --brand-600: #5453ea;
+  --brand-500: #6366f1;
+  --brand-100: #e7e8fd;
+  --brand-50: #f2f3fe;
+
+  --teal-600: #0d9488;
+  --teal-100: #d7f2ee;
+  --amber-600: #b45309;
+  --amber-500: #f59e0b;
+  --amber-100: #fdf0d5;
+  --rose-600: #be123c;
+  --rose-100: #fde6ea;
+  --green-600: #15803d;
+  --green-100: #ddf3e4;
+  --violet-600: #6d28d9;
+  --violet-100: #ede4fd;
+
+  /* ── 超新星渐变（品牌主轴） ───────────────────── */
+  --grad-nova: linear-gradient(120deg, #22d3ee 0%, #6366f1 38%, #a855f7 70%, #ec4899 100%);
+  --grad-nova-soft: linear-gradient(120deg, rgba(34,211,238,.14), rgba(99,102,241,.14) 45%, rgba(168,85,247,.13));
+  --grad-nova-text: linear-gradient(100deg, #38e2f5 0%, #818cf8 45%, #c084fc 75%, #f472b6 100%);
+  --grad-core: radial-gradient(circle at 50% 45%, #ffffff 0%, #bae6fd 12%, #818cf8 38%, #6d28d9 62%, rgba(13,11,30,0) 100%);
+  --grad-deep: radial-gradient(120% 100% at 50% 0%, #12122e 0%, #0a0a1f 55%, #04040d 100%);
+
+  /* ── 边框 ─────────────────────────────────── */
+  --border-soft: #e7eaf3;
+  --border-medium: #d8dce8;
+  --border-strong: #c2c7d8;
+
+  /* ── 圆角 ─────────────────────────────────── */
+  --r-xs: 6px;
+  --r-sm: 9px;
+  --r-md: 13px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+  --r-2xl: 32px;
+  --r-pill: 999px;
+
+  /* ── 阴影 / 星体发光 ────────────────────────── */
+  --shadow-xs: 0 1px 2px rgba(18, 20, 31, 0.04);
+  --shadow-sm: 0 1px 3px rgba(18, 20, 31, 0.05), 0 1px 2px rgba(18, 20, 31, 0.03);
+  --shadow-md: 0 4px 14px rgba(18, 20, 31, 0.06), 0 1px 3px rgba(18, 20, 31, 0.04);
+  --shadow-lg: 0 12px 34px rgba(18, 20, 31, 0.09), 0 2px 8px rgba(18, 20, 31, 0.04);
+  --shadow-xl: 0 24px 60px rgba(18, 20, 31, 0.13), 0 4px 14px rgba(18, 20, 31, 0.06);
+  --shadow-brand: 0 6px 20px rgba(99, 102, 241, 0.32), 0 2px 6px rgba(34, 211, 238, 0.18);
+  --glow-ice: 0 0 24px rgba(34, 211, 238, 0.45);
+  --glow-blue: 0 0 28px rgba(99, 102, 241, 0.40);
+  --glow-violet: 0 0 28px rgba(168, 85, 247, 0.36);
+  --glow-soft: 0 0 18px rgba(99, 102, 241, 0.22);
+
+  /* ── 间距节奏 ─────────────────────────────── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 22px;
+  --sp-6: 30px;
+  --sp-7: 40px;
+  --sp-8: 56px;
+
+  /* ── 字体 ─────────────────────────────────── */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Source Han Sans SC', 'Noto Sans CJK SC',
+    'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  --font-num: 'SF Pro Display', -apple-system, 'Segoe UI', var(--font-sans);
+
+  /* ── 动效令牌（超新星的物理感：爆发快、余韵长） ── */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);       /* 长余韵，主推 */
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --ease-burst: cubic-bezier(0.16, 1.6, 0.3, 1);      /* 超新星爆发回弹 */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 420ms;
+  --dur-drift: 9000ms;                                 /* 星尘漂移周期 */
+  --stagger: 65ms;                                     /* 级联入场间隔 */
+
+  /* ── 布局 ─────────────────────────────────── */
+  --rail-w: 240px;
+  --topbar-h: 62px;
+  --content-max: 1240px;
+
+  /* ── 玻璃材质 ─────────────────────────────── */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-blur: 18px;
+  --glass-deep-bg: rgba(18, 18, 46, 0.55);
+  --glass-deep-border: rgba(148, 163, 255, 0.16);
+}
+
+/* Agent 角色配色 —— 星体光谱 */
+.agent-tone--diagnose { --tone: var(--nova-ice);    --tone-soft: #d9f7fd; }
+.agent-tone--expert   { --tone: var(--teal-600);    --tone-soft: var(--teal-100); }
+.agent-tone--maker    { --tone: var(--nova-violet); --tone-soft: var(--violet-100); }
+.agent-tone--reviewer { --tone: var(--nova-gold);   --tone-soft: var(--amber-100); }
+.agent-tone--planner  { --tone: var(--nova-pink);   --tone-soft: #fde3ef; }

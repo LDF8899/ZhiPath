@@ -157,9 +157,13 @@ export class AgentOfficeBridgeService {
   ): Promise<void> {
     const task = await this.taskService.updateStatus(taskId, 'success', result);
     if (task) {
-      await this.generatedResources.upsertFromTask(userId, task, result).catch((e) =>
-        console.warn('[AgentOfficeBridge] generated resource upsert failed:', e.message),
-      );
+      const resource = await this.generatedResources.upsertFromTask(userId, task, result).catch((e) => {
+        console.warn('[AgentOfficeBridge] generated resource upsert failed:', e.message);
+        return null;
+      });
+      if (resource) {
+        this.eventsService.emitResourceReady(userId, resource.skillName || task.title, resource.resourceType);
+      }
     }
     await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId);
     this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 100, '完成');
@@ -174,9 +178,13 @@ export class AgentOfficeBridgeService {
   ): Promise<void> {
     const task = await this.taskService.updateStatus(taskId, 'failed', undefined, errorMessage);
     if (task) {
-      await this.generatedResources.failFromTask(userId, task, errorMessage).catch((e) =>
-        console.warn('[AgentOfficeBridge] generated resource failure upsert failed:', e.message),
-      );
+      const resource = await this.generatedResources.failFromTask(userId, task, errorMessage).catch((e) => {
+        console.warn('[AgentOfficeBridge] generated resource failure upsert failed:', e.message);
+        return null;
+      });
+      if (resource) {
+        this.eventsService.emitResourceReady(userId, resource.skillName || task.title, resource.resourceType);
+      }
     }
     await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId);
     this.eventsService.emitAgentProgress(userId, agentType, String(taskId), -1, `失败: ${errorMessage}`);

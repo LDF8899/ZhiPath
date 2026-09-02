@@ -211,7 +211,7 @@ export class QuestionGenerationService {
     const raw = await this.llm.chatCompletion([
       { role: 'system', content: prompt.system },
       { role: 'user', content: prompt.user },
-    ], { temperature: 0.5, maxTokens: 8192, tier: 'pro', jsonObject: true });
+    ], { temperature: 0.5, maxTokens: 8192, tier: 'gen', thinking: 'off', jsonObject: true });
     const data = extractJson(raw) || {};
     const source = Array.isArray(data.questions) ? data.questions : Array.isArray(data) ? data : [];
     const questions = source
@@ -281,7 +281,7 @@ export class QuestionGenerationService {
     const raw = await this.llm.chatCompletion([
       { role: 'system', content: prompt.system },
       { role: 'user', content: prompt.user },
-    ], { temperature: 0.5, maxTokens: 4096, tier: 'pro', jsonObject: true });
+    ], { temperature: 0.5, maxTokens: 4096, tier: 'gen', thinking: 'off', jsonObject: true });
     return extractJson(raw);
   }
 

@@ -154,7 +154,20 @@ export class VideoAgentService {
         (sum, s) => sum + (s.audio?.duration_sec || s.estimated_duration_sec),
         0,
       );
-      onProgress?.('tts', 100, `配音合成完成（${totalDuration.toFixed(1)}秒）`);
+      // TTS 可能整批降级为"时长估算"（provider 失败时 file_path 为空），
+      // 这种情况必须显式告知用户，不能让无声视频伪装成正常完成
+      const voicedCount = script.segments.filter((s) => s.audio?.file_path).length;
+      const ttsFailed = voicedCount === 0;
+      onProgress?.(
+        'tts',
+        100,
+        ttsFailed
+          ? `配音合成失败（${script.segments.length} 段全部降级），将生成无声视频`
+          : `配音合成完成（${totalDuration.toFixed(1)}秒，${voicedCount}/${script.segments.length} 段有声）`,
+      );
+      if (ttsFailed) {
+        console.warn(`[VideoAgent] TTS 全部降级为时长估算：本次成片将没有声音`);
+      }
 
       // ── Stage 3: Remotion 渲染 ──
       onProgress?.('render', 0, '正在检查渲染环境...');
@@ -234,7 +247,7 @@ export class VideoAgentService {
 
       const renderTime = (Date.now() - startTime) / 1000;
       onProgress?.('compose', 100, rendered
-        ? `视频生成完成（${totalDuration.toFixed(1)}秒）`
+        ? `视频生成完成（${totalDuration.toFixed(1)}秒${ttsFailed ? '，无声版' : ''}）`
         : `脚本与音频已生成，但视频未渲染（渲染环境未就绪）`);
 
       const result = {
@@ -244,6 +257,8 @@ export class VideoAgentService {
         segments_count: script.total_segments,
         render_status,
         render_error,
+        // 供前端提示"无声视频"：TTS 全部降级时为 silent
+        tts_status: ttsFailed ? 'silent' : 'voiced',
         script,
         cost_estimate: {
           llm_tokens: llmTokens,
@@ -303,7 +318,7 @@ export class VideoAgentService {
     const result = await this.llmService.chatCompletionWithUsage(messages, {
       temperature: 0.7,
       maxTokens: 8192,
-      tier: 'pro',
+      tier: 'gen', thinking: 'off',
     });
 
     // 记录 token 用量

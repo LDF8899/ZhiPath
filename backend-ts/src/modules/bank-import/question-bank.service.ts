@@ -51,11 +51,14 @@ export class QuestionBankService {
       answers: {
         served: questions.map((q) => ({
           id: q.id,
+          questionType: q.questionType,
           type: q.questionType,
           title: q.title,
           content: q.content,
           options: (q.content as any)?.options || [],
           difficulty: q.difficulty,
+          // served 快照必须带正确答案：交卷按此批改，下发前端时由 sanitizeServed 剔除
+          answer: q.answer,
         })),
         userAnswers: {},
         startedAt: now,

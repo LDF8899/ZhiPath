@@ -1,0 +1,302 @@
+/* ────────────────────────────────────────────────────────────
+   NOVA 动效系统 —— keyframes 库 + 工具类
+   物理意象：超新星爆发（快进缓出+回弹）、星尘漂移（慢速匀速）、
+   恒星闪烁（呼吸）、彗尾扫掠（流光）。
+   ──────────────────────────────────────────────────────────── */
+
+/* ── 入场 ─────────────────────────────────────────────── */
+@keyframes nova-burst {
+  0%   { opacity: 0; transform: scale(0.35); filter: blur(10px); }
+  55%  { opacity: 1; transform: scale(1.08); filter: blur(0); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes word-in {
+  from { opacity: 0; transform: translateY(26px); filter: blur(8px); }
+  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+@keyframes wipe-in {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0 0 0); }
+}
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.94) translateY(6px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 星体行为 ─────────────────────────────────────────── */
+@keyframes star-twinkle {
+  0%, 100% { opacity: var(--tw-lo, 0.25); transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.25); }
+}
+@keyframes nova-breathe {
+  0%, 100% { opacity: 0.75; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.06); }
+}
+@keyframes drift-slow {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(var(--dx, 40px), var(--dy, -28px), 0); }
+}
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+@keyframes orbit {
+  from { transform: rotate(0deg) translateX(var(--orbit-r, 60px)) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(var(--orbit-r, 60px)) rotate(-360deg); }
+}
+
+/* ── 光效 ─────────────────────────────────────────────── */
+@keyframes gradient-pan {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes comet-sweep {
+  0%   { transform: translateX(-130%) skewX(-18deg); }
+  100% { transform: translateX(230%) skewX(-18deg); }
+}
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: var(--glow-soft); }
+  50%      { box-shadow: var(--glow-blue); }
+}
+@keyframes ring-trace {
+  from { stroke-dashoffset: var(--ring-len, 320); }
+  to   { stroke-dashoffset: var(--ring-to, 0); }
+}
+@keyframes marquee-x {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes shimmer {
+  0%   { background-position: -420px 0; }
+  100% { background-position: 420px 0; }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@keyframes rail-flow {
+  0%   { background-position: 0 0; }
+  100% { background-position: 28px 0; }
+}
+@keyframes dot-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* ── 动画工具类（支持 --d 延迟 / --i 级联序号） ─────────── */
+.anim-burst  { animation: nova-burst 620ms var(--ease-burst) both; animation-delay: var(--d, 0ms); }
+.anim-rise   { animation: rise-in 560ms var(--ease-smooth) both; animation-delay: var(--d, 0ms); }
+.anim-word   { animation: word-in 720ms var(--ease-smooth) both; animation-delay: var(--d, 0ms); }
+.anim-wipe   { animation: wipe-in 680ms var(--ease-smooth) both; animation-delay: var(--d, 0ms); }
+.anim-pop    { animation: pop-in 260ms var(--ease-spring) both; animation-delay: var(--d, 0ms); }
+.anim-fade   { animation: fade-in var(--dur-slow) var(--ease-out) both; animation-delay: var(--d, 0ms); }
+.anim-fade-up { animation: fade-up var(--dur-slow) var(--ease-out) both; animation-delay: var(--d, 0ms); }
+.anim-float  { animation: float-y 6s var(--ease-in-out) infinite; animation-delay: var(--d, 0ms); }
+.anim-breathe { animation: nova-breathe 3.6s var(--ease-in-out) infinite; animation-delay: var(--d, 0ms); }
+
+/* 级联容器：子元素按 DOM 顺序逐个入场（配合 JS 注入 --i） */
+.stagger > * {
+  animation: rise-in 560ms var(--ease-smooth) both;
+  animation-delay: calc(var(--i, 0) * var(--stagger));
+}
+
+/* ── 渐变文字 ─────────────────────────────────────────── */
+.text-gradient {
+  background: var(--grad-nova-text);
+  background-size: 220% 220%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.text-gradient--flow { animation: gradient-pan 7s var(--ease-in-out) infinite; }
+
+/* ── 玻璃材质 ─────────────────────────────────────────── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+  border: 1px solid var(--glass-border);
+}
+.glass-deep {
+  background: var(--glass-deep-bg);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  border: 1px solid var(--glass-deep-border);
+}
+
+/* ── 渐变描边（1px 极光发丝线） ────────────────────────── */
+.border-nova {
+  position: relative;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+    var(--grad-nova) border-box;
+}
+.border-nova--deep {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(rgba(14, 14, 38, 0.86), rgba(14, 14, 38, 0.86)) padding-box,
+    var(--grad-nova) border-box;
+}
+
+/* ── 交互态 ───────────────────────────────────────────── */
+.hover-lift {
+  transition: transform var(--dur-base) var(--ease-smooth), box-shadow var(--dur-base) var(--ease-smooth);
+}
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg), var(--glow-soft);
+}
+.hover-glow { transition: box-shadow var(--dur-base) var(--ease-smooth); }
+.hover-glow:hover { box-shadow: var(--shadow-md), var(--glow-soft); }
+.press {
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.press:active { transform: scale(0.97); }
+
+/* 3D 倾斜卡片（配合 useTilt） */
+.tilt {
+  transform-style: preserve-3d;
+  transition: transform 160ms var(--ease-out);
+  will-change: transform;
+}
+.tilt__glare {
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(420px circle at var(--glare-x, 50%) var(--glare-y, 50%),
+    rgba(255, 255, 255, 0.35), transparent 45%);
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+.tilt:hover .tilt__glare { opacity: 1; }
+
+/* 彗尾扫光（hover 时一道流光扫过） */
+.comet {
+  position: relative;
+  overflow: hidden;
+}
+.comet::after {
+  content: '';
+  position: absolute; top: -40%; bottom: -40%; width: 34%;
+  left: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  transform: translateX(-130%) skewX(-18deg);
+  pointer-events: none;
+}
+.comet:hover::after { animation: comet-sweep 720ms var(--ease-smooth); }
+
+/* ── 星尘环境（工作台浅底上的微光漂浮粒子） ─────────────── */
+.stardust {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+.stardust__dot {
+  position: absolute;
+  width: var(--s, 3px); height: var(--s, 3px);
+  border-radius: 50%;
+  background: var(--c, var(--nova-blue));
+  opacity: var(--o, 0.25);
+  left: var(--x); top: var(--y);
+  animation:
+    star-twinkle var(--t, 4s) ease-in-out infinite,
+    drift-slow var(--dt, 14s) ease-in-out infinite alternate;
+  animation-delay: var(--d, 0s);
+}
+
+/* ── 超新星核心（hero 中心的爆发光球） ───────────────────── */
+.nova-core {
+  position: absolute;
+  width: var(--core-size, 460px); height: var(--core-size, 460px);
+  border-radius: 50%;
+  background: var(--grad-core);
+  filter: blur(2px);
+  animation: nova-breathe 5.2s var(--ease-in-out) infinite;
+  pointer-events: none;
+}
+.nova-core::before,
+.nova-core::after {
+  content: '';
+  position: absolute; inset: 12%;
+  border-radius: 50%;
+  border: 1px solid rgba(129, 140, 248, 0.22);
+  animation: spin var(--orbit-t, 26s) linear infinite;
+}
+.nova-core::after {
+  inset: 26%;
+  border-color: rgba(34, 211, 238, 0.18);
+  animation-duration: calc(var(--orbit-t, 26s) * 0.62);
+  animation-direction: reverse;
+}
+
+/* ── 新星活体点（替代静态绿点） ─────────────────────────── */
+.nova-dot {
+  position: relative;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--nova-ice);
+  flex-shrink: 0;
+}
+.nova-dot::after {
+  content: '';
+  position: absolute; inset: -4px;
+  border-radius: 50%;
+  border: 1.5px solid var(--nova-ice);
+  animation: nova-breathe 2s ease-out infinite;
+}
+
+/* ── 走马灯 ───────────────────────────────────────────── */
+.marquee {
+  display: flex;
+  gap: var(--gap, 28px);
+  width: max-content;
+  animation: marquee-x var(--speed, 30s) linear infinite;
+}
+.marquee:hover { animation-play-state: paused; }
+
+/* ── 深空场景（hero 背景组合） ───────────────────────────── */
+.space-scene {
+  position: relative;
+  background: var(--grad-deep);
+  overflow: hidden;
+}
+.space-scene::before {
+  /* 星尘噪点：两层径向小点平铺，成本为零的星空 */
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    radial-gradient(1.2px 1.2px at 18% 22%, rgba(255, 255, 255, 0.8) 50%, transparent 51%),
+    radial-gradient(1px 1px at 62% 68%, rgba(186, 230, 253, 0.7) 50%, transparent 51%),
+    radial-gradient(1.4px 1.4px at 82% 18%, rgba(216, 180, 254, 0.7) 50%, transparent 51%),
+    radial-gradient(1px 1px at 38% 78%, rgba(255, 255, 255, 0.55) 50%, transparent 51%),
+    radial-gradient(1.1px 1.1px at 92% 52%, rgba(153, 246, 228, 0.6) 50%, transparent 51%),
+    radial-gradient(1px 1px at 8% 60%, rgba(199, 210, 254, 0.65) 50%, transparent 51%);
+  background-size: 340px 340px, 420px 420px, 380px 380px, 300px 300px, 460px 460px, 360px 360px;
+  animation: star-twinkle 5s ease-in-out infinite;
+  opacity: 0.9;
+}
+
+/* 数字使用等宽数字，count-up 不抖动 */
+.num { font-variant-numeric: tabular-nums; font-family: var(--font-num); }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-burst, .anim-rise, .anim-word, .anim-wipe, .anim-pop,
+  .anim-fade, .anim-fade-up, .anim-float, .anim-breathe,
+  .stagger > *, .marquee, .nova-core, .stardust__dot, .space-scene::before {
+    animation: none !important;
+  }
+}

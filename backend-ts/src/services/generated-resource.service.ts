@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { AgentTask } from '../entities/agent-task.entity';
 import {
   GeneratedResource,
@@ -88,24 +88,56 @@ export class GeneratedResourceService {
       source?: GeneratedResourceSource;
       resourceType?: string;
       status?: GeneratedResourceStatus;
+      search?: string;
       limit?: number;
     } = {},
   ): Promise<GeneratedResource[]> {
-    const where: FindOptionsWhere<GeneratedResource> = { userId, status: 1 };
-    if (filters.chatSessionId) where.chatSessionId = filters.chatSessionId;
-    if (filters.source) where.source = filters.source;
-    if (filters.resourceType) where.resourceType = filters.resourceType;
-    if (filters.status) where.resourceStatus = filters.status;
+    const limit = Math.min(Math.max(filters.limit || 100, 1), 500);
+    const qb = this.resourceRepo
+      .createQueryBuilder('resource')
+      .where('resource.userId = :userId', { userId })
+      .andWhere('resource.status = 1');
 
-    return this.resourceRepo.find({
-      where,
-      order: { updateTime: 'DESC', createTime: 'DESC' },
-      take: Math.min(Math.max(filters.limit || 100, 1), 500),
-    });
+    if (filters.chatSessionId) qb.andWhere('resource.chatSessionId = :chatSessionId', { chatSessionId: filters.chatSessionId });
+    if (filters.source) qb.andWhere('resource.source = :source', { source: filters.source });
+    if (filters.resourceType) qb.andWhere('resource.resourceType = :resourceType', { resourceType: filters.resourceType });
+    if (filters.status) qb.andWhere('resource.resourceStatus = :status', { status: filters.status });
+    if (filters.search?.trim()) {
+      const search = `%${filters.search.trim()}%`;
+      qb.andWhere('(resource.title LIKE :search OR resource.skillName LIKE :search OR resource.resourceType LIKE :search)', { search });
+    }
+
+    return qb
+      .orderBy('resource.updateTime', 'DESC')
+      .addOrderBy('resource.createTime', 'DESC')
+      .take(limit)
+      .getMany();
   }
 
   async getById(userId: number, id: number): Promise<GeneratedResource | null> {
     return this.resourceRepo.findOne({ where: { id, userId, status: 1 } });
+  }
+
+  async countForUser(
+    userId: number,
+    filters: {
+      chatSessionId?: string;
+      source?: GeneratedResourceSource;
+      resourceType?: string;
+      status?: GeneratedResourceStatus;
+    } = {},
+  ): Promise<number> {
+    const qb = this.resourceRepo
+      .createQueryBuilder('resource')
+      .where('resource.userId = :userId', { userId })
+      .andWhere('resource.status = 1');
+
+    if (filters.chatSessionId) qb.andWhere('resource.chatSessionId = :chatSessionId', { chatSessionId: filters.chatSessionId });
+    if (filters.source) qb.andWhere('resource.source = :source', { source: filters.source });
+    if (filters.resourceType) qb.andWhere('resource.resourceType = :resourceType', { resourceType: filters.resourceType });
+    if (filters.status) qb.andWhere('resource.resourceStatus = :status', { status: filters.status });
+
+    return qb.getCount();
   }
 
   async setFeedback(userId: number, id: number, useful: boolean): Promise<GeneratedResource | null> {
@@ -216,6 +248,8 @@ export class GeneratedResourceService {
       previewMeta: {
         actionType: actionType || this.actionTypeFromResource(resourceType, taskStatus),
         actionKey: task.externalId ? `task:${task.externalId}` : `task:${task.id}`,
+        sourceTaskId: task.id,
+        chatSessionId,
         progress: task.progress,
       },
       provider: this.providerOf(payload),

@@ -1,0 +1,663 @@
+/* ────────────────────────────────────────────────────────────
+   NOVA 设计层 —— 在 base 之上的品牌化升级（最后加载）
+   原则：工作台保持浅色高效，所有"星味"通过光效、渐变、动效注入。
+   ──────────────────────────────────────────────────────────── */
+
+/* ══ 按钮：主按钮 = 超新星渐变 + 发光 + 彗尾扫光 ══ */
+.btn--primary {
+  position: relative;
+  overflow: hidden;
+  background: var(--grad-nova);
+  background-size: 180% 180%;
+  color: #fff;
+  border: none;
+  box-shadow: var(--shadow-brand);
+  transition: background-position var(--dur-slow) var(--ease-smooth),
+              box-shadow var(--dur-base) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+.btn--primary:hover:not(:disabled) {
+  background-position: 90% 50%;
+  box-shadow: 0 8px 26px rgba(99, 102, 241, 0.45), 0 0 22px rgba(34, 211, 238, 0.28);
+  transform: translateY(-1px);
+}
+.btn--primary:active:not(:disabled) { transform: translateY(0) scale(0.98); }
+.btn--primary::after {
+  content: '';
+  position: absolute; top: -40%; bottom: -40%; width: 30%; left: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+  transform: translateX(-140%) skewX(-18deg);
+  pointer-events: none;
+}
+.btn--primary:hover:not(:disabled)::after { animation: comet-sweep 780ms var(--ease-smooth); }
+
+.btn--soft {
+  background: var(--grad-nova-soft);
+  color: var(--brand-600);
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+.btn--soft:hover:not(:disabled) {
+  box-shadow: var(--glow-soft);
+  color: #4f46e5;
+}
+
+.btn--ghost:hover:not(:disabled) {
+  border-color: var(--brand-500);
+  color: var(--brand-600);
+  box-shadow: var(--glow-soft);
+}
+
+/* ══ 卡片：悬浮升空 + 微光 ══ */
+.card {
+  transition: transform var(--dur-base) var(--ease-smooth),
+              box-shadow var(--dur-base) var(--ease-smooth),
+              border-color var(--dur-base) var(--ease-out);
+}
+.card--interactive:hover {
+  transform: translateY(-3px);
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: var(--shadow-lg), var(--glow-soft);
+}
+.card__title .icon-wrap {
+  background: var(--grad-nova-soft);
+  color: var(--brand-600);
+}
+
+/* ══ 品牌标签 = 极光底 ══ */
+.tag--brand {
+  background: var(--grad-nova-soft);
+  color: var(--brand-600);
+}
+
+/* ══ 输入框：聚焦时星环发光 ══ */
+.input:focus, .textarea:focus, .select:focus {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.14), var(--glow-soft);
+  outline: none;
+}
+
+/* ══ 进度条：默认新星渐变 ══ */
+.bar__fill {
+  background: var(--grad-nova);
+  background-size: 180% 100%;
+  border-radius: inherit;
+  transition: width 700ms var(--ease-smooth);
+}
+
+/* ══ 品牌标：超新星渐变方块 ══ */
+.brand__mark {
+  background: var(--grad-nova);
+  box-shadow: var(--shadow-brand);
+  position: relative;
+}
+.brand__mark::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.55), transparent 55%);
+}
+
+/* ══ 侧边导航：激活 = 极光渐变片 + 光点 ══ */
+.nav__item {
+  position: relative;
+  transition: background var(--dur-base) var(--ease-out),
+              color var(--dur-base) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+.nav__item:hover { transform: translateX(2px); }
+.nav__item.is-active {
+  background: var(--grad-nova-soft);
+  color: var(--brand-600);
+  font-weight: 620;
+}
+.nav__item.is-active::before {
+  content: '';
+  position: absolute;
+  left: -10px; top: 50%;
+  width: 3px; height: 18px;
+  border-radius: 99px;
+  transform: translateY(-50%);
+  background: var(--grad-nova);
+  box-shadow: var(--glow-soft);
+}
+.nav__item.is-active svg { filter: drop-shadow(0 0 5px rgba(99, 102, 241, 0.5)); }
+
+/* ══ 顶栏：玻璃悬浮 ══ */
+.topbar {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+}
+.topbar__title svg { filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.55)); }
+
+/* ══ 工作台环境光：主区背后缓慢漂移的极光雾 ══ */
+.main { position: relative; }
+.main::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 0 var(--rail-w);
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(640px 420px at 88% -6%, rgba(99, 102, 241, 0.07), transparent 62%),
+    radial-gradient(520px 380px at -4% 92%, rgba(34, 211, 238, 0.06), transparent 60%),
+    radial-gradient(480px 340px at 62% 108%, rgba(168, 85, 247, 0.05), transparent 58%);
+  animation: gradient-pan 26s var(--ease-in-out) infinite;
+}
+.main > * { position: relative; z-index: 1; }
+
+/* ══ 实时通道指示 = 新星呼吸点 ══ */
+.stream-pill__dot.is-live {
+  background: var(--nova-ice);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.18), 0 0 10px rgba(34, 211, 238, 0.6);
+  animation: nova-breathe 2.4s ease-in-out infinite;
+}
+
+/* ══ 指标卡：强调款 = 新星渐变 ══ */
+.metric--accent {
+  background: var(--grad-nova);
+  background-size: 160% 160%;
+  border: none;
+  box-shadow: var(--shadow-brand);
+  animation: gradient-pan 12s var(--ease-in-out) infinite;
+}
+
+/* ══ 对话气泡：AI 气泡极光描边 ══ */
+.msg--ai .msg__bubble {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+    linear-gradient(135deg, rgba(34, 211, 238, 0.35), rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.28)) border-box;
+  box-shadow: var(--shadow-sm);
+}
+.msg--user .msg__bubble {
+  background: var(--grad-nova);
+  background-size: 150% 150%;
+  box-shadow: var(--shadow-brand);
+}
+.msg__avatar {
+  box-shadow: var(--glow-soft);
+}
+
+/* ══════════════════════════════════════════════════════
+   LANDING —— 深空沉浸场景（品牌时刻）
+   ══════════════════════════════════════════════════════ */
+.landing {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(400px, 0.85fr);
+  background: var(--space-950);
+}
+.landing__left {
+  position: relative;
+  padding: var(--sp-8) var(--sp-8) var(--sp-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+  background: var(--grad-deep);
+  overflow: hidden;
+  color: var(--text-space);
+}
+.landing__left > * { position: relative; z-index: 2; }
+
+/* 星野（两层错落的星点平铺 + 闪烁） */
+.landing__stars {
+  position: absolute; inset: 0; z-index: 1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.3px 1.3px at 15% 20%, rgba(255, 255, 255, 0.9) 50%, transparent 51%),
+    radial-gradient(1px 1px at 65% 70%, rgba(186, 230, 253, 0.8) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 85% 15%, rgba(216, 180, 254, 0.85) 50%, transparent 51%),
+    radial-gradient(1px 1px at 35% 80%, rgba(255, 255, 255, 0.6) 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 90% 55%, rgba(153, 246, 228, 0.7) 50%, transparent 51%),
+    radial-gradient(1px 1px at 8% 62%, rgba(199, 210, 254, 0.75) 50%, transparent 51%);
+  background-size: 340px 340px, 420px 420px, 380px 380px, 300px 300px, 460px 460px, 360px 360px;
+  animation: star-twinkle 5s ease-in-out infinite;
+}
+.landing__stars--far {
+  opacity: 0.5;
+  filter: blur(0.6px);
+  animation-duration: 8s;
+  animation-delay: 1.2s;
+}
+
+/* 超新星核心光球 */
+.landing__nova {
+  position: absolute;
+  top: -180px; right: -140px;
+  width: 560px; height: 560px;
+  border-radius: 50%;
+  background: var(--grad-core);
+  opacity: 0.85;
+  filter: blur(3px);
+  animation: nova-breathe 6s var(--ease-in-out) infinite;
+  z-index: 1;
+  pointer-events: none;
+}
+.landing__nova::before,
+.landing__nova::after {
+  content: '';
+  position: absolute; inset: 16%;
+  border-radius: 50%;
+  border: 1px solid rgba(129, 140, 248, 0.25);
+  animation: spin 30s linear infinite;
+}
+.landing__nova::after {
+  inset: 32%;
+  border-color: rgba(34, 211, 238, 0.2);
+  animation-duration: 19s;
+  animation-direction: reverse;
+}
+
+.landing .brand__name { color: #fff; }
+.landing .brand__sub { color: var(--text-space-dim); }
+
+.landing__hero .tag--brand {
+  background: rgba(99, 102, 241, 0.16);
+  color: #a5b4fc;
+  border: 1px solid rgba(129, 140, 248, 0.3);
+  backdrop-filter: blur(6px);
+}
+.landing__hero h1 {
+  font-size: 44px;
+  line-height: 1.18;
+  letter-spacing: -0.028em;
+  max-width: 15em;
+  color: #fff;
+  text-shadow: 0 0 40px rgba(99, 102, 241, 0.35);
+}
+.landing__hero h1 .accent {
+  background: var(--grad-nova-text);
+  background-size: 220% 220%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: gradient-pan 6s var(--ease-in-out) infinite;
+}
+.landing__hero p {
+  margin-top: var(--sp-4);
+  font-size: 15.5px;
+  color: var(--text-space-dim);
+  line-height: 1.78;
+  max-width: 34em;
+}
+
+/* 探索四步：星轨编号 + hover 发光 */
+.landing__flow-item {
+  border-radius: var(--r-md);
+  padding: 13px 14px;
+  transition: background var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-smooth);
+}
+.landing__flow-item:hover {
+  background: rgba(129, 140, 248, 0.08);
+  transform: translateX(4px);
+}
+.landing__flow-num {
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  color: #a5b4fc;
+  box-shadow: 0 0 14px rgba(99, 102, 241, 0.25);
+}
+.landing__flow-item h4 { color: var(--text-space); }
+.landing__flow-item p { color: var(--text-space-dim); }
+.landing__flow-item svg { color: var(--nova-ice) !important; filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.6)); }
+
+.landing__trust { border-top-color: rgba(148, 163, 255, 0.14); }
+.landing__trust-item { color: var(--text-space-dim); }
+.landing__trust-item svg { color: var(--nova-ice) !important; }
+
+/* 右侧：深空中的玻璃登录舱 */
+.landing__right {
+  display: grid;
+  place-items: center;
+  padding: var(--sp-6);
+  border-left: 1px solid rgba(148, 163, 255, 0.1);
+  background:
+    radial-gradient(700px 500px at 60% 30%, rgba(99, 102, 241, 0.12), transparent 60%),
+    var(--space-900);
+  position: relative;
+  overflow: hidden;
+}
+.auth-card {
+  width: 100%;
+  max-width: 392px;
+  background: rgba(20, 20, 48, 0.6);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  border-radius: var(--r-xl);
+  padding: var(--sp-6);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), 0 0 40px rgba(99, 102, 241, 0.12);
+  position: relative;
+  z-index: 2;
+}
+.auth-card::before {
+  content: '';
+  position: absolute; inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--grad-nova);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.5;
+  pointer-events: none;
+}
+.auth-card__head h2 { color: #fff; }
+.auth-card__head p { color: var(--text-space-dim); }
+.auth-card .field__label { color: var(--text-space); }
+.auth-card .field__hint { color: var(--text-space-dim); }
+.auth-card .input {
+  background: rgba(10, 10, 31, 0.6);
+  border-color: rgba(148, 163, 255, 0.2);
+  color: #fff;
+}
+.auth-card .input::placeholder { color: rgba(154, 160, 196, 0.55); }
+.auth-card .input:focus {
+  border-color: var(--nova-blue);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2), var(--glow-blue);
+}
+.auth-card .segmented {
+  background: rgba(10, 10, 31, 0.6);
+  border-color: rgba(148, 163, 255, 0.18);
+}
+.auth-card .segmented__item { color: var(--text-space-dim); }
+.auth-card .segmented__item[aria-pressed='true'] {
+  background: var(--grad-nova);
+  color: #fff;
+  box-shadow: var(--shadow-brand);
+}
+.auth-card .banner--error {
+  background: rgba(190, 18, 60, 0.16);
+  border-color: rgba(244, 63, 94, 0.3);
+  color: #fda4af;
+}
+.auth-card .faint { color: var(--text-space-dim); }
+
+/* ══ 新组件：StatCard / ProgressRing / SectionTitle ══ */
+.stat-card {
+  position: relative;
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+  transition: transform var(--dur-base) var(--ease-smooth), box-shadow var(--dur-base) var(--ease-smooth);
+}
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md), var(--glow-soft);
+}
+.stat-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--stat-grad, var(--grad-nova));
+  opacity: 0.85;
+}
+.stat-card__label {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; color: var(--text-muted); font-weight: 550;
+}
+.stat-card__value {
+  margin-top: 6px;
+  font-size: 30px; font-weight: 720; letter-spacing: -0.02em;
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.stat-card__value small { font-size: 13px; font-weight: 550; color: var(--text-muted); margin-left: 3px; }
+.stat-card__foot { margin-top: 5px; font-size: 11.5px; color: var(--text-faint); }
+.stat-card__icon {
+  position: absolute; right: 14px; top: 14px;
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  background: var(--grad-nova-soft);
+  color: var(--brand-600);
+}
+
+.progress-ring { position: relative; display: inline-grid; place-items: center; }
+.progress-ring svg { transform: rotate(-90deg); display: block; }
+.progress-ring__track { stroke: var(--bg-sunken); }
+.progress-ring__fill {
+  stroke: url(#nova-ring-grad);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 900ms var(--ease-smooth);
+  filter: drop-shadow(0 0 5px rgba(99, 102, 241, 0.45));
+}
+.progress-ring__center {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  text-align: center;
+}
+.progress-ring__value {
+  font-size: 20px; font-weight: 720; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  background: var(--grad-nova-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.section-title {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: var(--sp-4);
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.35), transparent);
+}
+.section-title h2 { font-size: 16px; display: flex; align-items: center; gap: 8px; }
+.section-title h2 svg { color: var(--brand-500); filter: drop-shadow(0 0 5px rgba(99, 102, 241, 0.45)); }
+
+/* ══ reveal 入场（配合 useReveal） ══ */
+.reveal { opacity: 0; transform: translateY(20px); transition: opacity 620ms var(--ease-smooth), transform 620ms var(--ease-smooth); transition-delay: var(--d, 0ms); }
+.reveal.is-in { opacity: 1; transform: translateY(0); }
+
+/* ══ 骨架屏新星色 ══ */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-sunken) 25%, rgba(99, 102, 241, 0.1) 50%, var(--bg-sunken) 75%);
+  background-size: 840px 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+/* ══ 页面级节奏：页头与主内容入场 ══ */
+.page-head { animation: rise-in 480ms var(--ease-smooth) both; }
+.page-head h1 { letter-spacing: -0.02em; }
+
+/* 台账行 hover 发光 */
+.ledger__row, .ledger > * {
+  transition: background var(--dur-base) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out);
+}
+.ledger__row:hover, .ledger > *:hover {
+  background: var(--bg-hover);
+  box-shadow: inset 2px 0 0 var(--brand-500);
+}
+
+/* 对话消息：入场从 fade-up 升级为 nova 升起 */
+.msg { animation: rise-in 420ms var(--ease-smooth) both; }
+
+/* 派发弹窗中的 Agent 类型选择 hover */
+.choice {
+  transition: border-color var(--dur-base) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out),
+              background var(--dur-base) var(--ease-out);
+}
+.choice:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md), var(--glow-soft);
+}
+.choice[aria-pressed='true'] {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+    var(--grad-nova) border-box;
+  box-shadow: var(--glow-soft);
+}
+.choice__check {
+  background: var(--grad-nova);
+  box-shadow: var(--glow-soft);
+}
+
+/* 步骤条激活态发光 */
+.steps__item.is-active .steps__dot {
+  background: var(--grad-nova);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: var(--glow-blue);
+  animation: glow-pulse 2.6s ease-in-out infinite;
+}
+.steps__item.is-done .steps__dot {
+  background: var(--grad-nova-soft);
+  color: var(--brand-600);
+}
+
+/* 弹层：nova 升起入场 */
+.modal { animation: nova-burst 340ms var(--ease-burst) both; }
+.overlay { animation: fade-in 200ms var(--ease-out) both; }
+
+/* Toast：右侧滑入 + 发光 */
+.toast {
+  animation: rise-in 380ms var(--ease-smooth) both;
+  box-shadow: var(--shadow-lg), var(--glow-soft);
+}
+
+/* 空状态图标：呼吸微光 */
+.empty__icon { animation: nova-breathe 3.4s var(--ease-in-out) infinite; }
+
+/* ============================================================
+   页面级 polish · 第二批（Onboarding / Paths / Resources）
+   ============================================================ */
+
+/* Onboarding：深空品牌场景 + 浅玻璃向导卡 */
+.wizard {
+  position: relative;
+  isolation: isolate;
+}
+.wizard .space-layer {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--grad-deep);
+}
+.wizard .landing__stars,
+.wizard .landing__nova {
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+}
+.wizard .landing__stars { inset: 0; }
+.wizard-card {
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(22px) saturate(1.5);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: var(--shadow-xl), var(--glow-soft);
+}
+.wizard .steps__label { color: rgba(226, 232, 255, 0.72); }
+.wizard .steps__item.is-active .steps__label { color: #fff; }
+.wizard__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 22px;
+  color: #e2e8ff;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+/* Paths：计划切换 chip 激活态 → 渐变描边 */
+.plan-chip.is-active {
+  border: 1px solid transparent !important;
+  background:
+    linear-gradient(var(--brand-50), var(--brand-50)) padding-box,
+    var(--grad-nova) border-box !important;
+  box-shadow: var(--glow-soft);
+}
+
+/* Paths：当前阶段标记 → nova 发光 */
+.phase.is-current .phase__marker {
+  background: var(--grad-nova);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: var(--glow-blue);
+}
+.phase.is-current .phase__name { color: var(--brand-700); }
+.phase {
+  transition: box-shadow 260ms var(--ease-smooth);
+}
+.phase.is-current {
+  border-radius: var(--radius-md);
+  box-shadow: inset 3px 0 0 var(--nova-blue);
+}
+
+/* Paths：能力项行 hover → 渐变左条 + 微移 */
+.skill-row {
+  position: relative;
+  transition: transform 220ms var(--ease-smooth), background 220ms var(--ease-smooth);
+}
+.skill-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--grad-nova);
+  opacity: 0;
+  transform: scaleY(0.4);
+  transition: opacity 220ms var(--ease-smooth), transform 260ms var(--ease-burst);
+}
+.skill-row:hover::before { opacity: 1; transform: scaleY(1); }
+.skill-row:hover { transform: translateX(3px); }
+
+/* Onboarding 第 3 步：自评按钮选中态 → 渐变 */
+.self-rate__btn {
+  transition: all 200ms var(--ease-smooth);
+}
+.self-rate__btn[aria-pressed='true'] {
+  background: var(--grad-nova);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: var(--glow-soft);
+}
+.self-rate__btn:hover:not([aria-pressed='true']) {
+  border-color: var(--nova-blue);
+  color: var(--brand-600);
+}
+
+/* Resources：反馈按钮激活态发光 */
+.feedback-btn { transition: all 200ms var(--ease-smooth); }
+.feedback-btn:hover { transform: translateY(-1px); border-color: var(--nova-blue); color: var(--brand-600); }
+.feedback-btn.is-on--up {
+  background: var(--grad-nova);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: var(--glow-soft);
+}
+.feedback-btn.is-on--down {
+  background: linear-gradient(120deg, #f43f5e, #fb7185);
+  color: #fff;
+  border-color: transparent;
+}
+
+/* tip-note：左侧渐变光条 */
+.tip-note {
+  position: relative;
+  border-left: 3px solid transparent;
+  border-image: linear-gradient(180deg, var(--nova-ice), var(--nova-violet)) 1;
+}

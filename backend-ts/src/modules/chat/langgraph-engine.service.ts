@@ -791,7 +791,7 @@ export class LangGraphEngineService {
       const result = await this.llmService.chatCompletion([
         { role: 'system', content: '你是出题专家，根据技能名称生成高质量练习题。' },
         { role: 'user', content: prompt },
-      ], { temperature: 0.5, tier: 'pro' });
+      ], { temperature: 0.5, maxTokens: 8192, tier: 'gen', thinking: 'off' });
       const examData = extractJson(result);
       try {
         const exam = await this.examRepo.save({ userId: state.userId, examType: 1, skillName, answers: examData, passed: 0, retryCount: 0, createTime: Date.now(), updateTime: Date.now(), status: 1 });

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { ModelTier } from '../llm.service';
 
 /**
  * Token 用量追踪服务
@@ -19,7 +20,7 @@ interface TokenUsage {
   outputTokens: number;
   totalTokens: number;
   model: string;
-  tier: 'flash' | 'pro';
+  tier: ModelTier;
   timestamp: number;
   durationMs: number;
 }

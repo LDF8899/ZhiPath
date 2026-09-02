@@ -3,6 +3,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AgentTask } from '../../entities/agent-task.entity';
 import { AgentProfile } from '../../entities/agent-profile.entity';
 import { GeneratedResource } from '../../entities/generated-resource.entity';
+import { Student } from '../../entities/student.entity';
+import { JobPosition } from '../../entities/job.entity';
+import { UserSkill } from '../../entities/user-skills.entity';
 import { AgentTaskService } from '../../services/agent-task.service';
 import { AgentProfileService } from '../../services/agent-profile.service';
 import { GeneratedResourceService } from '../../services/generated-resource.service';
@@ -16,7 +19,7 @@ import { EventsModule } from '../events/events.module';
  * 导入 EventsModule 以支持 SSE 实时推送
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([AgentTask, AgentProfile, GeneratedResource]), AgentsModule, KnowledgeModule, EventsModule],
+  imports: [TypeOrmModule.forFeature([AgentTask, AgentProfile, GeneratedResource, Student, JobPosition, UserSkill]), AgentsModule, KnowledgeModule, EventsModule],
   controllers: [AgentOfficeController],
   providers: [AgentTaskService, AgentProfileService, GeneratedResourceService],
   exports: [AgentTaskService, AgentProfileService, GeneratedResourceService],

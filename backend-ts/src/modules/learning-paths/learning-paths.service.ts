@@ -5,6 +5,7 @@ import { LearningPlan } from '../../entities/learning.entity';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { KnowledgeBaseService } from '../../services/knowledge-base.service';
+import { normalizeAnswer } from '../../services/resource-agent.service';
 import { LectureAgentService, CodeAgentService, ReadingAgentService } from '../../services/agents';
 import { AgentTaskService } from '../../services/agent-task.service';
 import { AgentProfileService } from '../../services/agent-profile.service';
@@ -302,14 +303,28 @@ export class LearningPathsService {
         const questions = result.exercises
           .filter((ex: any) => ex.type === 'choice' && ex.options?.length)
           .map((ex: any) => {
-            const answerIdx = ex.options.indexOf(ex.answer);
+            // 讲义 Agent 的 options 带 "A." 前缀，而「答案：」后面模型常只写字母 A，
+            // 直接 indexOf 会匹配不上并退化成 0（所有题都指向第一个选项）。用归一化兜住。
+            const answerIdx = normalizeAnswer(ex.answer, ex.options);
+            if (answerIdx === null) {
+              console.warn(`[LearningPaths] 无法解析答案，跳过该题: ${skill} answer=${JSON.stringify(ex.answer)}`);
+              return null;
+            }
+            // 题干里内联了选项（A. … B. …），不剥掉会和下方选项按钮重复显示
+            let stem = String(ex.question || '');
+            const firstOption = String(ex.options[0] ?? '');
+            const at = firstOption ? stem.indexOf(firstOption) : -1;
+            if (at > 0) stem = stem.slice(0, at).trim();
+
             return {
-              question: ex.question || '',
+              question: stem,
               options: ex.options || [],
-              answer: answerIdx >= 0 ? answerIdx : 0,
+              answer: answerIdx,
+              answerText: String(ex.options[answerIdx] ?? ''),
               explanation: ex.explanation || '',
             };
-          });
+          })
+          .filter(Boolean);
         if (questions.length > 0) {
           await this.knowledgeService.saveQuiz(skill, questions, 'beginner');
           console.log(`[LearningPaths] Quiz saved for: ${skill} (${questions.length} questions)`);

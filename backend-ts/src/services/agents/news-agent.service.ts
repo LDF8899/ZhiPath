@@ -81,7 +81,7 @@ export class NewsAgentService {
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.6,
       maxTokens: 4096,
-      tier: 'pro',
+      tier: 'gen', thinking: 'off',
     });
 
     return this.parseTrend(raw);

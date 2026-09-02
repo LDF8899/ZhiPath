@@ -49,6 +49,8 @@ DEEPSEEK_API_KEY=your_key_here
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-v4-pro
 DEEPSEEK_FLASH_MODEL=deepseek-v4-flash
+LLM_GEN_MODEL=deepseek-v4-flash-vision-exp
+VISION_MODEL=deepseek-v4-flash-vision-exp
 
 SEARCH_STACK_URL=http://127.0.0.1:17080
 SEARCH_STACK_API_KEY=your_search_stack_key

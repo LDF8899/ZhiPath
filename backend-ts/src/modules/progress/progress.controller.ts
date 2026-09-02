@@ -54,6 +54,41 @@ export class ProgressController {
     exam: 20,
   };
 
+  /**
+   * 把学习闭环算出的掌握度回写到 user_skills_v3。
+   * 能力雷达、知识盲区、岗位匹配都从这张表取数；此前学习闭环只更新 git 快照，
+   * 从不写这里，导致那些页面看到的一直是 0。
+   */
+  private async syncMastery(userId: number, skill: string, masteryPct: number): Promise<void> {
+    try {
+      await this.skillService.setMastery(userId, skill, masteryPct);
+    } catch (e: any) {
+      console.warn(`[Progress] 掌握度回写失败: ${skill} → ${e.message}`);
+    }
+  }
+
+  /**
+   * 按完成项累加掌握度。幂等 —— 重做测验、重复提交都不会叠加。
+   * git 快照的 mastery 是逐次 delta 累加的，用户重做一遍就会虚高，
+   * 所以对外一律以这个为准。
+   */
+  private checklistMastery(path: LearningPlan, skill: string): number {
+    const w = ProgressController.MASTERY_WEIGHTS;
+    let node: any = null;
+    for (const phase of (path?.pathData?.phases || [])) {
+      for (const s of (phase.skills || [])) {
+        if (s.name === skill) { node = s; break; }
+      }
+    }
+    if (!node) return 0;
+    return (
+      (node.read_at ? w.lecture : 0) +
+      (node.quiz_passed ? w.quiz : 0) +
+      (node.code_done ? w.code : 0) +
+      (node.exam_done ? w.exam : 0)
+    );
+  }
+
   /** POST /api/user/progress/read — 标记讲义阅读完成 */
   @Post('read')
   async markReadComplete(
@@ -83,7 +118,7 @@ export class ProgressController {
 
     // 获取当前掌握度
     const current = (git.snapshot.skillsJson || []).find((skill: any) => skill.name === body.skill);
-    const masteryPct = current?.mastery ?? delta;
+    const masteryPct = this.checklistMastery(path, body.skill);
     const evaluation = await this.evaluationService.record({
       userId,
       attemptType: 'progress_read',
@@ -101,6 +136,8 @@ export class ProgressController {
       dimensions: this.dimensionsFromGit(git, body.skill, 100, context),
       nextActions: [{ type: 'quiz', label: '完成随堂练习', skillName: body.skill }],
     });
+
+    await this.syncMastery(userId, body.skill, masteryPct || delta);
 
     return success({
       skill: body.skill,
@@ -173,7 +210,7 @@ export class ProgressController {
         payload: { pathId: path.id, total: body.total, correct: body.correct, score, passScore, domainId: context.domainId },
       });
       const current = (git.snapshot.skillsJson || []).find((skill: any) => skill.name === body.skill);
-      masteryPct = current?.mastery ?? 0;
+      masteryPct = this.checklistMastery(path, body.skill);
     } else {
       const branch = await this.branchService.ensurePlanBranch(userId, path);
       git = await this.learningCommitService.commitSkill(userId, branch.id, {
@@ -247,6 +284,8 @@ export class ProgressController {
         : [{ type: 'review', label: '复盘薄弱项', skillName: body.skill }],
     });
 
+    await this.syncMastery(userId, body.skill, masteryPct || (passed ? delta : 0));
+
     return success({
       skill: body.skill,
       score,
@@ -287,7 +326,7 @@ export class ProgressController {
     });
 
     const current = (git.snapshot.skillsJson || []).find((skill: any) => skill.name === body.skill);
-    const masteryPct = current?.mastery ?? 0;
+    const masteryPct = this.checklistMastery(path, body.skill);
     const evaluation = await this.evaluationService.record({
       userId,
       attemptType: 'progress_code',
@@ -305,6 +344,8 @@ export class ProgressController {
       dimensions: this.dimensionsFromGit(git, body.skill, 100, context),
       nextActions: [{ type: 'complete', label: '确认能力项完成', skillName: body.skill }],
     });
+
+    await this.syncMastery(userId, body.skill, masteryPct);
 
     return success({
       skill: body.skill,
@@ -344,7 +385,7 @@ export class ProgressController {
       payload: { pathId: path.id, phaseDone, requiresVerification: true },
     });
     const current = (git.snapshot.skillsJson || []).find((skill: any) => skill.name === body.skill);
-    const masteryPct = current?.mastery ?? 0;
+    const masteryPct = this.checklistMastery(path, body.skill);
 
     await this.notificationService.notifyProgress(userId, body.skill, 100);
 
@@ -367,6 +408,8 @@ export class ProgressController {
       dimensions: this.dimensionsFromGit(git, body.skill, 100, context),
       nextActions: phaseDone ? [{ type: 'exam', label: '参加阶段测评', skillName: body.skill }] : [],
     });
+
+    await this.syncMastery(userId, body.skill, 100);
 
     return success({
       skill: body.skill,
@@ -413,9 +456,19 @@ export class ProgressController {
     const codeDone = !!skillNode?.code_done;
     const examDone = !!skillNode?.exam_done;
 
+    // 掌握度必须和下面四个权重项自洽。此前直接读 user_skills_v3，
+    // 而那张表在学习闭环里从不写入（commitSkill 只更新 git 快照），
+    // 结果就是"测验已完成 +25%"但掌握度始终 0%。有路径节点时按完成项累加。
+    const byChecklist =
+      (lectureDone ? w.lecture : 0) +
+      (quizPassed ? w.quiz : 0) +
+      (codeDone ? w.code : 0) +
+      (examDone ? w.exam : 0);
+    const masteryPct = skillNode ? byChecklist : (current?.masteryPct ?? 0);
+
     return success({
       skill: decodeURIComponent(skill),
-      masteryPct: current?.masteryPct ?? 0,
+      masteryPct,
       trustWeight: current?.trustWeight ?? 0.3,
       source: current?.source ?? 'self_report',
       breakdown: {

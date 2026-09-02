@@ -93,7 +93,15 @@ export class StudentService {
 
   private async getGitProfileState(userId: number) {
     const branches = await this.branchService.listBranches(userId);
-    const activeBranch = branches.find((b) => b.branchType === 'main') || branches[0] || null;
+    // 学习进度实际提交在 plan 分支上，而 main 分支往往停留在创建时的空快照。
+    // 只认 branchType==='main' 会让雷达/能力指标永远读到 0，
+    // 所以按「最近一次真实提交」选分支：优先 headCommitId 最大的 plan 分支，
+    // 没有再退回 main。
+    const planBranches = branches.filter((b) => b.branchType !== 'main' && b.headCommitId);
+    const activeBranch = planBranches.sort(
+      (a, b) => Number(b.headCommitId || 0) - Number(a.headCommitId || 0),
+    )[0] || branches.find((b) => b.branchType === 'main') || branches[0] || null;
+
     const latestSnapshot = activeBranch?.headCommitId
       ? await this.snapshotService.getSnapshotByCommit(userId, activeBranch.headCommitId)
       : null;

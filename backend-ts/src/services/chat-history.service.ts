@@ -72,11 +72,15 @@ export class ChatHistoryService {
     content: string,
     meta: { agent?: string; pageContext?: string; actions?: any[] } = {},
   ) {
+    const now = Date.now();
+    const messageId = `${role}-${now}-${Math.random().toString(36).slice(2, 8)}`;
     const message = {
+      id: messageId,
+      message_id: messageId,
       role,
       content,
       agent: meta.agent || '',
-      timestamp: Date.now(),
+      timestamp: now,
       ...(meta.actions !== undefined ? { actions: meta.actions } : {}),
     };
 
@@ -98,9 +102,16 @@ export class ChatHistoryService {
         { user_id: String(userId), session_id: sessionId },
         {
           $push: { messages: message } as any,
-          $set: { updated_at: Date.now() },
+          $set: {
+            updated_at: now,
+            last_message: this.compactMessage(content),
+            last_role: role,
+            ...(role === 'assistant' && meta.agent ? { last_agent: meta.agent } : {}),
+          },
+          $inc: { message_count: 1 },
           $setOnInsert: {
-            created_at: Date.now(),
+            created_at: now,
+            title: this.buildTitle(content),
             page_context: meta.pageContext || '',
           },
         },
@@ -109,6 +120,8 @@ export class ChatHistoryService {
     } catch (e) {
       console.warn('[ChatHistory] MongoDB write failed:', e.message);
     }
+
+    return message;
   }
 
   /** 清除会话的 Redis 缓存 */
@@ -128,5 +141,16 @@ export class ChatHistoryService {
     } catch (e) {
       console.warn('[ChatHistory] Redis write failed:', e.message);
     }
+  }
+
+  private buildTitle(content: string): string {
+    const text = this.compactMessage(content, 36);
+    return text || '新的对话';
+  }
+
+  private compactMessage(content: string, maxLen = 80): string {
+    const text = String(content || '').replace(/\s+/g, ' ').trim();
+    if (text.length <= maxLen) return text;
+    return `${text.slice(0, maxLen)}...`;
   }
 }

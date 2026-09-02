@@ -102,7 +102,7 @@ export class ReviewerAgentService {
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.3,
       maxTokens: 3072,
-      tier: 'pro',
+      tier: 'gen', thinking: 'off',
     });
 
     return this.parseReviewResult(raw);
@@ -121,7 +121,7 @@ export class ReviewerAgentService {
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.2,
       maxTokens: 4096,
-      tier: 'pro',
+      tier: 'gen', thinking: 'off',
     });
 
     return this.parseVerifications(raw, questions.length);
@@ -147,7 +147,7 @@ export class ReviewerAgentService {
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.4,
       maxTokens: 4096,
-      tier: 'pro',
+      tier: 'gen', thinking: 'off',
     });
 
     return this.parseErrorAnalysis(raw, wrongQuestions.length);

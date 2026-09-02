@@ -53,14 +53,17 @@ export class ChatController {
     try {
       const mongoDb = this.chatHistory.getDb();
       const query = { user_id: String(userId) };
-      const cursor = mongoDb.collection('chat_sessions').find(query).sort({ created_at: -1 }).skip(skip).limit(ps);
+      const cursor = mongoDb.collection('chat_sessions').find(query).sort({ updated_at: -1, created_at: -1 }).skip(skip).limit(ps);
       const items = await cursor.toArray();
       const total = await mongoDb.collection('chat_sessions').countDocuments(query);
 
-      const cleaned = items.map((doc: any) => {
+      const cleaned = await Promise.all(items.map(async (doc: any) => {
         doc._id = doc._id?.toString();
+        doc.resources_count = await this.generatedResources.countForUser(userId, {
+          chatSessionId: doc.session_id,
+        });
         return doc;
-      });
+      }));
 
       return pageSuccess(cleaned, total, p, ps);
     } catch (err: any) {
@@ -119,6 +122,7 @@ export class ChatController {
     @Query('source') source?: string,
     @Query('resourceType') resourceType?: string,
     @Query('status') status?: string,
+    @Query('search') search?: string,
     @Query('limit') limit?: string,
   ) {
     const resources = await this.generatedResources.listForUser(userId, {
@@ -126,6 +130,7 @@ export class ChatController {
       source: source as any,
       resourceType,
       status: status as any,
+      search,
       limit: limit ? parseInt(limit, 10) : undefined,
     });
     return success(resources);

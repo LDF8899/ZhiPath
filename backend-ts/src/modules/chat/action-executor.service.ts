@@ -683,6 +683,7 @@ export class ActionExecutorService {
           audio_file_path: result.result.audio_file_path,
           duration_sec: result.result.duration_sec,
           segments_count: result.result.segments_count,
+          tts_status: result.result.tts_status,
           skill_name: skillName,
           context_summary: contextSummary,
         };
@@ -958,7 +959,7 @@ export class ActionExecutorService {
       const raw = await this.llmService.chatCompletion([
         { role: 'system', content: '你是 GeoGebra 作图专家。' },
         { role: 'user', content: prompt },
-      ], { temperature: 0.3, maxTokens: 1600, tier: 'pro', jsonObject: true });
+      ], { temperature: 0.3, maxTokens: 4096, tier: 'gen', thinking: 'off', jsonObject: true });
       const data = extractJson(raw);
       return { type: 'geogebra', data: { ...(typeof data === 'object' ? data : {}), subject: topic } };
     } catch (e) {

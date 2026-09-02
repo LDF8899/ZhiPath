@@ -57,7 +57,7 @@ export class CodeAgentService {
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.7,
       maxTokens: 6144,
-      tier: 'pro',
+      tier: 'gen', thinking: 'off',
     });
 
     return this.parseResponse(raw, skillName.trim(), language, count);

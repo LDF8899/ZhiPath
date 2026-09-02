@@ -236,7 +236,108 @@ const LEGAL_STUDIES_DOMAIN: LearningDomain = {
   ],
 };
 
-const DOMAINS = [SOFTWARE_ENGINEERING_DOMAIN, ENGLISH_DOMAIN, MATHEMATICS_DOMAIN, LEGAL_STUDIES_DOMAIN];
+/**
+ * AI 原生软件开发 —— CodeNova 当前聚焦的垂直领域
+ *
+ * 能力项按"让模型稳定输出 → 让答案有依据 → 让模型能做事 → 让它能上线"组织，
+ * 每一步都要求可运行、可验证的产物，而不是概念复述。
+ */
+const AI_NATIVE_SOFTWARE_DOMAIN: LearningDomain = {
+  id: 'ai-native-software',
+  name: 'AI 原生软件开发',
+  description: '从 LLM 调用与提示设计，到 RAG 可信生成、智能体编排与可上线交付的工程能力成长。',
+  goalTypes: ['project', 'career', 'course', 'interest'],
+  terminology: {
+    ability: '能力项',
+    phase: '成长阶段',
+    evidence: '交付证据',
+    assessment: '能力验证',
+  },
+  assessmentModes: ['可运行 Demo', '引用覆盖率检查', '评测集跑分', '代码走查'],
+  evidenceTypes: ['可运行代码', '评测结果', '引用片段', '复盘记录'],
+  passScore: 70,
+  radarDimensions: [
+    { id: 'foundation-output', name: '提示与结构化输出', abilityIds: ['llm-basics', 'prompt-engineering'], weight: 0.24 },
+    { id: 'rag-grounding', name: '检索与可信生成', abilityIds: ['rag-pipeline', 'citation-grounding'], weight: 0.26 },
+    { id: 'agent-orchestration', name: '智能体编排', abilityIds: ['agent-orchestration', 'tool-calling'], weight: 0.25 },
+    { id: 'delivery-eval', name: '评测与交付', abilityIds: ['eval-observability', 'delivery-hardening'], weight: 0.25 },
+  ],
+  starterPaths: [
+    {
+      id: 'ai-app-engineer',
+      title: 'AI 原生应用工程师',
+      description: '做出一个带引用校验、可评测、能上线的 AI 应用，覆盖从提示到交付的完整链路。',
+      goalType: 'project',
+      phases: [
+        {
+          name: '让模型稳定输出',
+          abilities: [
+            { id: 'llm-basics', name: 'LLM 调用与结构化输出', estimatedMin: 300, priority: 10 },
+            { id: 'prompt-engineering', name: '提示词设计与上下文组织', estimatedMin: 360, priority: 9 },
+          ],
+        },
+        {
+          name: '让答案有依据',
+          abilities: [
+            { id: 'rag-pipeline', name: '文档切片、召回与重排', estimatedMin: 480, priority: 10 },
+            { id: 'citation-grounding', name: '引用校验与拒答策略', estimatedMin: 360, priority: 9 },
+          ],
+        },
+        {
+          name: '让模型能做事',
+          abilities: [
+            { id: 'agent-orchestration', name: '多智能体分工与编排', estimatedMin: 480, priority: 9 },
+            { id: 'tool-calling', name: '工具调用与失败重试', estimatedMin: 360, priority: 8 },
+          ],
+        },
+        {
+          name: '让它能上线',
+          abilities: [
+            { id: 'eval-observability', name: '评测集、指标与可观测', estimatedMin: 420, priority: 9 },
+            { id: 'delivery-hardening', name: '成本、缓存与降级交付', estimatedMin: 360, priority: 8 },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'ai-foundation-course',
+      title: 'AI 应用开发基础',
+      description: '用更短的周期走完主干：能调用、能检索、能编排，先建立完整认知再深入。',
+      goalType: 'course',
+      phases: [
+        {
+          name: '概念与上手',
+          abilities: [
+            { id: 'llm-basics', name: 'LLM 调用与结构化输出', estimatedMin: 240, priority: 10 },
+            { id: 'prompt-engineering', name: '提示词设计与上下文组织', estimatedMin: 300, priority: 9 },
+          ],
+        },
+        {
+          name: '检索与引用',
+          abilities: [
+            { id: 'rag-pipeline', name: '文档切片、召回与重排', estimatedMin: 420, priority: 10 },
+            { id: 'citation-grounding', name: '引用校验与拒答策略', estimatedMin: 300, priority: 8 },
+          ],
+        },
+        {
+          name: '编排与评测',
+          abilities: [
+            { id: 'agent-orchestration', name: '多智能体分工与编排', estimatedMin: 420, priority: 9 },
+            { id: 'eval-observability', name: '评测集、指标与可观测', estimatedMin: 300, priority: 8 },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+const DOMAINS = [
+  AI_NATIVE_SOFTWARE_DOMAIN,
+  SOFTWARE_ENGINEERING_DOMAIN,
+  ENGLISH_DOMAIN,
+  MATHEMATICS_DOMAIN,
+  LEGAL_STUDIES_DOMAIN,
+];
 
 @Injectable()
 export class LearningDomainRegistry {

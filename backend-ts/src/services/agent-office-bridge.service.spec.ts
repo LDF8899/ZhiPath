@@ -38,9 +38,10 @@ describe('AgentOfficeBridgeService', () => {
     eventsService = {
       emitAgentStatus: jest.fn(),
       emitAgentProgress: jest.fn(),
+      emitResourceReady: jest.fn(),
     };
     generatedResources = {
-      upsertFromTask: jest.fn().mockResolvedValue({ id: 1 }),
+      upsertFromTask: jest.fn().mockResolvedValue({ id: 1, skillName: 'React', resourceType: 'video' }),
       failFromTask: jest.fn().mockResolvedValue({ id: 1 }),
     };
     service = new AgentOfficeBridgeService(
@@ -99,6 +100,7 @@ describe('AgentOfficeBridgeService', () => {
     expect(taskService.updateProgress).toHaveBeenCalledWith(running.id, 55);
     expect(generatedResources.upsertFromTask).toHaveBeenCalledWith(24, running);
     expect(generatedResources.upsertFromTask).toHaveBeenCalledWith(24, success, success.result);
+    expect(eventsService.emitResourceReady).toHaveBeenCalledWith(24, 'React', 'video');
     expect(eventsService.emitAgentProgress).toHaveBeenCalledWith(24, 'code', String(success.id), 100, expect.any(String));
   });
 });

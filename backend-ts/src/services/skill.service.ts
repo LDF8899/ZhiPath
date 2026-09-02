@@ -188,19 +188,52 @@ export class SkillService {
     return this.userSkillRepo.save(skill);
   }
 
-  /** 设置技能掌握度（绝对值） */
-  async setMastery(userId: number, skillName: string, masteryPct: number): Promise<UserSkill | null> {
-    const skill = await this.getSkill(userId, skillName);
-    if (!skill) return null;
+  /**
+   * 设置技能掌握度（绝对值）。技能不存在时按 (userId, skillName) 新建。
+   *
+   * 注意：不能走 addSkill 来做这件事 —— 表上的唯一索引是 uk_user_skill(user_id, skill_name)，
+   * **不含 source**。addSkill 按「同名同来源」查找，传 source='exam' 时查不到 onboarding
+   * 建的 self_report 行，就会尝试插入并撞唯一约束，导致掌握度回写静默失败。
+   */
+  async setMastery(
+    userId: number,
+    skillName: string,
+    masteryPct: number,
+    trustWeight = 0.9,
+  ): Promise<UserSkill | null> {
+    const name = String(skillName || '').trim();
+    if (!name) return null;
 
     const now = Date.now();
-    skill.masteryPct = Math.max(0, Math.min(100, masteryPct));
+    const target = Math.max(0, Math.min(100, Number(masteryPct) || 0));
+
+    const skill = await this.userSkillRepo.findOne({
+      where: { userId, skillName: name, status: 1 },
+    });
+
+    if (!skill) {
+      return this.userSkillRepo.save({
+        userId,
+        skillName: name,
+        masteryPct: target,
+        trustWeight,
+        source: 'exam',
+        lastActivity: now,
+        decayStart: null,
+        createTime: now,
+        updateTime: now,
+        status: 1,
+      } as UserSkill);
+    }
+
+    // 掌握度有提升时重置衰减起点
+    if (target >= Number(skill.masteryPct)) skill.decayStart = null;
+
+    skill.masteryPct = target;
+    // 学习闭环产生的掌握度可信度高于自评，取较高值
+    skill.trustWeight = Math.max(Number(skill.trustWeight) || 0, trustWeight);
     skill.lastActivity = now;
     skill.updateTime = now;
-
-    if (masteryPct >= Number(skill.masteryPct)) {
-      skill.decayStart = null;
-    }
 
     return this.userSkillRepo.save(skill);
   }

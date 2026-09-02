@@ -64,8 +64,8 @@ export class AssessAgentService {
     const messages = this.buildPrompt(learningData.trim(), goal, currentProgress);
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.5,
-      maxTokens: 4096,
-      tier: 'pro',
+      maxTokens: 16384,
+      tier: 'pro', thinking: 'on', effort: 'high',
     });
 
     return this.parseResponse(raw, goal);

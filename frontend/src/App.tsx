@@ -7,6 +7,7 @@ import Onboarding from './pages/Onboarding'
 import PlanCreate from './pages/PlanCreate'
 import PlanHub from './pages/PlanHub'
 import AvatarPreview from './pages/AvatarPreview'
+import Competition from './pages/Competition'
 
 // User pages
 import Chat from './pages/user/Chat'
@@ -69,6 +70,7 @@ export default function App() {
       <Routes>
         {/* Landing page (includes login/register) */}
         <Route path="/" element={isAuthenticated ? <Navigate to={user?.role === 'admin' ? '/admin/dashboard' : '/user/home'} replace /> : <Landing />} />
+        <Route path="/competition" element={<Competition />} />
         {/* Legacy routes — redirect to landing auth section */}
         <Route path="/avatar-preview" element={<AvatarPreview />} />
         <Route path="/login" element={isAuthenticated ? <Navigate to={user?.role === 'admin' ? '/admin/dashboard' : '/user/home'} replace /> : <Landing />} />

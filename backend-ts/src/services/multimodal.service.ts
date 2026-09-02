@@ -62,7 +62,7 @@ export class MultimodalService {
           { role: 'system', content: '你是创意前端工程师，擅长用纯 HTML+CSS+JS 制作教学动画。只输出 HTML 源码。' },
           { role: 'user', content: prompt },
         ],
-        { temperature: 0.6, maxTokens: 4096, tier: 'pro' },
+        { temperature: 0.6, maxTokens: 4096, tier: 'gen', thinking: 'off' },
       );
 
       const html = this.extractHtml(raw);
@@ -120,7 +120,7 @@ export class MultimodalService {
           { role: 'system', content: '你是技术架构师，擅长用 Mermaid 表达系统关系。只输出 Mermaid 源码。' },
           { role: 'user', content: prompt },
         ],
-        { temperature: 0.4, maxTokens: 1536, tier: 'pro' },
+        { temperature: 0.4, maxTokens: 1536, tier: 'gen', thinking: 'off' },
       );
 
       const mermaid = this.extractMermaid(raw);

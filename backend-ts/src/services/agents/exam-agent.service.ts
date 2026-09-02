@@ -89,7 +89,7 @@ export class ExamAgentService {
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.5,
       maxTokens: 8192,
-      tier: 'pro',
+      tier: 'gen', thinking: 'off',
     });
 
     const result = this.parseExam(raw, config);
@@ -150,7 +150,7 @@ export class ExamAgentService {
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.5,
       maxTokens: 8192,
-      tier: 'pro',
+      tier: 'gen', thinking: 'off',
     });
 
     return this.parseExam(raw, {

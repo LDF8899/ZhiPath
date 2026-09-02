@@ -1,4 +1,9 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Student } from '../../entities/student.entity';
+import { JobPosition } from '../../entities/job.entity';
+import { UserSkill } from '../../entities/user-skills.entity';
 import { AgentTaskService } from '../../services/agent-task.service';
 import { AgentProfileService } from '../../services/agent-profile.service';
 import { GeneratedResourceService } from '../../services/generated-resource.service';
@@ -53,6 +58,9 @@ export class AgentOfficeController {
     private readonly resumeAgent: ResumeAgentService,
     private readonly profileAgent: ProfileAgentService,
     private readonly newsAgent: NewsAgentService,
+    @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
+    @InjectRepository(JobPosition) private readonly jobRepo: Repository<JobPosition>,
+    @InjectRepository(UserSkill) private readonly userSkillRepo: Repository<UserSkill>,
   ) {}
 
   /** 获取统计信息 */
@@ -348,7 +356,7 @@ export class AgentOfficeController {
       await this.syncGeneratedResource(userId, await this.taskService.getTask(taskId, userId), undefined, 'running');
       this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 30, 'Agent 生成中...');
 
-      const result = await this.runAgent(agentType, params);
+      const result = await this.runAgent(agentType, params, userId);
 
       await this.taskService.updateProgress(taskId, 90);
       await this.syncGeneratedResource(userId, await this.taskService.getTask(taskId, userId), undefined, 'saving');
@@ -400,7 +408,7 @@ export class AgentOfficeController {
 
       // 直接使用模式：把 prompt 传给 agent
       await this.syncGeneratedResource(userId, await this.taskService.getTask(taskId, userId), undefined, 'direct running');
-      const result = await this.runAgent(agentType, { ...params, directPrompt: prompt, skillName: prompt });
+      const result = await this.runAgent(agentType, { ...params, directPrompt: prompt, skillName: prompt }, userId);
 
       await this.taskService.updateProgress(taskId, 90);
       this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 90, '保存结果中');
@@ -501,7 +509,7 @@ export class AgentOfficeController {
   }
 
   /** 统一 Agent 调度 */
-  private async runAgent(agentType: string, params: Record<string, any>): Promise<any> {
+  private async runAgent(agentType: string, params: Record<string, any>, userId?: number): Promise<any> {
     switch (agentType) {
       case 'lecture':
         return this.lectureAgent.generate(params.skillName || '未知技能', params.level || 'beginner', params.extra);
@@ -511,8 +519,37 @@ export class AgentOfficeController {
         return this.codeAgent.generate(params.skillName || '未知技能', params.language || 'JavaScript', params.count || 3);
       case 'path':
         return this.pathAgent.generate(params.goal || '学习目标', params.currentLevel || '零基础', params.availableTime || '每天2小时', params.preferences);
-      case 'assess':
-        return this.assessAgent.assess(params.learningData || '', params.goal || '掌握技术栈', params.currentProgress || '学习中');
+      case 'assess': {
+        // 与 skillgap 相同的兜底思路：手动派发通常只给了技能名，
+        // learningData 缺失时从学习档案自动汇总评估依据，避免派发必然失败
+        let learningData = String(params.learningData || '').trim();
+        if (!learningData && userId) {
+          const [skillRows, student] = await Promise.all([
+            this.userSkillRepo.find({ where: { userId: Number(userId) } }),
+            this.studentRepo.findOne({ where: { userId: Number(userId) } }),
+          ]);
+          if (skillRows.length > 0) {
+            const lines = skillRows.map((s) => {
+              const mastery = Math.round(Number(s.masteryPct) || 0);
+              const verified = (Number(s.trustWeight) || 0) >= 0.8 ? '已验证' : '自报';
+              return `- ${s.skillName}：掌握度 ${mastery}%（${verified}）`;
+            });
+            const avg = Math.round(
+              skillRows.reduce((sum, s) => sum + (Number(s.masteryPct) || 0), 0) / skillRows.length,
+            );
+            learningData = [
+              student?.major ? `背景：${student.major}${student.grade ? ` / ${student.grade}` : ''}` : '',
+              `学习数据（系统自动汇总，共 ${skillRows.length} 项技能，平均掌握度 ${avg}%）：`,
+              ...lines,
+            ]
+              .filter(Boolean)
+              .join('\n');
+          }
+        }
+        const goal = params.goal || (params.skillName ? `掌握 ${params.skillName}` : '掌握技术栈');
+        const progress = params.currentProgress || (params.skillName ? `正在学习 ${params.skillName}` : '学习中');
+        return this.assessAgent.assess(learningData, goal, progress);
+      }
       case 'exam':
         return this.examAgent.generateExam({
           skillName: params.skillName || '未知技能',
@@ -520,11 +557,34 @@ export class AgentOfficeController {
           difficulty: params.difficulty || 'mixed',
           questionTypes: ['choice', 'fill'],
         });
-      case 'skillgap':
+      case 'skillgap': {
+        // 调度方可能只传 skillName：自动补全用户技能与目标岗位，保证分析有据可依
+        let userSkills = Array.isArray(params.userSkills) ? params.userSkills : [];
+        let targetJob = params.targetJob || null;
+        if (!userSkills.length) {
+          const rows = await this.userSkillRepo.find({ where: { userId: Number(userId || 0) } });
+          userSkills = rows.map((s) => ({ name: s.skillName, mastery: Number(s.masteryPct) || 0, verified: (Number(s.trustWeight) || 0) >= 0.8 }));
+        }
+        if (!targetJob) {
+          const student = await this.studentRepo.findOne({ where: { userId: Number(userId || 0) } });
+          const job = student?.targetJobId
+            ? await this.jobRepo.findOne({ where: { id: student.targetJobId } })
+            : await this.jobRepo.createQueryBuilder('j').where('j.status = 1').orderBy('j.createTime', 'DESC').getOne();
+          if (job) {
+            targetJob = {
+              title: job.title || '目标岗位',
+              company: job.company || '',
+              level: job.level || 'junior',
+              requiredSkills: (job.requiredSkills || []).map((s) => ({ name: s.name, weight: s.weight ?? 0.8, minLevel: 60 })),
+              preferredSkills: (job.preferredSkills || []).map((s) => ({ name: s.name, weight: s.weight ?? 0.4, minLevel: 40 })),
+            };
+          }
+        }
         return this.skillGapAgent.analyze({
-          userSkills: params.userSkills || [],
-          targetJob: params.targetJob || { title: '目标岗位', company: '', level: 'junior', requiredSkills: [] },
+          userSkills,
+          targetJob: targetJob || { title: '目标岗位', company: '', level: 'junior', requiredSkills: [], preferredSkills: [] },
         });
+      }
       case 'resume':
         return this.resumeAgent.generate(params.profile || {}, params.targetJob || {});
       case 'profile':

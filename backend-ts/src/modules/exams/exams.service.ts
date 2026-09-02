@@ -203,11 +203,30 @@ export class ExamsService {
     const userAnswers = data.answers || {};
     const timings = data.questionTimings || {};
 
+    // 兼容旧数据：assemble 早期版本存入的 served 不含答案/题型字段，按题号从题库补齐
+    const missingAnswerIds = served
+      .filter((q) => q.answer === undefined && typeof q.id === 'number')
+      .map((q) => q.id);
+    const answerPatchMap = new Map<number, any>();
+    if (missingAnswerIds.length > 0) {
+      const patched = await this.questionRepo.find({ where: { id: In(missingAnswerIds), status: 1 } });
+      for (const q of patched) answerPatchMap.set(q.id, { answer: q.answer, questionType: q.questionType });
+    }
+    const resolveServed = (q: any) => {
+      const patch = answerPatchMap.get(Number(q.id));
+      return {
+        ...q,
+        answer: q.answer ?? patch?.answer,
+        questionType: q.questionType ?? q.type ?? patch?.questionType,
+      };
+    };
+
     let correctCount = 0;
     const wrongQuestions: Array<{ question: string; userAnswer: string; correctAnswer: string; type: string }> = [];
     const anomalies: string[] = [];
 
-    for (const q of served) {
+    for (const rawServed of served) {
+      const q = resolveServed(rawServed);
       const userAnswer = userAnswers[q.id];
       const isCorrect = await this.checkAnswer(q.questionType, userAnswer, q.answer, q.title);
       if (isCorrect) correctCount++;

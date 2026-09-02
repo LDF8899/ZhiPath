@@ -36,9 +36,10 @@ export class VideoRenderService {
       'VIDEO_RENDERER_DIR',
       path.resolve(process.cwd(), '../video-renderer'),
     );
+    // 默认输出到 backend-ts/output/video：跨平台安全，且与 main.ts 的静态视频服务同源
     this.outputDir = this.config.get(
       'VIDEO_OUTPUT_DIR',
-      '/tmp/zhipath/video',
+      path.join(process.cwd(), 'output', 'video'),
     );
 
     fs.mkdirSync(this.outputDir, { recursive: true });

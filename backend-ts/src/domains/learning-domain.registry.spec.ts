@@ -6,11 +6,28 @@ describe('LearningDomainRegistry', () => {
 
   it('registers multiple professional domains as first-class domains', () => {
     expect(registry.list().map((domain) => domain.id)).toEqual([
+      'ai-native-software',
       'software-engineering',
       'english',
       'mathematics',
       'legal-studies',
     ]);
+  });
+
+  it('resolves the AI native software path with grounded delivery phases', () => {
+    const { domain, starterPath } = registry.resolvePath('ai-native-software', 'project', 'ai-app-engineer');
+    expect(domain.passScore).toBe(70);
+    expect(domain.assessmentModes).toContain('引用覆盖率检查');
+    expect(domain.evidenceTypes).toContain('可运行代码');
+    expect(starterPath.phases.map((phase) => phase.name)).toEqual([
+      '让模型稳定输出',
+      '让答案有依据',
+      '让模型能做事',
+      '让它能上线',
+    ]);
+    expect(
+      domain.radarDimensions.reduce((sum, dimension) => sum + dimension.weight, 0),
+    ).toBeCloseTo(1);
   });
 
   it('resolves the CET-6 exam path with ordered phases', () => {

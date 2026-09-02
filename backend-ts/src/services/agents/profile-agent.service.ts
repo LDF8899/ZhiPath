@@ -94,7 +94,7 @@ export class ProfileAgentService {
     const messages = this.buildReportPrompt(data);
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.6,
-      maxTokens: 4096,
+      maxTokens: 16384,
       tier: 'flash',
     });
 
@@ -136,7 +136,7 @@ ${data.skillsLearned.map(s => `- ${s.name}: ${s.masteryBefore}% → ${s.masteryA
 
     return this.llmService.chatCompletion(messages, {
       temperature: 0.6,
-      maxTokens: 512,
+      maxTokens: 16384,
       tier: 'flash',
     });
   }
@@ -169,7 +169,7 @@ ${weeklyData.map(w => `${w.week}: ${w.minutes}分钟, ${w.skillsCompleted}个技
 
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.4,
-      maxTokens: 256,
+      maxTokens: 16384,
       tier: 'flash',
     });
 

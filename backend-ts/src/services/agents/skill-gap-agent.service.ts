@@ -123,8 +123,8 @@ export class SkillGapAgentService {
     const messages = this.buildAnalysisPrompt(input, basicAnalysis);
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.4,
-      maxTokens: 4096,
-      tier: 'pro',
+      maxTokens: 16384,
+      tier: 'pro', thinking: 'on', effort: 'high',
     });
 
     return this.parseReport(raw, basicAnalysis);
@@ -146,7 +146,13 @@ export class SkillGapAgentService {
   // ── 基础算法 ──────────────────────────────────
 
   private calculateBasicGap(input: SkillGapInput): SkillGapReport {
-    const { userSkills, targetJob } = input;
+    // 输入兜底：调度方可能只传 skillName，岗位/技能字段缺失时按空数组处理
+    const userSkills = Array.isArray(input.userSkills) ? input.userSkills : [];
+    const targetJob = {
+      ...(input.targetJob || { title: '目标岗位', company: '', level: 'junior' as const }),
+      requiredSkills: Array.isArray(input.targetJob?.requiredSkills) ? input.targetJob.requiredSkills : [],
+      preferredSkills: Array.isArray(input.targetJob?.preferredSkills) ? input.targetJob.preferredSkills : [],
+    };
     const userSkillMap = new Map(userSkills.map(s => [s.name.toLowerCase(), s]));
 
     // 分析必须技能
@@ -341,15 +347,15 @@ export class SkillGapAgentService {
         role: 'user',
         content: `请分析以下技能差距：
 
-目标岗位：${input.targetJob.title} @ ${input.targetJob.company}
-岗位级别：${input.targetJob.level}
+目标岗位：${input.targetJob?.title || '目标岗位'} @ ${input.targetJob?.company || '未指定'}
+岗位级别：${input.targetJob?.level || 'junior'}
 
 用户技能：
-${input.userSkills.map(s => `- ${s.name}: ${s.mastery}%${s.verified ? ' (已认证)' : ''}`).join('\n')}
+${(Array.isArray(input.userSkills) ? input.userSkills : []).map(s => `- ${s.name}: ${s.mastery}%${s.verified ? ' (已认证)' : ''}`).join('\n') || '（暂无技能记录）'}
 
 岗位要求：
-必须技能：${input.targetJob.requiredSkills.map(s => `${s.name}(要求${s.minLevel}%, 权重${s.weight})`).join('、')}
-加分技能：${input.targetJob.preferredSkills.map(s => `${s.name}(要求${s.minLevel}%, 权重${s.weight})`).join('、')}`,
+必须技能：${(Array.isArray(input.targetJob?.requiredSkills) ? input.targetJob.requiredSkills : []).map(s => `${s.name}(要求${s.minLevel}%, 权重${s.weight})`).join('、') || '（未指定）'}
+加分技能：${(Array.isArray(input.targetJob?.preferredSkills) ? input.targetJob.preferredSkills : []).map(s => `${s.name}(要求${s.minLevel}%, 权重${s.weight})`).join('、') || '（未指定）'}`,
       },
     ];
   }

@@ -19,8 +19,8 @@ async function bootstrap() {
     allowedHeaders: '*',
   });
 
-  // 公开视频文件端点（无需鉴权）
-  const videoDir = process.env.VIDEO_OUTPUT_DIR || 'D:/tmp/zhipath/video';
+  // 公开视频文件端点（无需鉴权）—— 默认与 VideoRenderService.outputDir 保持同源
+  const videoDir = process.env.VIDEO_OUTPUT_DIR || path.join(process.cwd(), 'output', 'video');
   app.use('/api/video/:filename', (req: any, res: any) => {
     const filePath = path.join(videoDir, req.params.filename);
     if (!fs.existsSync(filePath)) {

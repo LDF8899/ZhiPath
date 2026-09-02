@@ -48,8 +48,8 @@ export class JDParserAgentService {
     const messages = this.buildPrompt(jdText.trim(), basicInfo);
     const raw = await this.llmService.chatCompletion(messages, {
       temperature: 0.3,  // 低温度，更稳定的解析结果
-      maxTokens: 4096,
-      tier: 'pro',
+      maxTokens: 16384,
+      tier: 'pro', thinking: 'on', effort: 'high',
     });
 
     return this.parseResponse(raw, jdText);
