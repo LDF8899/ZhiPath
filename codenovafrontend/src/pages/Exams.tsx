@@ -272,7 +272,18 @@ function BankTab({
                 >
                   <input type="checkbox" checked={selected.includes(id)} readOnly style={{ marginTop: 3 }} />
                   <span className="grow" style={{ minWidth: 0 }}>
-                    <span className="small" style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span
+                      className="small"
+                      style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        whiteSpace: 'normal',
+                        lineHeight: 1.55,
+                      }}
+                      title={row.title}
+                    >
                       {row.title}
                     </span>
                     <span className="row tiny faint" style={{ gap: 8, flexWrap: 'wrap' }}>
