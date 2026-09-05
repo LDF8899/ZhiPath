@@ -8,7 +8,7 @@ import { BaseEntity } from '../common/base.entity';
  *   - MySQL 作为可审计索引（原文、标签、状态）
  *   - Chroma 只做向量检索，向量状态由 vectorStatus 跟踪
  *
- * 来源：project / file_qa / evaluation / learning_commit / agent_output / resume
+ * 来源：project / file_qa / evaluation / learning_commit / agent_output / resume / knowledge_upload / news_article / domain_doc
  */
 @Entity('evidence_chunks')
 @Index(['userId', 'sourceType', 'sourceId'])
@@ -21,7 +21,7 @@ export class EvidenceChunk extends BaseEntity {
     type: 'varchar',
     length: 30,
     name: 'source_type',
-    comment: '证据来源：project/file_qa/evaluation/learning_commit/agent_output/resume',
+    comment: '证据来源：project/file_qa/evaluation/learning_commit/agent_output/resume/knowledge_upload/news_article/domain_doc',
   })
   sourceType: string;
 

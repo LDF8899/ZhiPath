@@ -1,9 +1,10 @@
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   BookMarked,
   Bot,
   CalendarCheck,
+  ChevronDown,
   ClipboardList,
   Database,
   FileQuestion,
@@ -12,6 +13,7 @@ import {
   MessageSquareText,
   Route as RouteIcon,
   Target,
+  User,
   Zap,
 } from 'lucide-react';
 import { useAuthStore } from '../store/auth';
@@ -21,9 +23,11 @@ import { AgentActivityPill } from './AgentTrace';
 import { Stardust } from './ui';
 import { Logo } from './Logo';
 
+type NavItem = { to: string; label: string; icon: ReactNode; end?: boolean };
+
 const NAV_GROUPS: Array<{
   label: string;
-  items: Array<{ to: string; label: string; icon: ReactNode; end?: boolean }>;
+  items: NavItem[];
 }> = [
   {
     label: '学习',
@@ -50,11 +54,22 @@ const NAV_GROUPS: Array<{
   },
 ];
 
+const ALL_NAV_ITEMS = NAV_GROUPS.flatMap((group) => group.items);
+const MOBILE_TABS: NavItem[] = [
+  ...ALL_NAV_ITEMS.filter((item) => ['/today', '/coach', '/questions', '/knowledge'].includes(item.to)),
+  { to: '/profile', label: '我的', icon: <User size={17} /> },
+];
+const MOBILE_MORE = NAV_GROUPS.map((group) => ({
+  ...group,
+  items: group.items.filter((item) => !MOBILE_TABS.some((tab) => tab.to === item.to)),
+})).filter((group) => group.items.length > 0);
+
 export function AppShell() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
   const online = useStreamStatus();
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const handleLogout = () => {
     disconnectStream();
@@ -68,6 +83,54 @@ export function AppShell() {
 
   return (
     <div className="shell">
+      <header className="mobile-header">
+        <button type="button" className="mobile-brand" onClick={() => navigate('/today')}>
+          <Logo size={30} />
+          <span>
+            <strong>CodeNova</strong>
+            <small>AI 原生能力成长</small>
+          </span>
+        </button>
+        <div className="mobile-header__actions">
+          <div className="mobile-stream" title={online ? '已连接后端事件流' : '未连接实时通道'}>
+            <span className={`stream-pill__dot ${online ? 'is-live' : ''}`} />
+          </div>
+          <button
+            type="button"
+            className="mobile-more-btn"
+            onClick={() => setMoreOpen((value) => !value)}
+            aria-expanded={moreOpen}
+          >
+            更多
+            <ChevronDown size={14} />
+          </button>
+        </div>
+        {moreOpen && (
+          <div className="mobile-more-panel">
+            {MOBILE_MORE.map((group) => (
+              <div className="mobile-more-group" key={group.label}>
+                <span className="mobile-more-label">{group.label}</span>
+                {group.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) => `mobile-more-item ${isActive ? 'is-active' : ''}`}
+                    onClick={() => setMoreOpen(false)}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            ))}
+            <button type="button" className="mobile-more-item" onClick={handleLogout}>
+              <LogOut size={16} />
+              <span>退出登录</span>
+            </button>
+          </div>
+        )}
+      </header>
+
       <aside className="rail">
         <Stardust count={9} seed={13} />
         <div className="brand">
@@ -148,6 +211,21 @@ export function AppShell() {
         </header>
         <Outlet />
       </main>
+
+      <nav className="mobile-tabbar" aria-label="移动端主导航">
+        {MOBILE_TABS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={({ isActive }) => `mobile-tab ${isActive ? 'is-active' : ''}`}
+            onClick={() => setMoreOpen(false)}
+          >
+            {item.icon}
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
 }

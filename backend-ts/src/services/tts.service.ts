@@ -4,6 +4,20 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 
+function resolveFfmpegPath(): string {
+  if (process.env.FFMPEG_PATH) return process.env.FFMPEG_PATH;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('@ffmpeg-installer/ffmpeg').path || 'ffmpeg';
+  } catch {
+    return 'ffmpeg';
+  }
+}
+
+function resolveFfprobePath(): string {
+  return process.env.FFPROBE_PATH || 'ffprobe';
+}
+
 /**
  * TTS 服务 — 对接 MiMo TTS API
  *
@@ -285,8 +299,9 @@ export class TtsService {
    */
   private getAudioDuration(filePath: string): number {
     try {
+      const ffprobe = resolveFfprobePath();
       const result = execSync(
-        `ffprobe -v quiet -show_entries format=duration -of csv=p=0 "${filePath}"`,
+        `"${ffprobe}" -v quiet -show_entries format=duration -of csv=p=0 "${filePath}"`,
         { encoding: 'utf-8', timeout: 5000 },
       ).trim();
       const duration = parseFloat(result);
@@ -347,8 +362,9 @@ export class TtsService {
     try {
       // 不能用 -c copy：输入是 wav(PCM)，目标是 mp3 容器，直接拷贝流是非法封装、
       // 时长与可播放性都不可靠。必须重新编码为 mp3。
+      const ffmpeg = resolveFfmpegPath();
       execSync(
-        `ffmpeg -y -f concat -safe 0 -i "${listPath}" -c:a libmp3lame -q:a 2 "${outputPath}"`,
+        `"${ffmpeg}" -y -f concat -safe 0 -i "${listPath}" -c:a libmp3lame -q:a 2 "${outputPath}"`,
         { encoding: 'utf-8', timeout: 30000 },
       );
 

@@ -34,6 +34,9 @@ const ACTION_TO_RESOURCE: Record<string, string> = {
   path_generating: 'path',
   path_generated: 'path',
   resources: 'resources',
+  knowledge_results: 'knowledge',
+  knowledge_ingestion_task: 'knowledge',
+  knowledge_news_refresh: 'knowledge',
   exam: 'quiz',
   progress: 'progress',
   today_tasks: 'today_tasks',
@@ -52,6 +55,9 @@ const ACTION_REQUEST_TO_ACTION: Record<string, string> = {
   set_target_job: 'target_set',
   generate_path: 'path_generated',
   recommend_resources: 'resources',
+  query_knowledge: 'knowledge_results',
+  knowledge_ingest: 'knowledge_ingestion_task',
+  knowledge_news_refresh: 'knowledge_news_refresh',
   generate_exam: 'exam',
   show_progress: 'progress',
   show_today_tasks: 'today_tasks',
@@ -72,6 +78,8 @@ const AGENT_TO_RESOURCE: Record<string, string> = {
   resume: 'resume',
   profile: 'profile',
   news: 'news',
+  knowledge: 'knowledge',
+  inspector: 'knowledge_review',
 };
 
 @Injectable()

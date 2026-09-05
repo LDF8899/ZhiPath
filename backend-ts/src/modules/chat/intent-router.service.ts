@@ -53,6 +53,21 @@ const INTENT_RULES: IntentRule[] = [
     description: '推荐学习资源',
   },
   {
+    name: 'query_knowledge',
+    keywords: ['查知识库', '检索知识库', '找证据', '知识库里有没有', '知识库证据', '查资料'],
+    description: '检索知识库证据',
+  },
+  {
+    name: 'knowledge_ingest',
+    keywords: ['加入知识库', '入库', '清洗入库', '导入知识库', '保存到知识库', '喂到rag', '喂给rag'],
+    description: '清洗资料并提交知识库入库质检',
+  },
+  {
+    name: 'knowledge_news_refresh',
+    keywords: ['抓取最新资讯', '最新资讯入库', '资讯入库', '抓新闻入库', '自动抓取资讯'],
+    description: '抓取最新资讯并提交知识库质检',
+  },
+  {
     name: 'match_analysis',
     keywords: ['匹配度', '差距分析', '还差什么', '技能差距'],
     description: '分析匹配度和技能差距',
@@ -130,6 +145,54 @@ const TOOLS = [
           job_id: { type: 'integer', description: '岗位ID' },
         },
         required: ['job_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_knowledge',
+      description: '检索用户知识库证据。触发词：查知识库、检索知识库、找证据、知识库里有没有、基于知识库查资料。当用户想找已有资料、证据或引用依据时调用。',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: '检索问题或关键词' },
+          skill_name: { type: 'string', description: '可选技能标签' },
+          limit: { type: 'integer', description: '返回条数，默认5' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'knowledge_ingest',
+      description: '把用户粘贴或上传的文本资料提交给知识库智能体清洗和质检。触发词：加入知识库、清洗入库、导入知识库、保存到知识库、喂到RAG。',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: '资料标题' },
+          content: { type: 'string', description: '用户提供的正文内容' },
+          skill_tags: { type: 'array', items: { type: 'string' }, description: '资料关联标签' },
+          source_url: { type: 'string', description: '可选来源链接' },
+        },
+        required: ['content'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'knowledge_news_refresh',
+      description: '抓取最新 AI/技术资讯，交给知识库智能体清洗和质检，通过后入库。触发词：抓取最新资讯、最新资讯入库、自动抓取资讯、AI新闻入库。',
+      parameters: {
+        type: 'object',
+        properties: {
+          keywords: { type: 'array', items: { type: 'string' }, description: '可选资讯关键词' },
+          limit: { type: 'integer', description: '最多处理条数，默认5' },
+        },
+        required: [],
       },
     },
   },
@@ -385,6 +448,13 @@ ${userContext}
     } else if (intentName === 'generate_exam') {
       const skillMatch = message.match(/(?:关于|考|测试)\s*(\w+)/);
       if (skillMatch) filters.skillName = skillMatch[1];
+    } else if (intentName === 'query_knowledge') {
+      filters.query = message.replace(/查知识库|检索知识库|找证据|知识库里有没有|知识库证据|查资料/g, ' ').trim() || message;
+    } else if (intentName === 'knowledge_ingest') {
+      filters.title = '知识库资料';
+      filters.content = message;
+    } else if (intentName === 'knowledge_news_refresh') {
+      filters.limit = 5;
     } else if (
       intentName === 'generate_animation' ||
       intentName === 'generate_diagram' ||

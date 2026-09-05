@@ -27,8 +27,8 @@ export const Comparison: React.FC<Props> = ({ segment }) => {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center',
-        padding: '80px 100px',
+        justifyContent: 'flex-start',
+        padding: `140px ${VIDEO_THEME.chrome.safeX}px ${VIDEO_THEME.layout.contentSafeBottom}px`,
         background: VIDEO_THEME.canvas.backgroundColor,
       }}
     >

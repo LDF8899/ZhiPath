@@ -2244,3 +2244,187 @@ p { color: var(--text-body); }
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ============================================================
+   移动端（≤640px）排版：会话列表横向、视口 dvh、安全区、紧凑间距
+   解决"移动端 ai 聊天会话列表挤压对话区"的问题
+   ============================================================ */
+@media (max-width: 640px) {
+  /* 用 dvh 兼顾移动浏览器地址栏隐藏/显示的高度变化 */
+  .chat {
+    height: calc(100dvh - var(--topbar-h));
+  }
+
+  /* 会话列表：横向 chip 条，不再占用垂直大块 */
+  .chat--with-sessions {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .chat-sessions {
+    border-right: none;
+    border-bottom: 1px solid var(--border-soft);
+    padding: 8px 12px;
+    max-height: none;
+    gap: 6px;
+  }
+  .chat-sessions__head {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .chat-sessions__head h2 {
+    font-size: 13px;
+    margin: 0;
+  }
+  .chat-sessions__head .icon-btn {
+    width: 28px;
+    height: 28px;
+  }
+  .chat-sessions__list {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 2px;
+    gap: 8px;
+    scrollbar-width: none;
+  }
+  .chat-sessions__list::-webkit-scrollbar { display: none; }
+  .chat-session {
+    min-width: 156px;
+    max-width: 196px;
+    padding: 6px 10px !important;
+    flex-shrink: 0;
+  }
+  .chat-session__title {
+    font-size: 12.5px !important;
+    line-height: 1.35;
+  }
+  .chat-session__meta {
+    font-size: 10.5px !important;
+    margin-top: 2px !important;
+  }
+  .chat-session__delete {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* 滚动区紧凑 */
+  .chat-scroll {
+    padding: 12px 0 8px;
+  }
+  .chat-inner {
+    padding: 0 12px;
+    gap: 14px;
+  }
+
+  /* 消息气泡更易读 */
+  .msg { gap: 8px; }
+  .msg__avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 11px;
+    border-radius: 8px;
+  }
+  .msg__col { max-width: calc(100% - 36px); gap: 6px; }
+  .msg__bubble {
+    padding: 9px 12px;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  /* 输入栏：粘底 + iOS 安全区 + 发送按钮加大 */
+  .composer {
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  }
+  .composer__box {
+    padding: 8px 10px;
+    gap: 8px;
+    border-radius: 18px;
+  }
+  .composer__input {
+    font-size: 16px;        /* 16px 防止 iOS 自动放大 */
+    line-height: 1.45;
+    max-height: 120px;
+  }
+  .composer__send {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+  }
+
+  /* 动作卡片单列 */
+  .action-card { padding: 12px 14px; }
+  .action-card__title { font-size: 13.5px; }
+  .action-card__body { font-size: 12.5px; }
+
+  /* 顶部栏紧凑 */
+  .topbar { padding: 8px 12px; gap: 8px; }
+  .topbar h1, .topbar__title { font-size: 15px; }
+  .topbar__crumbs, .topbar__right > .row > :not(:last-child) { display: none; }
+
+  /* ── 2026-09-04 文本溢出修复 ────────────────────────── */
+  /* 台账：标题独占一行，避免被同行按钮挤压成 137px 截断 */
+  .ledger__row {
+    padding: 12px;
+    gap: 10px;
+  }
+  .ledger__row > .grow {
+    flex-basis: calc(100% - 42px);
+  }
+  .ledger__title,
+  .ledger__title.truncate,
+  .ledger__meta > span {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    line-height: 1.45;
+  }
+  .ledger__detail {
+    margin-left: 42px;
+    flex-basis: 100%;
+  }
+  .ledger__row > .btn { margin-left: 42px; }
+  .feedback-pair { margin-left: auto; }
+  .ledger__meta { gap: 7px; font-size: 11.5px; }
+
+  /* 按钮/标签文字过长时换行，不再溢出 */
+  .btn { white-space: normal; text-align: center; }
+  .tag { white-space: normal; max-width: 100%; }
+
+  /* 分段过滤器横向滚动 */
+  .segmented {
+    max-width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+  .segmented::-webkit-scrollbar { display: none; }
+
+  /* 页面与卡片 */
+  .page-head h1 { font-size: 20px; }
+  .page-head p { font-size: 13px; }
+  .page, .page--wide { padding-left: 12px; padding-right: 12px; }
+  .card { min-width: 0; }
+  .stat-card__value, .metric__value { font-size: 22px; }
+
+  /* 弹层 / toast 不溢出 */
+  .modal {
+    width: calc(100vw - 24px);
+    max-height: 88dvh;
+    overflow-y: auto;
+  }
+  .toast { max-width: calc(100vw - 24px); }
+
+  /* 行容器换行，避免子元素被挤压 */
+  .row, .row-between { flex-wrap: wrap; gap: 8px; }
+}
+
+/* 平板 641–900px：会话区紧凑 150px 仍可用横向滚动 */
+@media (min-width: 641px) and (max-width: 900px) {
+  .chat-sessions { max-height: 150px; padding: 8px 14px; }
+  .chat-session { min-width: 200px; }
+  .chat-inner, .composer__inner { max-width: 100%; }
+}

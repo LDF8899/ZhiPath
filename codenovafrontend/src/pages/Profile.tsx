@@ -134,7 +134,7 @@ export default function Profile() {
         </CardBody>
       </Card>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(280px, 1fr)', gap: 16, alignItems: 'start' }}>
+      <div className="profile-dashboard-grid">
         <Card>
           <CardHead
             icon={<BadgeCheck size={15} />}

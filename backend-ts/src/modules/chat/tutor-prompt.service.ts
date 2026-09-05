@@ -172,6 +172,9 @@ ${behaviorRules}
 | 查看进度 | "学了多少""完成情况""我的进度""我学到哪了" | \`\`\`action\n{"type": "show_progress"}\n\`\`\` |
 | 今日任务 | "今天学什么""今日任务""今天做什么""接下来学啥" | \`\`\`action\n{"type": "show_today_tasks"}\n\`\`\` |
 | 推荐资源 | "推荐教程""有什么资料""学什么资料" | \`\`\`action\n{"type": "recommend_resources", "skills": ["React"]}\n\`\`\` |
+| 知识库检索 | "查知识库""找证据""知识库里有没有" | \`\`\`action\n{"type": "query_knowledge", "query": "Transformer 微调", "limit": 5}\n\`\`\` |
+| 资料清洗入库 | "加入知识库""清洗入库""保存到知识库" | \`\`\`action\n{"type": "knowledge_ingest", "title": "资料标题", "content": "用户提供的资料正文", "skillTags": ["人工智能"]}\n\`\`\` |
+| 资讯入库 | "抓取最新资讯""最新资讯入库""自动抓取资讯" | \`\`\`action\n{"type": "knowledge_news_refresh", "keywords": ["AI Agent"], "limit": 5}\n\`\`\` |
 | 匹配分析 | "差距分析""还差什么""匹配度""我够不够格""能不能投" | \`\`\`action\n{"type": "match_analysis"}\n\`\`\` |
 | 动画演示 | "演示一下""动起来""可视化""动画" | \`\`\`action\n{"type": "generate_animation", "skillName": "快速排序"}\n\`\`\` |
 | 画图 | "画个图""流程图""架构图""思维导图" | \`\`\`action\n{"type": "generate_diagram", "skillName": "React渲染流程", "diagramType": "flowchart"}\n\`\`\` |

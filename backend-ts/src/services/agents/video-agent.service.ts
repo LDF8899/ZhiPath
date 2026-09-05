@@ -211,9 +211,20 @@ export class VideoAgentService {
         .filter((p): p is string => !!p);
 
       let mergedAudioPath = '';
+      let audioMergeStatus: 'merged' | 'skipped' | 'failed' = audioPaths.length > 0 ? 'skipped' : 'skipped';
+      let audioMergeError = '';
       if (audioPaths.length > 0) {
         mergedAudioPath = `${this.renderService.outputDir}/${task_id}_audio.mp3`;
-        await this.ttsService.mergeAudioFiles(audioPaths, mergedAudioPath);
+        try {
+          await this.ttsService.mergeAudioFiles(audioPaths, mergedAudioPath);
+          audioMergeStatus = fs.existsSync(mergedAudioPath) ? 'merged' : 'failed';
+          if (audioMergeStatus === 'failed') audioMergeError = '音频合并未生成输出文件';
+        } catch (e: any) {
+          audioMergeStatus = 'failed';
+          audioMergeError = e?.message || '音频合并失败';
+          mergedAudioPath = '';
+          console.warn(`[VideoAgent] 音频合并失败，继续返回脚本/分段音频状态: ${audioMergeError}`);
+        }
       }
 
       const videoFilePath = `${this.renderService.outputDir}/${task_id}.mp4`;
@@ -229,6 +240,8 @@ export class VideoAgentService {
         video_file: rendered ? videoFilePath : null,
         render_status,
         render_error,
+        audio_merge_status: audioMergeStatus,
+        audio_merge_error: audioMergeError,
         duration_sec: totalDuration,
         segments_count: script.total_segments,
         style: input.style || 'default',
@@ -257,8 +270,10 @@ export class VideoAgentService {
         segments_count: script.total_segments,
         render_status,
         render_error,
+        audio_merge_status: audioMergeStatus,
+        audio_merge_error: audioMergeError,
         // 供前端提示"无声视频"：TTS 全部降级时为 silent
-        tts_status: ttsFailed ? 'silent' : 'voiced',
+        tts_status: (ttsFailed ? 'silent' : 'voiced') as 'silent' | 'voiced',
         script,
         cost_estimate: {
           llm_tokens: llmTokens,
@@ -399,6 +414,12 @@ narration（解说词）和 visual（画面）是同一段内容的"声音版"�
 | comparison | 概念对比 | {"type":"comparison","left_title":"...","left_items":[...],"right_title":"...","right_items":[...]} |
 | summary | 视频结尾 | {"type":"key_points","points":["..."]} |
 | highlight_reel | 强调重点 | {"type":"keywords","keywords":["..."]} |
+
+## 画面安全区（必须遵守，避免元素重叠）
+- 画布 1920x1080，字幕条固定在底部居中，底部 280px（y>800）为字幕净空区，任何 visual 内容（文字、节点、对比项）都**不得**落入该区域。
+- bullet_points / summary / comparison / code_walkthrough 的正文从 y≈140 开始自上而下排列，要点多时用两列或更短文案，不要垂直居中堆到屏幕底部。
+- diagram 的 flowchart 节点 y 坐标范围限制在 60-760 之间，x 在 40-1880 之间；节点 label 不超过 14 个字。
+- callout（右下角提示卡）与字幕条都贴近底部，二者不要同时出现内容超长的情况。
 
 ## 对应示例（bullet_points）
 {

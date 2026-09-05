@@ -253,6 +253,15 @@ export class ChatService {
       show_progress: { type: 'show_progress' },
       show_today_tasks: { type: 'show_today_tasks' },
       recommend_resources: { type: 'recommend_resources', skills: filters.skills || [] },
+      query_knowledge: { type: 'query_knowledge', query: filters.query || userMessage, skillName, limit: filters.limit || 5 },
+      knowledge_ingest: {
+        type: 'knowledge_ingest',
+        title: filters.title || skillName || '知识库资料',
+        content: filters.content || userMessage,
+        skillTags: filters.skillTags || filters.skill_tags || filters.skills || (skillName ? [skillName] : []),
+        sourceUrl: filters.sourceUrl || filters.source_url,
+      },
+      knowledge_news_refresh: { type: 'knowledge_news_refresh', keywords: filters.keywords, limit: filters.limit || 5 },
       match_analysis: { type: 'recommend_jobs', filters },
       generate_animation: { type: 'generate_animation', skillName },
       generate_diagram: { type: 'generate_diagram', skillName, diagramType },
@@ -332,6 +341,14 @@ export class ChatService {
         resultDesc.push(`已将岗位「${r.data?.jobTitle || ''}」设为目标岗位。`);
       } else if (rtype === 'resources') {
         resultDesc.push(`推荐了 ${(r.data || []).length} 个学习资源。`);
+      } else if (rtype === 'knowledge_results') {
+        resultDesc.push(`知识库检索完成，命中 ${r.data?.total || 0} 条证据。`);
+      } else if (rtype === 'knowledge_ingestion_task') {
+        const task = r.data?.task || {};
+        const status = task.ingestionStatus || task.ingestion_status || '';
+        resultDesc.push(`知识库资料处理完成，当前状态：${status}，审核分：${task.inspectionResult?.score ?? '暂无'}。`);
+      } else if (rtype === 'knowledge_news_refresh') {
+        resultDesc.push(`资讯入库处理完成，创建 ${r.data?.totalTasks || 0} 个任务，通过入库 ${r.data?.ingested || 0} 条，拒绝 ${r.data?.rejected || 0} 条。`);
       } else if (rtype === 'animation') {
         resultDesc.push(`已生成「${r.data?.skill || ''}」的 HTML 动画演示，可在卡片中直接播放。`);
       } else if (rtype === 'diagram') {

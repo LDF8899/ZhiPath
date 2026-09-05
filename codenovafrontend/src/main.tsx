@@ -6,6 +6,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/motion.css';
 import './styles/nova.css';
+import './styles/mobile.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

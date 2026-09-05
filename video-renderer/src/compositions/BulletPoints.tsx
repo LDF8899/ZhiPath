@@ -39,8 +39,8 @@ export const BulletPoints: React.FC<Props> = ({ segment, durationFrames }) => {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center',
-        padding: '80px 120px',
+        justifyContent: 'flex-start',
+        padding: `140px ${VIDEO_THEME.chrome.safeX}px ${VIDEO_THEME.layout.contentSafeBottom}px`,
         background: VIDEO_THEME.canvas.backgroundColor,
       }}
     >

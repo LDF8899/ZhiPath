@@ -148,4 +148,8 @@ export const VIDEO_THEME = {
     warning: '#FBBF24',
     success: '#34D399',
   },
+  /** 布局安全区：底部为字幕叠加层预留的净空，内容不落入该区域，避免元素重叠 */
+  layout: {
+    contentSafeBottom: 280,
+  },
 } as const;

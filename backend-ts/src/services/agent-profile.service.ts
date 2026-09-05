@@ -33,6 +33,8 @@ const PROFILE_PRESETS: Record<string, {
   resume: { animalType: 'hamster', color: '#ffd1e8', nickname: 'Resuma', displayRole: 'Resume Advisor' },
   profile: { animalType: 'owl', color: '#cce6ff', nickname: 'Lens', displayRole: 'Profile Analyst' },
   news: { animalType: 'parrot', color: '#c8f5c8', nickname: 'Scout', displayRole: 'News Editor' },
+  knowledge: { animalType: 'owl', color: '#dbeafe', nickname: 'Indexa', displayRole: 'Knowledge Curator' },
+  inspector: { animalType: 'fox', color: '#fee2e2', nickname: 'Guard', displayRole: 'Quality Inspector' },
 };
 
 @Injectable()

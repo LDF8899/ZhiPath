@@ -27,6 +27,9 @@ export const Diagram: React.FC<Props> = ({ segment }) => {
   );
   const nodeIds = new Set(nodes.map((n) => n.id));
   const nodeDelay = Math.floor(durationInFrames * 0.15);
+  // 字幕净空区上方可用的可视高度；按原始坐标空间等比缩放，不裁剪不拉伸
+  const svgHeight = VIDEO_THEME.canvas.height - 140 - VIDEO_THEME.layout.contentSafeBottom;
+  const svgWidth = Math.round(svgHeight * ((VIDEO_THEME.canvas.width - 200) / (VIDEO_THEME.canvas.height - 200)));
 
   return (
     <AbsoluteFill
@@ -38,8 +41,8 @@ export const Diagram: React.FC<Props> = ({ segment }) => {
       }}
     >
       <svg
-        width={VIDEO_THEME.canvas.width - 200}
-        height={VIDEO_THEME.canvas.height - 200}
+        width={svgWidth}
+        height={svgHeight}
         viewBox={`0 0 ${VIDEO_THEME.canvas.width - 200} ${VIDEO_THEME.canvas.height - 200}`}
       >
         {/* 连线 */}

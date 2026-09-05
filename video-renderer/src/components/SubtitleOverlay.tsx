@@ -35,8 +35,10 @@ export const SubtitleOverlay: React.FC<Props> = ({
     Math.floor((localFrame / Math.max(1, sf.durationFrames)) * chunks.length),
   );
   const text = chunks[chunkIndex] || segment.narration;
-  const chunkStart = Math.floor((sf.durationFrames / chunks.length) * chunkIndex);
-  const chunkEnd = Math.floor((sf.durationFrames / chunks.length) * (chunkIndex + 1));
+  // 按字符数加权分配每段字幕时长（TTS 语速近似均匀），比等分更贴合语音节奏
+  const chunkTimes = chunkTimesByLength(chunks, sf.durationFrames);
+  const chunkStart = chunkTimes[chunkIndex] || 0;
+  const chunkEnd = chunkTimes[chunkIndex + 1] || sf.durationFrames;
   const fadeIn = interpolate(localFrame - chunkStart, [0, Math.round(fps * 0.16)], [0, 1], { extrapolateRight: 'clamp' });
   const fadeOut = interpolate(localFrame, [chunkEnd - Math.round(fps * 0.2), chunkEnd], [1, 0], {
     extrapolateLeft: 'clamp',
@@ -67,6 +69,9 @@ export const SubtitleOverlay: React.FC<Props> = ({
           borderRadius: 8,
           opacity,
           boxShadow: '0 18px 54px rgba(0, 0, 0, 0.25)',
+          // 一行内放不下的长句允许折行；两行封顶，超出部分截断
+          maxHeight: '2.84em',
+          overflow: 'hidden',
         }}
       >
         <span
@@ -101,6 +106,20 @@ function splitNarration(narration: string): string[] {
     return result;
   }
   return chunks.length ? chunks : [raw];
+}
+
+/** 按每段字幕字符数加权分配起始帧（语速近似均匀），返回长度 chunks.length+1 的累计帧边界 */
+function chunkTimesByLength(chunks: string[], totalFrames: number): number[] {
+  const weights = chunks.map((chunk) => Math.max(1, chunk.length));
+  const sum = weights.reduce((acc, w) => acc + w, 0);
+  const times: number[] = [0];
+  let acc = 0;
+  for (let i = 0; i < chunks.length; i++) {
+    acc += weights[i];
+    times.push(Math.round((acc / sum) * totalFrames));
+  }
+  times[times.length - 1] = totalFrames;
+  return times;
 }
 
 function highlightText(text: string, keywords: string[]): React.ReactNode[] {

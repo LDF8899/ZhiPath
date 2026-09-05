@@ -23,6 +23,8 @@ import { QuestionGenerationService } from '../question-generation/question-gener
 import { normalizeGenerationConfig } from '../question-generation/question-generation.contracts';
 import { GEOGEBRA_FIGURE_GUIDE } from '../question-generation/question-generation.prompts';
 import { RemediationService } from '../remediation/remediation.service';
+import { EvidenceRagService } from '../../services/evidence-rag.service';
+import { KnowledgeIngestionService } from '../../services/knowledge-ingestion.service';
 import { extractJson } from '../../common/json-repair';
 import { LearningDomainRegistry } from '../../domains/learning-domain.registry';
 import type { LearningGoalType } from '../../domains/learning-domain.types';
@@ -148,6 +150,8 @@ export class ActionExecutorService {
     private domainRegistry: LearningDomainRegistry,
     private questionGeneration: QuestionGenerationService,
     private remediation: RemediationService,
+    private evidenceRag: EvidenceRagService,
+    private knowledgeIngestion: KnowledgeIngestionService,
   ) {}
 
   /** 从 AI 回复中提取所有 ```action ... ``` 块 — 对齐 Python extract_actions() */
@@ -262,6 +266,12 @@ export class ActionExecutorService {
         return this.generatePath(action, userId);
       case 'recommend_resources':
         return this.recommendResources(action, userId);
+      case 'query_knowledge':
+        return this.queryKnowledge(action, userId);
+      case 'knowledge_ingest':
+        return this.ingestKnowledge(action, userId);
+      case 'knowledge_news_refresh':
+        return this.refreshKnowledgeNews(action, userId);
       case 'generate_exam':
         return this.generateExam(action, userId);
       case 'question_config':
@@ -443,6 +453,56 @@ export class ActionExecutorService {
     }
 
     return { type: 'resources', data: resources };
+  }
+
+  /** 知识库检索 — 返回可解释证据命中 */
+  private async queryKnowledge(action: any, userId: number): Promise<any> {
+    const query = String(action.query || action.q || action._userMessage || action.message || '').trim();
+    if (!query) return { type: 'error', message: '请告诉我你想检索什么内容。' };
+    const skill = action.skillName || action.skill_name || action.skill;
+    const items = await this.evidenceRag.search(userId, query, {
+      skill,
+      sourceType: action.sourceType || action.source_type,
+      limit: Number(action.limit || 5),
+      explain: true,
+    });
+    return {
+      type: 'knowledge_results',
+      data: {
+        query,
+        total: items.length,
+        items,
+        message: items.length ? `命中 ${items.length} 条知识库证据。` : '没有命中相关证据。',
+      },
+    };
+  }
+
+  /** 上传/粘贴资料清洗入库 — 先质检再进入 Evidence RAG */
+  private async ingestKnowledge(action: any, userId: number): Promise<any> {
+    const content = String(action.content || action.text || action.rawText || action.raw_text || action._userMessage || '').trim();
+    if (content.length < 30) return { type: 'error', message: '资料内容太短，请粘贴更完整的文本后再入库。' };
+    const task = await this.knowledgeIngestion.createUploadTask(userId, {
+      title: action.title || action.skillName || action.skill_name || '知识库资料',
+      content,
+      sourceName: action.sourceName || action.source_name,
+      sourceUrl: action.sourceUrl || action.source_url,
+      skillTags: action.skillTags || action.skill_tags || action.skills || [],
+    });
+    return { type: 'knowledge_ingestion_task', data: { task } };
+  }
+
+  /** 抓取最新资讯并交给知识库质检入库 */
+  private async refreshKnowledgeNews(action: any, userId: number): Promise<any> {
+    const keywords = Array.isArray(action.keywords)
+      ? action.keywords
+      : typeof action.keyword === 'string'
+        ? [action.keyword]
+        : undefined;
+    const result = await this.knowledgeIngestion.refreshNews(userId, {
+      keywords,
+      limit: Number(action.limit || 5),
+    });
+    return { type: 'knowledge_news_refresh', data: result };
   }
 
   /** 将推荐的资源持久化到 knowledge_base 集合 */
@@ -683,6 +743,10 @@ export class ActionExecutorService {
           audio_file_path: result.result.audio_file_path,
           duration_sec: result.result.duration_sec,
           segments_count: result.result.segments_count,
+          render_status: result.result.render_status,
+          render_error: result.result.render_error,
+          audio_merge_status: result.result.audio_merge_status,
+          audio_merge_error: result.result.audio_merge_error,
           tts_status: result.result.tts_status,
           skill_name: skillName,
           context_summary: contextSummary,

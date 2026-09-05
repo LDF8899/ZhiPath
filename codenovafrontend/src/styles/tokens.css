@@ -120,6 +120,16 @@
   --rail-w: 240px;
   --topbar-h: 62px;
   --content-max: 1240px;
+  --mobile-header-h: 54px;
+  --mobile-tab-h: 64px;
+  --content-pad-mobile: 14px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* 兼容旧样式命名 */
+  --border: var(--border-soft);
+  --brand-700: #4338ca;
+  --radius-md: var(--r-md);
 
   /* ── 玻璃材质 ─────────────────────────────── */
   --glass-bg: rgba(255, 255, 255, 0.72);

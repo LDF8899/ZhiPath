@@ -26,22 +26,33 @@ export class EvidenceController {
   async search(
     @CurrentUser() user: any,
     @Query('query') query?: string,
+    @Query('q') q?: string,
     @Query('skill') skill?: string,
     @Query('sourceType') sourceType?: string,
     @Query('jobTargetId') jobTargetId?: string,
     @Query('limit') limit?: string,
+    @Query('explain') explain?: string,
   ) {
-    const items = await this.evidenceRag.search(user.sub, query || '', {
+    const queryText = query || q || '';
+    const items = await this.evidenceRag.search(user.sub, queryText, {
       skill,
       sourceType,
       jobTargetId: jobTargetId ? Number(jobTargetId) : undefined,
       limit: limit ? Number(limit) : 5,
+      explain: explain === '1' || explain === 'true',
     });
     return success({
-      query: query || '',
+      query: queryText,
       total: items.length,
       items,
     });
+  }
+
+  /** RAG 可视化图谱快照（供知识库 3D 数据引擎使用） */
+  @Get('evidence/graph')
+  async graph(@CurrentUser() user: any, @Query('limit') limit?: string) {
+    const result = await this.evidenceRag.getGraphSnapshot(user.sub, limit ? Number(limit) : 120);
+    return success(result);
   }
 
   /** 手动重建证据索引（补历史项目 / Chroma 恢复） */

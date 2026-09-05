@@ -164,8 +164,24 @@ function getVideoSrc(result: any): string {
   return filename ? `/api/video/${filename}` : '';
 }
 
-export function VideoCard({ data }: { data: { taskId?: string; skillName?: string; skill?: string; difficulty?: string; status?: string; message?: string; video_file_path?: string; url?: string } }) {
-  const initialResult = data?.video_file_path || data?.url ? data : null;
+function isMobileClient() {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia?.('(max-width: 768px)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent);
+}
+
+function hasRenderDependencyHint(message = '') {
+  return /video-renderer|ffmpeg|FFmpeg|Chrome|Chromium|Remotion|渲染器|依赖|未安装/.test(message);
+}
+
+function formatRenderIssue(message = '', mobile = false) {
+  const fallback = '服务端视频渲染环境未就绪，已保留脚本与音频；视频文件暂时还不能播放。';
+  const raw = message || fallback;
+  if (!mobile || !hasRenderDependencyHint(raw)) return raw;
+  return `${fallback} 这不是手机需要安装依赖，而是运行后端/渲染器的服务器需要准备 video-renderer、Chrome/Chromium 或 FFmpeg。请在服务端修复后重新生成。`;
+}
+
+export function VideoCard({ data }: { data: { taskId?: string; skillName?: string; skill?: string; difficulty?: string; status?: string; message?: string; video_file_path?: string; videoFilePath?: string; video_file?: string; url?: string; render_status?: string; render_error?: string; audio_file_path?: string; audio_merge_status?: string; audio_merge_error?: string } }) {
+  const initialResult = data?.video_file_path || data?.videoFilePath || data?.video_file || data?.url || data?.render_status ? data : null;
   const [state, setState] = useState<{
     status: string;
     progress: number;
@@ -229,8 +245,9 @@ export function VideoCard({ data }: { data: { taskId?: string; skillName?: strin
     setState({ status: 'pending', progress: 0, message: '正在重新生成…', result: null, error: '', elapsedSec: 0 });
     startRef.current = Date.now();
     try {
-      const result = await multimodalApi.video(skill);
-      // 返回的是 video_pending 结构，data.taskId 是新任务
+      // 教学视频走 VideoAgent 管线（/user/video-task 返回 video_pending + taskId），
+      // 不要调 multimodal/video —— 那是智谱 CogVideoX 短视频，返回的是 { type:'video', data }，没有 taskId。
+      const result = await multimodalApi.createTeachingVideo(skill);
       const nextTaskId = result?.data?.taskId || result?.taskId;
       if (nextTaskId) setActiveTaskId(nextTaskId);
       else setState((prev) => ({ ...prev, status: 'failed', error: '任务创建失败，请稍后重试' }));
@@ -242,9 +259,11 @@ export function VideoCard({ data }: { data: { taskId?: string; skillName?: strin
   }, [data?.skillName, data?.skill]);
 
   const { status, progress, message, result, error } = state;
+  const mobile = isMobileClient();
   const skillLabel = data?.skillName || data?.skill || '教学视频';
   const videoSrc = getVideoSrc(result);
   const notRendered = status === 'completed' && (!videoSrc || result?.render_status === 'not_rendered');
+  const renderIssue = formatRenderIssue(result?.render_error || result?.audio_merge_error || message, mobile);
 
   return (
     <div className="col" style={{ gap: 8, width: '100%', maxWidth: 460 }}>
@@ -273,14 +292,14 @@ export function VideoCard({ data }: { data: { taskId?: string; skillName?: strin
 
       {status === 'completed' && notRendered && (
         <div className="col" style={{ gap: 6, padding: '12px 14px', border: '1px dashed var(--border)', borderRadius: 10 }}>
-          <span className="small" style={{ fontWeight: 600, color: 'var(--amber-600)' }}>视频未实际渲染</span>
+          <span className="small" style={{ fontWeight: 600, color: 'var(--amber-600)' }}>服务端视频渲染未就绪</span>
           <p className="tiny muted" style={{ lineHeight: 1.6, margin: 0 }}>
-            {result?.render_error || '已生成脚本与音频，但缺少视频文件（渲染环境未就绪）。可尝试重新生成。'}
+            {renderIssue}
           </p>
           <div>
             <button type="button" className="btn btn--quiet btn--sm" onClick={handleRegenerate} disabled={regenerating}>
               <RotateCcw size={13} />
-              重新生成
+              服务端修复后重试
             </button>
           </div>
         </div>
@@ -300,7 +319,7 @@ export function VideoCard({ data }: { data: { taskId?: string; skillName?: strin
       {status === 'failed' && (
         <div className="col" style={{ gap: 6, padding: '12px 14px', border: '1px dashed var(--border)', borderRadius: 10 }}>
           <span className="small" style={{ fontWeight: 600, color: 'var(--rose-600)' }}>视频生成失败</span>
-          <p className="tiny muted" style={{ lineHeight: 1.6, margin: 0 }}>{error || message || '请稍后重试'}</p>
+          <p className="tiny muted" style={{ lineHeight: 1.6, margin: 0 }}>{formatRenderIssue(error || message || '请稍后重试', mobile)}</p>
           <div>
             <button type="button" className="btn btn--quiet btn--sm" onClick={handleRegenerate} disabled={regenerating}>
               <RotateCcw size={13} />

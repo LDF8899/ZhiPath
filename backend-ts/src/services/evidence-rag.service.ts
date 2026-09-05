@@ -13,7 +13,10 @@ export type EvidenceSourceType =
   | 'evaluation'
   | 'learning_commit'
   | 'agent_output'
-  | 'resume';
+  | 'resume'
+  | 'knowledge_upload'
+  | 'news_article'
+  | 'domain_doc';
 
 export interface IngestEvidenceInput {
   sourceType: EvidenceSourceType;
@@ -37,13 +40,62 @@ export interface EvidenceSearchItem {
   confidence: number;
   createdAt: number;
   vectorStatus: string;
+  scoreBreakdown?: {
+    vectorScore: number;
+    keywordScore: number;
+    tagScore: number;
+    jobScore: number;
+    sourceConfidence: number;
+    freshness: number;
+    finalScore: number;
+  };
+  matchedTerms?: string[];
+  retrieval?: {
+    mode: 'vector' | 'keyword_fallback';
+    vectorHit: boolean;
+    rank: number;
+  };
+}
+
+export interface EvidenceGraphSnapshot {
+  metrics: {
+    totalChunks: number;
+    indexedChunks: number;
+    failedChunks: number;
+    pendingChunks: number;
+    sourceCount: number;
+    sourceTypeCount: Record<string, number>;
+  };
+  nodes: Array<{
+    id: string;
+    kind: 'core' | 'source' | 'cluster' | 'chunk';
+    label: string;
+    sourceType?: string;
+    sourceId?: string;
+    chunkId?: number;
+    cluster?: string;
+    confidence?: number;
+    vectorStatus?: string;
+    skillTags?: string[];
+    score?: number;
+    snippet?: string;
+  }>;
+  edges: Array<{
+    from: string;
+    to: string;
+    type: 'indexes' | 'contains' | 'tagged' | 'retrieved';
+    strength: number;
+  }>;
 }
 
 /** 证据类型可信度（方案 §6.5） */
 const SOURCE_CONFIDENCE: Record<string, number> = {
   evaluation: 0.95,
+  domain_doc: 0.88,
+  news_article: 0.82,
   project: 0.85,
   learning_commit: 0.75,
+  knowledge_upload: 0.72,
   file_qa: 0.70,
   agent_output: 0.65,
   resume: 0.60,
@@ -179,7 +231,7 @@ export class EvidenceRagService {
   async search(
     userId: number,
     query: string,
-    opts: { skill?: string; sourceType?: string; jobTargetId?: number; limit?: number } = {},
+    opts: { skill?: string; sourceType?: string; jobTargetId?: number; limit?: number; explain?: boolean } = {},
   ): Promise<EvidenceSearchItem[]> {
     const limit = Math.max(1, Math.min(10, opts.limit || 5));
     const queryText = (query || '').trim();
@@ -211,17 +263,19 @@ export class EvidenceRagService {
     const skill = (opts.skill || '').trim().toLowerCase();
 
     // 3. 打分重排（方案 §6.5：向量 50% + 技能 20% + 岗位 15% + 类型可信度 10% + 新鲜度 5%）
+    const mode: 'vector' | 'keyword_fallback' = vectorHits.length > 0 ? 'vector' : 'keyword_fallback';
     const scored = candidates.map((c) => {
       const vectorScore = vectorScoreMap.get(c.id) ?? 0;
       // 关键词命中（降级路径的主要信号）
       const contentLower = c.content.toLowerCase();
       const titleLower = c.title.toLowerCase();
-      const kwHits = queryTokens.filter((t) => contentLower.includes(t) || titleLower.includes(t)).length;
-      const kwScore = queryTokens.length > 0 ? Math.min(1, kwHits / queryTokens.length) : 0;
+      const kwTerms = queryTokens.filter((t) => contentLower.includes(t) || titleLower.includes(t));
+      const kwScore = queryTokens.length > 0 ? Math.min(1, kwTerms.length / queryTokens.length) : 0;
       const tags = c.skillTags || [];
       const tagText = tags.join(' ').toLowerCase();
       const explicitSkillHit = Boolean(skill && tags.some((t) => t.toLowerCase().includes(skill)));
-      const tagHit = explicitSkillHit || queryTokens.some((t) => tagText.includes(t) || t.includes(tagText));
+      const tagTerms = tagText ? queryTokens.filter((t) => tagText.includes(t) || t.includes(tagText)) : [];
+      const tagHit = explicitSkillHit || tagTerms.length > 0;
       const tagScore = tagHit ? 1 : 0;
       const jobHit = opts.jobTargetId && c.jobTargetId === opts.jobTargetId ? 1 : 0;
       const typeScore = SOURCE_CONFIDENCE[c.sourceType] ?? 0.7;
@@ -235,7 +289,7 @@ export class EvidenceRagService {
           0.25 * vectorScore +
           0.45 * kwScore +
           0.2 * tagScore +
-          0.05 * Math.max(jobHit, typeScore) +
+          0.05 * Math.max(Number(jobHit || 0), typeScore) +
           0.05 * freshness;
         if (score < 0.25) return null;
       } else {
@@ -243,30 +297,51 @@ export class EvidenceRagService {
         score =
           0.6 * kwScore +
           0.2 * tagScore +
-          0.1 * jobHit +
+          0.1 * Number(jobHit || 0) +
           0.1 * typeScore;
         // 弱命中过滤：分数低于 0.25 视为无证据（避免 2-gram 泛词误报，
         // 保障 No-Evidence Accuracy；实测强命中均 ≥0.33）
         if (score < 0.25 && !vectorHitIds.has(c.id)) return null;
       }
-      return {
+      const finalScore = Math.round(score * 100) / 100;
+      const matchedTerms = [...new Set([...kwTerms, ...(explicitSkillHit && skill ? [skill] : []), ...tagTerms])].slice(0, 12);
+      const item: EvidenceSearchItem = {
         chunkId: Number(c.id),
         sourceType: c.sourceType,
         sourceId: c.sourceId,
         title: c.title,
         snippet: this.snippet(c.content, queryText),
         skillTags: c.skillTags || [],
-        score: Math.round(score * 100) / 100,
+        score: finalScore,
         confidence: Number(c.confidence),
         createdAt: Number(c.createTime || 0),
         vectorStatus: c.vectorStatus,
       };
+      if (opts.explain) {
+        item.scoreBreakdown = {
+          vectorScore: Math.round(vectorScore * 100) / 100,
+          keywordScore: Math.round(kwScore * 100) / 100,
+          tagScore,
+          jobScore: Number(jobHit || 0),
+          sourceConfidence: Math.round(typeScore * 100) / 100,
+          freshness: Math.round(freshness * 100) / 100,
+          finalScore,
+        };
+        item.matchedTerms = matchedTerms;
+        item.retrieval = {
+          mode,
+          vectorHit: vectorHitIds.has(c.id),
+          rank: 0,
+        };
+      }
+      return item;
     });
 
     return scored
       .filter((x): x is EvidenceSearchItem => x !== null)
       .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
+      .slice(0, limit)
+      .map((item, index) => item.retrieval ? { ...item, retrieval: { ...item.retrieval, rank: index + 1 } } : item);
   }
 
   /** 生成可放进 LLM prompt 的短上下文 */
@@ -363,6 +438,102 @@ export class EvidenceRagService {
     return count;
   }
 
+  /** 生成 RAG 可视化图谱快照：core -> source -> chunk，并按 skillTags 生成知识主题簇 */
+  async getGraphSnapshot(userId: number, limit = 120): Promise<EvidenceGraphSnapshot> {
+    const take = Math.max(1, Math.min(300, Number(limit) || 120));
+    const chunks = await this.chunkRepo.find({ where: { userId, status: 1 }, order: { createTime: 'DESC' }, take });
+    const nodes: EvidenceGraphSnapshot['nodes'] = [{ id: 'core:rag', kind: 'core', label: 'RAG Engine · Chroma Core' }];
+    const edges: EvidenceGraphSnapshot['edges'] = [];
+    const sourceMap = new Map<string, EvidenceGraphSnapshot['nodes'][number]>();
+    const clusterMap = new Map<string, EvidenceGraphSnapshot['nodes'][number]>();
+    const sourceTypeCount: Record<string, number> = {};
+    const tagFrequency = new Map<string, number>();
+    for (const chunk of chunks) {
+      for (const tag of chunk.skillTags || []) {
+        const cleanTag = String(tag || '').trim();
+        if (cleanTag) tagFrequency.set(cleanTag, (tagFrequency.get(cleanTag) || 0) + 1);
+      }
+    }
+    const topClusterTags = new Set(
+      [...tagFrequency.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'))
+        .slice(0, 24)
+        .map(([tag]) => tag),
+    );
+    let indexedChunks = 0;
+    let failedChunks = 0;
+    let pendingChunks = 0;
+
+    for (const chunk of chunks) {
+      const sourceType = chunk.sourceType || 'unknown';
+      sourceTypeCount[sourceType] = (sourceTypeCount[sourceType] || 0) + 1;
+      if (chunk.vectorStatus === 'indexed') indexedChunks++;
+      else if (chunk.vectorStatus === 'failed') failedChunks++;
+      else pendingChunks++;
+
+      const sourceKey = `${sourceType}:${chunk.sourceId}`;
+      const sourceNodeId = `source:${this.safeGraphId(sourceKey)}`;
+      if (!sourceMap.has(sourceKey)) {
+        const sourceNode = {
+          id: sourceNodeId,
+          kind: 'source' as const,
+          label: chunk.title || chunk.sourceId || sourceType,
+          sourceType,
+          sourceId: chunk.sourceId,
+          confidence: Number(chunk.confidence || 0.7),
+          vectorStatus: chunk.vectorStatus,
+          skillTags: chunk.skillTags || [],
+        };
+        sourceMap.set(sourceKey, sourceNode);
+        nodes.push(sourceNode);
+        edges.push({ from: 'core:rag', to: sourceNodeId, type: 'indexes', strength: 0.85 });
+      }
+
+      const chunkNodeId = `chunk:${chunk.id}`;
+      const tags = (chunk.skillTags || []).filter((tag) => topClusterTags.has(String(tag || '').trim())).slice(0, 4);
+      nodes.push({
+        id: chunkNodeId,
+        kind: 'chunk',
+        label: chunk.title || `证据 #${chunk.id}`,
+        sourceType,
+        sourceId: chunk.sourceId,
+        chunkId: Number(chunk.id),
+        cluster: tags[0] || sourceType,
+        confidence: Number(chunk.confidence || 0.7),
+        vectorStatus: chunk.vectorStatus,
+        skillTags: chunk.skillTags || [],
+        snippet: this.snippet(chunk.content, tags[0] || ''),
+      });
+      edges.push({ from: sourceNodeId, to: chunkNodeId, type: 'contains', strength: 0.68 });
+
+      for (const tag of tags) {
+        const cleanTag = String(tag || '').trim();
+        if (!cleanTag) continue;
+        const clusterNodeId = `cluster:${this.safeGraphId(cleanTag)}`;
+        if (!clusterMap.has(cleanTag)) {
+          const clusterNode = { id: clusterNodeId, kind: 'cluster' as const, label: cleanTag, cluster: cleanTag, skillTags: [cleanTag] };
+          clusterMap.set(cleanTag, clusterNode);
+          nodes.push(clusterNode);
+          edges.push({ from: 'core:rag', to: clusterNodeId, type: 'tagged', strength: 0.45 });
+        }
+        edges.push({ from: clusterNodeId, to: chunkNodeId, type: 'tagged', strength: 0.5 });
+      }
+    }
+
+    return {
+      metrics: {
+        totalChunks: chunks.length,
+        indexedChunks,
+        failedChunks,
+        pendingChunks,
+        sourceCount: sourceMap.size,
+        sourceTypeCount,
+      },
+      nodes,
+      edges,
+    };
+  }
+
   /** 证据索引状态汇总（供 Projects 页展示已索引/待索引/失败） */
   async getSummary(userId: number): Promise<{
     total: number;
@@ -432,6 +603,10 @@ export class EvidenceRagService {
     }
     tokens.push(...(text.match(/[a-zA-Z0-9_+#.-]{2,}/g) || []).map((t) => t.toLowerCase()));
     return [...new Set(tokens)];
+  }
+
+  private safeGraphId(value: string): string {
+    return createHash('md5').update(value || 'unknown').digest('hex').slice(0, 12);
   }
 
   private async embed(text: string): Promise<number[] | null> {

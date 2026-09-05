@@ -1,0 +1,110 @@
+[
+  {
+    "sourceId": "ai_authority:google_ml_crash_course",
+    "title": "权威AI学习资料：Google Machine Learning Crash Course",
+    "organization": "Google for Developers",
+    "url": "https://developers.google.com/machine-learning/crash-course",
+    "skillTags": ["人工智能", "机器学习", "监督学习", "模型评估", "特征工程", "Google ML"],
+    "confidence": 0.88,
+    "content": "来源：Google for Developers《Machine Learning Crash Course》。这是 Google 面向开发者的机器学习入门课程，适合作为学习监督学习、模型训练、特征处理、损失函数、泛化、过拟合、评估指标和实践工作流的权威入口。清洗摘要：学习者应先理解机器学习不是手写规则，而是通过数据训练模型来学习输入与输出之间的关系；模型质量需要通过训练集、验证集和测试集拆分来评估，不能只看训练集表现；特征工程、数据清洗、标签质量和评估指标选择会直接影响模型效果；分类问题应关注准确率、精确率、召回率、AUC 等指标，回归问题应关注误差和残差；模型上线前需要检查数据偏差、分布漂移和泛化能力。学习建议：先掌握监督学习基本流程，再做小规模实验，记录数据、特征、模型、指标和错误案例。版权处理：本条为中文摘要与学习索引，不复制课程原文；原始内容请访问官方链接。"
+  },
+  {
+    "sourceId": "ai_authority:google_pair_guidebook",
+    "title": "权威AI学习资料：Google PAIR Guidebook",
+    "organization": "Google PAIR / People + AI Research",
+    "url": "https://pair.withgoogle.com/guidebook/",
+    "skillTags": ["人工智能", "以人为本AI", "AI产品设计", "可解释性", "用户体验", "Responsible AI"],
+    "confidence": 0.88,
+    "content": "来源：Google PAIR Guidebook。该资料是面向构建以人为本 AI 产品团队的设计工具包，核心关注 AI 系统如何与真实用户、业务场景和反馈闭环结合。清洗摘要：AI 产品设计不能只追求模型指标，还要明确用户目标、使用边界、失败场景和反馈机制；团队需要向用户解释系统能做什么、不能做什么，以及模型置信度和不确定性；AI 输出应允许用户检查、纠错和撤回，尤其在教育、招聘、医疗、金融等高影响场景中要避免自动化偏见；上线后需要持续收集用户反馈，观察模型错误对体验和决策的影响。学习建议：做 AI 学习平台或智能教练时，应把证据链、风险提示、人工审核和可撤销机制纳入产品设计。版权处理：本条为中文摘要与学习索引，不复制指南原文；原始内容请访问官方链接。"
+  },
+  {
+    "sourceId": "ai_authority:deeplearning_ai_ml_specialization",
+    "title": "权威AI学习资料：Machine Learning Specialization - DeepLearning.AI",
+    "organization": "DeepLearning.AI / Stanford Online / Coursera",
+    "url": "https://www.deeplearning.ai/courses/machine-learning-specialization/",
+    "skillTags": ["人工智能", "机器学习", "线性回归", "逻辑回归", "神经网络", "推荐系统", "无监督学习"],
+    "confidence": 0.86,
+    "content": "来源：DeepLearning.AI《Machine Learning Specialization》。该课程由 Andrew Ng 等团队打造，是机器学习基础课程的现代版本，适合建立 AI 工程入门知识框架。清洗摘要：学习路径通常从监督学习开始，包括线性回归、逻辑回归、损失函数、梯度下降、正则化和模型评估；随后进入神经网络基础，理解前向传播、反向传播和多层模型表达能力；再扩展到决策树、集成方法、聚类、异常检测、推荐系统和强化学习入门。对学习者而言，关键不是记住公式，而是理解如何把业务问题转化为特征、标签、训练目标和评估指标。学习建议：适合 SkillStudio 设计从基础建模到实践项目的能力路线，也适合为出题引擎生成机器学习基础题、诊断题和补弱练习。版权处理：本条为中文摘要与学习索引，不复制课程原文；原始内容请访问官方链接。"
+  },
+  {
+    "sourceId": "ai_authority:deeplearning_ai_deep_learning_specialization",
+    "title": "权威AI学习资料：Deep Learning Specialization - DeepLearning.AI",
+    "organization": "DeepLearning.AI / Coursera",
+    "url": "https://www.deeplearning.ai/courses/deep-learning-specialization/",
+    "skillTags": ["人工智能", "深度学习", "神经网络", "CNN", "RNN", "Transformer", "TensorFlow"],
+    "confidence": 0.86,
+    "content": "来源：DeepLearning.AI《Deep Learning Specialization》。该专项课程覆盖深度学习核心模型与应用，是学习神经网络工程实践的重要资料。清洗摘要：深度学习学习者需要理解神经网络的层、激活函数、损失函数、优化器、反向传播和正则化；在计算机视觉中，卷积神经网络通过局部感受野、参数共享和池化提取图像特征；在序列建模中，RNN、LSTM、注意力机制和 Transformer 用于文本、语音和时间序列任务；工程实践还包括初始化、归一化、学习率调整、误差分析和模型部署。学习建议：适合生成深度学习概念题、模型结构辨析题、训练调参题和工程排错题。版权处理：本条为中文摘要与学习索引，不复制课程原文；原始内容请访问官方链接。"
+  },
+  {
+    "sourceId": "ai_authority:harvard_cs50_ai_python",
+    "title": "权威AI学习资料：CS50's Introduction to Artificial Intelligence with Python",
+    "organization": "Harvard University CS50",
+    "url": "https://cs50.harvard.edu/ai/",
+    "skillTags": ["人工智能", "Python", "搜索算法", "知识表示", "约束满足", "机器学习", "NLP"],
+    "confidence": 0.9,
+    "content": "来源：Harvard CS50《Introduction to Artificial Intelligence with Python》。这门课程用 Python 讲解现代 AI 的基础概念和算法，适合从计算机科学角度理解 AI。清洗摘要：课程主题通常包括搜索、知识表示、不确定性、优化、机器学习、神经网络和自然语言处理。学习者应理解 AI 不等同于大模型，传统 AI 中的状态空间搜索、图搜索、博弈、逻辑推理、贝叶斯方法和约束满足仍然是重要基础；Python 实现能帮助学习者把抽象算法变成可运行程序。学习建议：适合为学生设计算法型 AI 题、Python 实践题、搜索与推理题，以及从传统 AI 过渡到机器学习的学习路径。版权处理：本条为中文摘要与学习索引，不复制课程原文；原始内容请访问官方链接。"
+  },
+  {
+    "sourceId": "ai_authority:dive_into_deep_learning",
+    "title": "权威AI学习资料：Dive into Deep Learning",
+    "organization": "D2L.ai 开源教材项目",
+    "url": "https://d2l.ai/",
+    "skillTags": ["人工智能", "深度学习", "PyTorch", "MXNet", "JAX", "动手实践", "教材"],
+    "confidence": 0.9,
+    "content": "来源：Dive into Deep Learning（D2L.ai）。这是一本交互式、代码驱动的深度学习开源教材，适合把数学原理、模型结构和动手实现结合起来学习。清洗摘要：D2L 的学习重点是从线性神经网络、多层感知机开始，逐步进入卷积神经网络、循环神经网络、注意力机制、Transformer、优化算法、计算性能和应用案例。它强调通过可运行代码理解模型，而不是只停留在概念解释；学习者可以比较不同框架中的实现方式，理解张量、自动微分、训练循环、损失函数和评估指标。学习建议：适合作为深度学习实践题和项目任务的依据，尤其适合生成“读代码解释模型”“补全训练循环”“分析过拟合原因”等练习。版权处理：本条为中文摘要与学习索引，不复制教材原文；原始内容请访问官方链接。"
+  },
+  {
+    "sourceId": "ai_authority:huggingface_nlp_course",
+    "title": "权威AI学习资料：Hugging Face NLP Course",
+    "organization": "Hugging Face",
+    "url": "https://huggingface.co/learn/nlp-course/chapter1/1",
+    "skillTags": ["人工智能", "NLP", "Transformer", "Hugging Face", "预训练模型", "微调"],
+    "confidence": 0.88,
+    "content": "来源：Hugging Face NLP Course。该课程面向自然语言处理和 Transformer 生态学习，适合理解预训练模型、分词器、数据集、微调和推理流程。清洗摘要：NLP 现代工程实践通常围绕 Transformer 模型、Tokenizer、Datasets、Trainer、Pipeline 和模型 Hub 展开；学习者需要理解分词如何把文本转换为模型输入，预训练模型如何通过微调适配分类、问答、摘要、翻译等任务；还需要关注数据清洗、评估指标、推理成本和模型发布。学习建议：适合生成大模型/NLP 入门题、Transformer 机制题、微调流程题和模型部署题。版权处理：本条为中文摘要与学习索引，不复制课程原文；原始内容请访问官方链接。"
+  },
+  {
+    "sourceId": "ai_authority:nist_ai_rmf",
+    "title": "权威AI学习资料：NIST AI Risk Management Framework",
+    "organization": "National Institute of Standards and Technology (NIST)",
+    "url": "https://www.nist.gov/itl/ai-risk-management-framework",
+    "skillTags": ["人工智能", "AI治理", "AI风险管理", "可信AI", "生成式AI风险", "NIST"],
+    "confidence": 0.92,
+    "content": "来源：美国国家标准与技术研究院 NIST《AI Risk Management Framework》。该框架面向组织级 AI 风险管理，是学习可信 AI、AI 治理和生成式 AI 风险控制的重要权威资料。清洗摘要：AI 系统的风险管理不只发生在上线后，而应贯穿设计、开发、部署、监控和退役全生命周期；组织需要识别 AI 可能带来的偏见、隐私、安全、鲁棒性、透明度和问责风险；生成式 AI 还带来幻觉、版权、提示注入、错误依赖和不可解释输出等问题；治理框架应包括角色分工、风险测量、风险缓解、持续监控和文档化记录。学习建议：适合为平台设计“AI 幻觉治理”“证据链”“人工审核”“风险评分”和“审计留痕”相关赛题与产品要求。版权处理：本条为中文摘要与学习索引，不复制框架原文；原始内容请访问官方链接。"
+  },
+  {
+    "sourceId": "ai_authority:ai_for_everyone",
+    "title": "权威AI学习资料：AI For Everyone",
+    "organization": "DeepLearning.AI / Coursera",
+    "url": "https://www.coursera.org/learn/ai-for-everyone",
+    "skillTags": ["人工智能", "AI产品", "AI战略", "非技术AI素养", "业务落地"],
+    "confidence": 0.82,
+    "content": "来源：DeepLearning.AI《AI For Everyone》。该课程面向非工程背景学习者和管理者，帮助理解 AI 能做什么、不能做什么，以及如何在组织中落地 AI。清洗摘要：学习者应区分 AI、机器学习、深度学习和数据科学的关系；AI 项目成功依赖数据质量、明确的业务目标、可衡量指标和跨职能协作；并非所有问题都适合用 AI，缺少数据、目标模糊或错误成本极高的场景需要谨慎；组织采用 AI 时要考虑伦理、隐私、偏见、岗位变化和流程改造。学习建议：适合为初学者生成 AI 概念辨析题、AI 项目判断题和产品落地案例题。版权处理：本条为中文摘要与学习索引，不复制课程原文；原始内容请访问官方链接。"
+  },
+  {
+    "sourceId": "ai_authority:openai_spinning_up",
+    "title": "权威AI学习资料：OpenAI Spinning Up in Deep Reinforcement Learning",
+    "organization": "OpenAI",
+    "url": "https://spinningup.openai.com/en/latest/",
+    "skillTags": ["人工智能", "强化学习", "深度强化学习", "策略梯度", "MDP", "OpenAI"],
+    "confidence": 0.86,
+    "content": "来源：OpenAI Spinning Up in Deep Reinforcement Learning。该资料面向深度强化学习入门，提供概念、数学背景和算法实现方向。清洗摘要：强化学习关注智能体在环境中通过动作获得奖励并学习策略，核心概念包括状态、动作、奖励、回报、策略、价值函数、马尔可夫决策过程和探索利用平衡；深度强化学习使用神经网络近似策略或价值函数，常见方向包括策略梯度、Actor-Critic、Q-learning 及其深度版本；评估强化学习系统时需要关注样本效率、稳定性、奖励设计和安全约束。学习建议：适合生成强化学习概念题、算法比较题和实验设计题，不适合作为初学者第一门 AI 课程。版权处理：本条为中文摘要与学习索引，不复制资料原文；原始内容请访问官方链接。"
+  },
+  {
+    "sourceId": "ai_authority:tensorflow_learn",
+    "title": "权威AI学习资料：TensorFlow Learn",
+    "organization": "TensorFlow / Google",
+    "url": "https://www.tensorflow.org/learn",
+    "skillTags": ["人工智能", "TensorFlow", "深度学习框架", "模型训练", "部署", "工程实践"],
+    "confidence": 0.86,
+    "content": "来源：TensorFlow 官方学习入口。TensorFlow 是常用的机器学习与深度学习框架，覆盖从入门教程到生产部署的工程实践。清洗摘要：学习 TensorFlow 时，重点应放在张量、数据管道、模型定义、训练循环、损失函数、优化器、评估和保存加载模型；Keras API 适合快速搭建神经网络，低层 API 适合理解更细粒度的训练逻辑；工程落地还涉及桌面、移动端、Web、云端部署和模型服务化。学习建议：适合生成框架实践题、训练流程题、模型保存部署题和错误排查题。版权处理：本条为中文摘要与学习索引，不复制官方教程原文；原始内容请访问官方链接。"
+  },
+  {
+    "sourceId": "ai_authority:pytorch_tutorials",
+    "title": "权威AI学习资料：PyTorch Tutorials",
+    "organization": "PyTorch Foundation / Linux Foundation",
+    "url": "https://pytorch.org/tutorials/",
+    "skillTags": ["人工智能", "PyTorch", "深度学习框架", "自动微分", "训练循环", "工程实践"],
+    "confidence": 0.86,
+    "content": "来源：PyTorch 官方教程。PyTorch 是深度学习研究和工程实践中常用的框架，适合学习动态图、自动微分和自定义训练流程。清洗摘要：学习 PyTorch 应理解 Tensor、Dataset、DataLoader、Module、loss、optimizer 和 autograd 的角色；典型训练流程包括准备数据、定义模型、前向计算、计算损失、反向传播、优化参数和评估模型；PyTorch 适合需要灵活调试和自定义模型结构的深度学习任务。学习建议：适合生成代码阅读题、训练循环补全题、梯度与参数更新题、数据加载题和模型调试题。版权处理：本条为中文摘要与学习索引，不复制官方教程原文；原始内容请访问官方链接。"
+  }
+]

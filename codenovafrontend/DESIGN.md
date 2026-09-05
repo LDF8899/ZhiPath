@@ -104,3 +104,34 @@
 - **Resources**：台账 `.ledger.stagger` + `useStagger` 入场；反馈按钮激活态 `.is-on--up` nova 渐变发光 / `.is-on--down` 玫红渐变；`.tip-note` 左侧渐变光条（border-image）。
 - 注意：`CardBody` 不转发 ref，stagger 容器需用内部 `<div className="col stagger" ref={...}>` 包裹。
 - 路由提醒：学习路径是 `/path`（单数），截图/跳转勿写 `/paths`。
+
+## 移动端排版（2026-09-04）
+
+新增断点：
+- `≤640px`（手机竖屏）：会话列表改为横向 chip 条（高度 ~64px，不再挤对话区）；`100dvh` 视口；输入栏加 `env(safe-area-inset-bottom)` + 16px 输入防 iOS 自动放大；消息气泡 14px、头像 26px；动作卡片单列；顶栏紧凑（隐藏 crumbs）。
+- `641–900px`（平板横屏）：会话区紧凑 150px，仍横向滚动。
+
+要点：CSS-only 改动；纯 CSS media query 不需要组件代码改动；`dvh` 单位兼容移动浏览器地址栏隐藏/显示；`env(safe-area-inset-bottom)` 处理 iPhone 底部小白条。
+
+## 移动端文本溢出（2026-09-04 第二轮）
+
+### 痛点
+- `.ledger__title.truncate` 被同行按钮挤压到 137px，标题被截断成 ellipsis
+- `.btn` 文字过长（`white-space: nowrap`）撑破容器
+- `.tag` 不可换行
+- `.segmented` 过滤器在窄屏横向挤压缩略
+- 雷达图 SVG 标签在 1.2× 半径处被 viewBox 裁切
+
+### 修复要点（base.css ≤640px）
+- `.ledger__row > .grow` `flex-basis: calc(100% - 42px)` 让标题块独占一行；`.ledger__title` 强制 `white-space: normal` 覆盖 `.truncate` 截断
+- `.btn/.tag` `white-space: normal`
+- `.segmented` 横向滚动
+- `.modal/.toast` `max-width: calc(100vw - 24px)`
+
+### 雷达图修复（charts.tsx）
+- viewBox 加 PAD_X=52 / PAD_Y=20 内边距，标签不再被裁切
+- `max-width: 100%` 自适应缩放
+
+### 验证
+- `tmp/cdp-audit.mjs`：CDP 移动视口溢出审计，跳过 SVG text 与滚动容器误报
+- 5 视口（320/375/414/768/1024）× 6 页面 = 30 组全部 0 溢出

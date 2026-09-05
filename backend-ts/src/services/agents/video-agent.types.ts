@@ -139,6 +139,11 @@ export interface VideoAgentOutput {
     audio_file_path?: string;
     duration_sec: number;
     segments_count: number;
+    render_status?: 'completed' | 'not_rendered';
+    render_error?: string;
+    audio_merge_status?: 'merged' | 'skipped' | 'failed';
+    audio_merge_error?: string;
+    tts_status?: 'silent' | 'voiced';
     script: VideoScript;
     cost_estimate: {
       llm_tokens: number;

@@ -4,6 +4,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 
+function resolveFfmpegPath(): string {
+  if (process.env.FFMPEG_PATH) return process.env.FFMPEG_PATH;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('@ffmpeg-installer/ffmpeg').path || 'ffmpeg';
+  } catch {
+    return 'ffmpeg';
+  }
+}
+
 /**
  * 视频渲染服务
  *
@@ -77,11 +87,11 @@ export class VideoRenderService {
         );
       }
 
-      // 检查 FFmpeg
+      const ffmpegPath = resolveFfmpegPath();
       try {
-        execSync('ffmpeg -version', { stdio: 'ignore', timeout: 5000 });
+        execSync(`"${ffmpegPath}" -version`, { stdio: 'ignore', timeout: 5000 });
       } catch {
-        throw new Error('FFmpeg 未安装，请先安装 FFmpeg');
+        throw new Error(`FFmpeg 不可用，请检查 FFMPEG_PATH 或 @ffmpeg-installer/ffmpeg: ${ffmpegPath}`);
       }
 
       // 调用 Remotion 渲染
@@ -96,11 +106,17 @@ export class VideoRenderService {
         `--output "${outputPath}"`,
       ].join(' ');
 
+      const ffmpegDir = path.dirname(ffmpegPath);
       execSync(cmd, {
         cwd: this.rendererDir,
         encoding: 'utf-8',
         timeout: 300000, // 5 分钟超时
         stdio: 'inherit', // 显示子进程输出
+        env: {
+          ...process.env,
+          FFMPEG_PATH: ffmpegPath,
+          PATH: `${ffmpegDir}${path.delimiter}${process.env.PATH || ''}`,
+        },
       });
 
       // 读取结果
@@ -150,11 +166,11 @@ export class VideoRenderService {
       }
     }
 
-    // 检查 FFmpeg
+    const ffmpegPath = resolveFfmpegPath();
     try {
-      execSync('ffmpeg -version', { stdio: 'ignore', timeout: 5000 });
+      execSync(`"${ffmpegPath}" -version`, { stdio: 'ignore', timeout: 5000 });
     } catch {
-      issues.push('FFmpeg 未安装');
+      issues.push(`FFmpeg 不可用: ${ffmpegPath}`);
     }
 
     // 检查输出目录可写

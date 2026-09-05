@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { Database, FileSearch, Library, RefreshCw, Search } from 'lucide-react';
-import { evidenceApi } from '../lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Database, FileSearch, Library, Link2, RefreshCw, Search, ShieldCheck, UploadCloud } from 'lucide-react';
+import { evidenceApi, knowledgeIngestionApi } from '../lib/api';
+import RagEngine3D from '../components/RagEngine3D';
 import { useAsync } from '../components/ui';
 import { toast } from '../store/toast';
 import {
@@ -18,10 +20,9 @@ import {
 } from '../components/ui';
 
 /**
- * 知识库页 —— 让"领域知识库约束生成"变得可见。
+ * 知识库页 —— 展示领域知识库切片与学习者个人学习证据。
  *
- * 这里展示两类证据源：领域知识库切片 + 学习者个人学习证据。
- * 所有生成类 Agent（讲义/出题/教练）都必须绑定这里的检索证据，无证据则拒答。
+ * 页面用于查看证据源、索引状态和检索结果。
  */
 
 const SOURCE_TYPE_LABEL: Record<string, string> = {
@@ -31,28 +32,150 @@ const SOURCE_TYPE_LABEL: Record<string, string> = {
   lecture: '讲义',
   github: '代码仓库',
   manual: '手动录入',
+  file_qa: '文件问答',
+  knowledge_upload: '上传资料',
+  news_article: '资讯资料',
+  agent_output: 'Agent 产物',
+  learning_commit: '学习记录',
+  resume: '简历画像',
 };
 
+const INGESTION_STATUS_LABEL: Record<string, string> = {
+  pending: '待处理',
+  cleaning: '清洗中',
+  inspecting: '质检中',
+  approved: '已通过',
+  rejected: '已拒绝',
+  ingested: '已入库',
+  failed: '失败',
+};
+
+function statusTone(status?: string): 'brand' | 'green' | 'amber' | 'rose' | 'neutral' {
+  if (status === 'ingested' || status === 'approved') return 'green';
+  if (status === 'rejected' || status === 'failed') return 'rose';
+  if (status === 'cleaning' || status === 'inspecting' || status === 'pending') return 'amber';
+  return 'neutral';
+}
+
 export default function Knowledge() {
+  const [searchParams] = useSearchParams();
   const summary = useAsync(() => evidenceApi.summary(), []);
+  const graph = useAsync(() => evidenceApi.graph(140), []);
+  const tasks = useAsync(() => knowledgeIngestionApi.listTasks({ limit: 12 }), []);
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<Array<any> | null>(null);
   const [searchedQuery, setSearchedQuery] = useState('');
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadText, setUploadText] = useState('');
+  const [uploadTags, setUploadTags] = useState('人工智能');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [newsKeywords, setNewsKeywords] = useState('AI Agent, RAG');
+  const [ingesting, setIngesting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const q = searchParams.get('q') || '';
+    if (q) setQuery(q);
+  }, [searchParams]);
 
   const runSearch = async () => {
     const q = query.trim();
     if (!q) return;
     setSearching(true);
     try {
-      const data = await evidenceApi.search(q);
-      const list = Array.isArray(data) ? data : data?.results || data?.list || [];
+      const data = await evidenceApi.search(q, true);
+      const list = Array.isArray(data) ? data : data?.items || data?.results || data?.list || [];
       setResults(list);
       setSearchedQuery(q);
+      graph.reload();
     } catch (err: any) {
       toast.error('检索失败', err?.message || '');
     } finally {
       setSearching(false);
+    }
+  };
+
+  const splitTags = (text: string) => text.split(/[，,、\s]+/).map((tag) => tag.trim()).filter(Boolean);
+
+  const refreshKnowledgeViews = () => {
+    tasks.reload();
+    summary.reload();
+    graph.reload();
+  };
+
+  const submitText = async () => {
+    const content = uploadText.trim();
+    if (content.length < 30) {
+      toast.info('资料内容太短', '请粘贴更完整的学习资料。');
+      return;
+    }
+    setIngesting(true);
+    try {
+      const task = await knowledgeIngestionApi.uploadText({
+        title: uploadTitle.trim() || '上传资料',
+        content,
+        skillTags: splitTags(uploadTags),
+      });
+      toast.success(task?.ingestionStatus === 'ingested' ? '资料已入库' : '资料已提交', task?.failureReason || '已完成清洗和质检流程');
+      setUploadText('');
+      refreshKnowledgeViews();
+    } catch (err: any) {
+      toast.error('提交失败', err?.message || '');
+    } finally {
+      setIngesting(false);
+    }
+  };
+
+  const submitUrl = async () => {
+    const url = sourceUrl.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      toast.info('请输入有效链接', '链接需要以 http:// 或 https:// 开头。');
+      return;
+    }
+    setIngesting(true);
+    try {
+      const task = await knowledgeIngestionApi.ingestUrl({ url, skillTags: splitTags(uploadTags) });
+      toast.success(task?.ingestionStatus === 'ingested' ? '链接资料已入库' : '链接资料已处理', task?.failureReason || '已完成清洗和质检流程');
+      setSourceUrl('');
+      refreshKnowledgeViews();
+    } catch (err: any) {
+      toast.error('链接处理失败', err?.message || '');
+    } finally {
+      setIngesting(false);
+    }
+  };
+
+  const refreshNews = async () => {
+    setIngesting(true);
+    try {
+      const data = await knowledgeIngestionApi.refreshNews({ keywords: splitTags(newsKeywords), limit: 5 });
+      toast.success('资讯处理完成', `入库 ${data?.ingested || 0} 条，拒绝 ${data?.rejected || 0} 条`);
+      refreshKnowledgeViews();
+    } catch (err: any) {
+      toast.error('资讯刷新失败', err?.message || '');
+    } finally {
+      setIngesting(false);
+    }
+  };
+
+  const onFileChange = async (event: any) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.info('文件过大', '首版支持 2MB 以内的文本文件。');
+      event.target.value = '';
+      return;
+    }
+    try {
+      const text = await file.text();
+      setUploadTitle(file.name.replace(/\.[^.]+$/, ''));
+      setUploadText(text.slice(0, 50000));
+      toast.success('文件已读取', '请确认内容后提交给知识库智能体。');
+    } catch (err: any) {
+      toast.error('文件读取失败', err?.message || '');
+    } finally {
+      event.target.value = '';
     }
   };
 
@@ -68,12 +191,125 @@ export default function Knowledge() {
           知识库
         </h2>
         <p className="small muted" style={{ marginTop: 4 }}>
-          领域知识库切片与个人学习证据都在这里。讲义、出题、教练回答都受它约束：能引用就给出出处，不能引用就明说，从源头压制幻觉。
+          领域知识库切片与个人学习证据都在这里，可用于查看资料来源、索引状态和检索结果。
         </p>
       </header>
 
       <Card>
-        <CardHead icon={<Search size={15} />} title="检索证据" extra={<span className="tiny faint">向量召回 + 关键词兜底</span>} />
+        <CardHead
+          icon={<Database size={15} />}
+          title="RAG 可视化数据引擎"
+          extra={
+            <Button size="sm" variant="quiet" onClick={() => graph.reload()}>
+              <RefreshCw size={13} />
+              刷新图谱
+            </Button>
+          }
+        />
+        <CardBody>
+          <p className="small muted" style={{ marginTop: -2, marginBottom: 12 }}>
+            展示知识库的索引结构：中心是 Chroma 向量核心，外圈按资料来源、证据切片和知识主题组织。搜索后会高亮相关 chunk，便于查看检索路径。
+          </p>
+          {graph.loading && !graph.data ? (
+            <LoadingBlock text="正在读取 RAG 图谱" sub="加载 Evidence chunks、来源和知识标签关系" />
+          ) : (
+            <RagEngine3D graph={graph.data} results={results || []} query={searchedQuery} />
+          )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHead
+          icon={<ShieldCheck size={15} />}
+          title="知识库智能体"
+          extra={
+            <Button size="sm" variant="quiet" onClick={() => tasks.reload()}>
+              <RefreshCw size={13} />
+              刷新任务
+            </Button>
+          }
+        />
+        <CardBody>
+          <div className="knowledge-ingest-grid">
+            <div className="col" style={{ gap: 10 }}>
+              <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+                <Input placeholder="资料标题" value={uploadTitle} onChange={(event: any) => setUploadTitle(event.target.value)} style={{ flex: 1, minWidth: 180 }} />
+                <Input placeholder="标签，如：AI Agent, RAG" value={uploadTags} onChange={(event: any) => setUploadTags(event.target.value)} style={{ flex: 1, minWidth: 180 }} />
+              </div>
+              <textarea
+                className="input"
+                rows={6}
+                placeholder="粘贴学习资料、课程摘要、技术笔记或代码说明。提交后会先清洗与质检，通过后再入库。"
+                value={uploadText}
+                onChange={(event) => setUploadText(event.target.value)}
+                style={{ resize: 'vertical', minHeight: 128 }}
+              />
+              <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+                <input ref={fileInputRef} type="file" accept=".txt,.md,.csv,.json,.ts,.tsx,.js,.jsx,.py,.java,.go,.rs,.vue,.html,.css" onChange={onFileChange} style={{ display: 'none' }} />
+                <Button variant="soft" onClick={() => fileInputRef.current?.click()} disabled={ingesting}>
+                  <UploadCloud size={15} />
+                  读取文本文件
+                </Button>
+                <Button variant="primary" onClick={submitText} disabled={ingesting || uploadText.trim().length < 30}>
+                  <ShieldCheck size={15} />
+                  {ingesting ? '处理中…' : '提交清洗入库'}
+                </Button>
+              </div>
+              <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+                <Input placeholder="https://... 资料链接" value={sourceUrl} onChange={(event: any) => setSourceUrl(event.target.value)} style={{ flex: 1, minWidth: 220 }} />
+                <Button variant="soft" onClick={submitUrl} disabled={ingesting || !sourceUrl.trim()}>
+                  <Link2 size={15} />
+                  处理链接
+                </Button>
+              </div>
+              <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+                <Input placeholder="资讯关键词" value={newsKeywords} onChange={(event: any) => setNewsKeywords(event.target.value)} style={{ flex: 1, minWidth: 220 }} />
+                <Button variant="soft" onClick={refreshNews} disabled={ingesting}>
+                  <RefreshCw size={15} />
+                  抓取最新资讯
+                </Button>
+              </div>
+            </div>
+
+            <div className="col" style={{ gap: 8 }}>
+              <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                <ShieldCheck size={15} style={{ color: 'var(--brand-600)' }} />
+                <strong className="small">入库任务</strong>
+                {tasks.loading && <span className="tiny faint">同步中</span>}
+              </div>
+              {tasks.loading && !tasks.data ? (
+                <LoadingBlock text="正在读取任务" />
+              ) : (tasks.data?.items || []).length === 0 ? (
+                <Empty icon={<ShieldCheck size={20} />} title="暂无入库任务" desc="提交资料后会显示清洗、质检和入库状态。" />
+              ) : (
+                <div className="col" style={{ gap: 8, maxHeight: 360, overflow: 'auto', paddingRight: 2 }}>
+                  {(tasks.data?.items || []).map((task: any) => (
+                    <div key={task.taskId} className="col" style={{ gap: 5, border: '1px solid var(--border)', borderRadius: 10, padding: '9px 10px' }}>
+                      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                        <Tag tone={statusTone(task.ingestionStatus)}>{INGESTION_STATUS_LABEL[task.ingestionStatus] || task.ingestionStatus}</Tag>
+                        {typeof task.inspectionResult?.score === 'number' && <Tag tone="neutral">质检 {task.inspectionResult.score}</Tag>}
+                        <span className="small grow truncate" style={{ minWidth: 0 }}>{task.title}</span>
+                      </div>
+                      {task.failureReason && <span className="tiny muted">{task.failureReason}</span>}
+                      {Array.isArray(task.ingestedChunkIds) && task.ingestedChunkIds.length > 0 && (
+                        <span className="tiny faint">已入库 {task.ingestedChunkIds.length} 个切片</span>
+                      )}
+                      {Array.isArray(task.skillTags) && task.skillTags.length > 0 && (
+                        <div className="row wrap" style={{ gap: 5 }}>
+                          {task.skillTags.slice(0, 4).map((tag: string) => <Tag key={tag} tone="neutral">{tag}</Tag>)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHead icon={<Search size={15} />} title="检索证据" extra={<span className="tiny faint">向量召回 + 关键词兜底 + 可解释重排</span>} />
         <CardBody>
           <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
             <Input
@@ -106,7 +342,7 @@ export default function Knowledge() {
                 <Empty
                   icon={<FileSearch size={20} />}
                   title="没有命中的证据"
-                  desc="没有证据时，生成类 Agent 会明确拒答或降级，而不是编造内容。"
+                  desc="可以尝试更换关键词，或先导入更多相关资料。"
                 />
               ) : (
                 results.map((item: any) => (
@@ -194,7 +430,7 @@ export default function Knowledge() {
               )}
 
               <Banner tone="info">
-                生成链路里的引用都来自这些切片：教练回答标注「证据 #ID」，出题走知识库约束，讲义生成前先召回相关片段。
+                这些切片会作为检索、引用展示和学习资源组织的基础数据。
               </Banner>
             </div>
           )}

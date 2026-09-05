@@ -30,6 +30,7 @@ import { MultimodalModule } from '../multimodal/multimodal.module';
 import { AgentsModule } from '../agents/agents.module';
 import { EventsModule } from '../events/events.module';
 import { EvidenceModule } from '../evidence/evidence.module';
+import { KnowledgeIngestionModule } from '../knowledge-ingestion/knowledge-ingestion.module';
 import { LearningDomainModule } from '../../domains/learning-domain.module';
 import { QuestionGenerationModule } from '../question-generation/question-generation.module';
 import { RemediationModule } from '../remediation/remediation.module';
@@ -52,6 +53,7 @@ import { RemediationModule } from '../remediation/remediation.module';
     AgentsModule,
     EventsModule,
     EvidenceModule,
+    KnowledgeIngestionModule,
     LearningDomainModule,
     QuestionGenerationModule,
     RemediationModule,

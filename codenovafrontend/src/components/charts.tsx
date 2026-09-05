@@ -32,8 +32,23 @@ export function RadarChart({
 
   const polygon = points.map((point, index) => pointAt(index, ratioOf(point)).join(',')).join(' ');
 
+  // 轴标签放在 1.2×半径处，会超出正方形画布 → 给 viewBox 留内边距，
+  // 否则长标签（如「评测与交付」）会被裁切（移动端尤其明显）
+  const PAD_X = 52;
+  const PAD_Y = 20;
+  const vbW = size + PAD_X * 2;
+  const vbH = size + PAD_Y * 2;
+
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="能力雷达图">
+    <svg
+      width={vbW}
+      height={vbH}
+      viewBox={`${-PAD_X} ${-PAD_Y} ${vbW} ${vbH}`}
+      preserveAspectRatio="xMidYMid meet"
+      style={{ display: 'block', maxWidth: '100%', height: 'auto', margin: '0 auto' }}
+      role="img"
+      aria-label="能力雷达图"
+    >
       {Array.from({ length: levels }).map((_, level) => {
         const ratio = (level + 1) / levels;
         const ring = points.map((_, index) => pointAt(index, ratio).join(',')).join(' ');

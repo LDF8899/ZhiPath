@@ -642,8 +642,22 @@ export const matchApi = {
 };
 
 export const evidenceApi = {
-  search: (q: string) => api.get<any>('/user/evidence/search', { q }),
+  search: (q: string, explain = false) => api.get<any>('/user/evidence/search', { query: q, q, explain: explain ? 1 : undefined }),
   summary: () => api.get<any>('/user/evidence/summary'),
+  graph: (limit = 120) => api.get<any>('/user/evidence/graph', { limit }),
+};
+
+export const knowledgeIngestionApi = {
+  uploadText: (body: { title?: string; content: string; sourceName?: string; sourceUrl?: string; skillTags?: string[] }) =>
+    api.post<any>('/user/knowledge-ingestion/upload-text', body, { timeoutMs: 180_000 }),
+  ingestUrl: (body: { url: string; title?: string; skillTags?: string[] }) =>
+    api.post<any>('/user/knowledge-ingestion/url', body, { timeoutMs: 180_000 }),
+  refreshNews: (body: { keywords?: string[]; limit?: number } = {}) =>
+    api.post<any>('/user/knowledge-ingestion/news-refresh', body, { timeoutMs: 240_000 }),
+  listTasks: (params: { status?: string; limit?: number } = {}) =>
+    api.get<any>('/user/knowledge-ingestion/tasks', params),
+  getTask: (taskId: string) => api.get<any>(`/user/knowledge-ingestion/tasks/${encodeURIComponent(taskId)}`),
+  retry: (taskId: string) => api.post<any>(`/user/knowledge-ingestion/tasks/${encodeURIComponent(taskId)}/retry`, {}, { timeoutMs: 180_000 }),
 };
 
 export const notificationApi = {
@@ -661,6 +675,9 @@ export const multimodalApi = {
   video: (skillName: string) =>
     api.post<any>('/user/multimodal/video', { skillName }, { timeoutMs: 60_000 }),
   videoTask: (taskId: string) => api.get<any>(`/user/video-task/${taskId}`),
+  /** 教学视频（Remotion + TTS 管线）：聊天/资源里"重新生成"必须走这里，而不是智谱短视频端点 */
+  createTeachingVideo: (skillName: string, difficulty = 'beginner') =>
+    api.post<any>('/user/video-task', { skillName, difficulty }, { timeoutMs: 60_000 }),
 };
 
 // ────────────────────────────────────────────────────────────

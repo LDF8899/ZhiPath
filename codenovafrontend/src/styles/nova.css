@@ -147,6 +147,10 @@
 }
 .main > * { position: relative; z-index: 1; }
 
+@media (max-width: 900px) {
+  .main::before { inset: 0; }
+}
+
 /* ══ 实时通道指示 = 新星呼吸点 ══ */
 .stream-pill__dot.is-live {
   background: var(--nova-ice);
@@ -660,4 +664,88 @@
   position: relative;
   border-left: 3px solid transparent;
   border-image: linear-gradient(180deg, var(--nova-ice), var(--nova-violet)) 1;
+}
+
+/* ══ 题目选项卡（QuestionCard）══
+   移动优先的大点击区设计：字母徽标 + 文字分栏，选中态高亮，禁态降透明度 */
+.q-options {
+  display: grid;
+  gap: 10px;
+}
+.q-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out),
+              background var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+.q-option:hover:not(:disabled) {
+  border-color: var(--brand-400, #818cf8);
+  background: var(--bg-hover);
+}
+.q-option:active:not(:disabled) {
+  transform: scale(0.99);
+}
+.q-option[aria-checked='true'] {
+  border-color: var(--brand-500, #6366f1);
+  background: linear-gradient(var(--bg-surface), var(--bg-surface)) padding-box,
+    linear-gradient(120deg, var(--brand-500, #6366f1), var(--nova-ice, #22d3ee)) border-box;
+  box-shadow: 0 0 0 1px var(--brand-400, #818cf8), var(--glow-soft);
+}
+.q-option:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+.q-option__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-sunken, #f1f5f9);
+  border: 1px solid var(--border);
+  color: var(--text-secondary, #64748b);
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+}
+.q-option[aria-checked='true'] .q-option__mark {
+  background: var(--grad-nova);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: var(--glow-soft);
+}
+.q-option__check {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: inline-flex;
+  color: var(--green-500, #22c55e);
+  background: var(--bg-surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.q-option__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.q-option__mark {
+  position: relative;
 }

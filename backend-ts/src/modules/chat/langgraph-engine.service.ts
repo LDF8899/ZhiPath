@@ -483,6 +483,13 @@ export class LangGraphEngineService {
         resultDesc.push(`已获取今日学习任务`);
       } else if (rtype === 'resources') {
         resultDesc.push(`已推荐学习资源`);
+      } else if (rtype === 'knowledge_results') {
+        resultDesc.push(`知识库检索完成，命中 ${r.data?.total || 0} 条证据`);
+      } else if (rtype === 'knowledge_ingestion_task') {
+        const task = r.data?.task || {};
+        resultDesc.push(`知识库资料处理完成，当前状态：${task.ingestionStatus || ''}，审核分：${task.inspectionResult?.score ?? '暂无'}`);
+      } else if (rtype === 'knowledge_news_refresh') {
+        resultDesc.push(`资讯入库处理完成，创建 ${r.data?.totalTasks || 0} 个任务，通过入库 ${r.data?.ingested || 0} 条`);
       } else if (rtype === 'target_set') {
         resultDesc.push(`目标岗位已设置：${r.data?.jobTitle || ''}`);
       } else if (rtype === 'avatar') {
@@ -970,6 +977,9 @@ export class LangGraphEngineService {
         generate_avatar: () => this.generateAvatarNode(state),
         show_progress: () => this.showProgressNode(state),
         recommend_resources: () => this.recommendResourcesNode(state),
+        query_knowledge: () => this.executeActionNode(state),
+        knowledge_ingest: () => this.executeActionNode(state),
+        knowledge_news_refresh: () => this.executeActionNode(state),
         prepare_interview: () => this.prepareInterviewNode(state),
         start_learning: () => this.startLearningNode(state),
         check_match: () => this.checkMatchNode(state),
@@ -1000,6 +1010,9 @@ export class LangGraphEngineService {
       show_progress: 'showProgress',
       show_today_tasks: 'showTodayTasks',
       recommend_resources: 'recommendResources',
+      query_knowledge: 'executeAction',
+      knowledge_ingest: 'executeAction',
+      knowledge_news_refresh: 'executeAction',
       match_analysis: 'analyzeSkillGap',
       prepare_interview: 'prepareInterview',
       start_learning: 'startLearning',
@@ -1052,6 +1065,15 @@ export class LangGraphEngineService {
       show_progress: { type: 'show_progress' },
       show_today_tasks: { type: 'show_today_tasks' },
       recommend_resources: { type: 'recommend_resources', skills: filters.skills || [] },
+      query_knowledge: { type: 'query_knowledge', query: filters.query || state?.message || '', skillName, limit: filters.limit || 5 },
+      knowledge_ingest: {
+        type: 'knowledge_ingest',
+        title: filters.title || skillName || '知识库资料',
+        content: filters.content || state?.message || '',
+        skillTags: filters.skillTags || filters.skill_tags || filters.skills || (skillName ? [skillName] : []),
+        sourceUrl: filters.sourceUrl || filters.source_url,
+      },
+      knowledge_news_refresh: { type: 'knowledge_news_refresh', keywords: filters.keywords, limit: filters.limit || 5 },
       match_analysis: { type: 'recommend_jobs', filters },
       generate_animation: { type: 'generate_animation', skillName },
       generate_diagram: { type: 'generate_diagram', skillName, diagramType },

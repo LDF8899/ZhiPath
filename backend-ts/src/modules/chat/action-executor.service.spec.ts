@@ -47,6 +47,8 @@ describe('ActionExecutorService video context', () => {
       domainRegistry,
       { generateForChat: jest.fn() } as any,
       { weakPoints: jest.fn().mockResolvedValue([]) } as any,
+      { search: jest.fn().mockResolvedValue([]) } as any,
+      { createUploadTask: jest.fn().mockResolvedValue({}), refreshNews: jest.fn().mockResolvedValue({}) } as any,
     );
   });
 

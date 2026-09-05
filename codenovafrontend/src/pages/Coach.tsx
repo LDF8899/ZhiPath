@@ -6,6 +6,7 @@ import {
   Bot,
   CalendarCheck,
   Clock3,
+  Database,
   FileQuestion,
   FolderOpen,
   Gauge,
@@ -45,7 +46,8 @@ const HINTS = [
   '我刚才的测验为什么没通过？',
   '按我的情况重新安排本周任务',
   '帮我配置一套严格出题',
-  '画一张智能体编排的流程图',
+  '查知识库里有没有 Transformer 微调资料',
+  '抓取最新 AI 资讯入库',
 ];
 
 const ACTIVE_CHAT_SESSION_KEY = 'codenova_active_chat_session';
@@ -120,6 +122,36 @@ const ACTION_META: Record<
     icon: <BookMarked size={14} />,
     tone: 'violet',
     cta: { text: '打开资源库', to: '/resources' },
+  },
+  query_knowledge: {
+    label: '知识库检索',
+    icon: <Database size={14} />,
+    tone: 'teal',
+    cta: { text: '打开知识库', to: '/knowledge' },
+  },
+  knowledge_results: {
+    label: '知识库检索',
+    icon: <Database size={14} />,
+    tone: 'teal',
+    cta: { text: '打开知识库', to: '/knowledge' },
+  },
+  knowledge_ingest: {
+    label: '知识库智能体',
+    icon: <Database size={14} />,
+    tone: 'brand',
+    cta: { text: '查看入库任务', to: '/knowledge' },
+  },
+  knowledge_ingestion_task: {
+    label: '知识库智能体',
+    icon: <Database size={14} />,
+    tone: 'brand',
+    cta: { text: '查看入库任务', to: '/knowledge' },
+  },
+  knowledge_news_refresh: {
+    label: '资讯入库',
+    icon: <Database size={14} />,
+    tone: 'teal',
+    cta: { text: '查看知识库', to: '/knowledge' },
   },
   generate_animation: {
     label: '动画演示',
@@ -312,6 +344,11 @@ export default function Coach() {
     if (['question_config', 'generate_exam', 'exam'].includes(action.type)) {
       setPendingQuestionConfig(questionConfigFromAction(action));
       navigate('/questions');
+      return;
+    }
+    if (to === '/knowledge') {
+      const q = action.data?.query || action.query || '';
+      navigate(q ? `/knowledge?q=${encodeURIComponent(q)}` : '/knowledge');
       return;
     }
     if (to) navigate(to);
@@ -580,6 +617,19 @@ function questionConfigFromAction(action: ChatAction) {
   };
 }
 
+function statusText(status: string) {
+  const map: Record<string, string> = {
+    pending: '待处理',
+    cleaning: '清洗中',
+    inspecting: '质检中',
+    approved: '已通过',
+    rejected: '已拒绝',
+    ingested: '已入库',
+    failed: '失败',
+  };
+  return map[status] || status;
+}
+
 /** 按 action 类型渲染卡片内容，缺字段时不显示空壳 */
 function ActionBody({ action }: { action: ChatAction }) {
   const skills: string[] = action.skills || [];
@@ -600,6 +650,55 @@ function ActionBody({ action }: { action: ChatAction }) {
           )}
         </>
       );
+
+    case 'query_knowledge':
+      return <span className="small">正在按“{action.query || action.skillName || '当前问题'}”检索知识库证据。</span>;
+
+    case 'knowledge_results': {
+      const data = action.data || {};
+      const items = data.items || [];
+      return (
+        <>
+          <span className="small">「{data.query || '检索'}」命中 <strong>{data.total ?? items.length}</strong> 条证据。</span>
+          {items.length > 0 && (
+            <div className="stack" style={{ gap: 5, marginTop: 4 }}>
+              {items.slice(0, 3).map((item: any) => (
+                <span className="small" key={item.chunkId}>
+                  · 证据 #{item.chunkId} {item.title || ''}{typeof item.score === 'number' ? `（相关度 ${Math.round(item.score * 100)}%）` : ''}
+                </span>
+              ))}
+            </div>
+          )}
+        </>
+      );
+    }
+
+    case 'knowledge_ingest':
+      return <span className="small">资料已提交给知识库智能体，处理时会先清洗并进行入库质检。</span>;
+
+    case 'knowledge_ingestion_task': {
+      const task = action.data?.task || action.task || {};
+      const score = task.inspectionResult?.score;
+      const status = task.ingestionStatus || task.ingestion_status || '';
+      return (
+        <>
+          <span className="small">{task.title || '资料'}：{status ? statusText(status) : '已处理'}{typeof score === 'number' ? `，质检 ${score} 分` : ''}。</span>
+          {task.failureReason && <span className="tiny muted">{task.failureReason}</span>}
+          {Array.isArray(task.ingestedChunkIds) && task.ingestedChunkIds.length > 0 && (
+            <span className="tiny muted">已写入 {task.ingestedChunkIds.length} 个证据切片。</span>
+          )}
+        </>
+      );
+    }
+
+    case 'knowledge_news_refresh': {
+      const data = action.data || {};
+      return (
+        <span className="small">
+          资讯处理完成：创建 {data.totalTasks || 0} 个任务，入库 {data.ingested || 0} 条，拒绝 {data.rejected || 0} 条。
+        </span>
+      );
+    }
 
     case 'generate_exam':
       return (
@@ -799,6 +898,13 @@ function ActionBody({ action }: { action: ChatAction }) {
             status: action.type === 'video' ? 'completed' : action.status,
             message: action.message || action.data?.message,
             video_file_path: action.video_file_path || action.data?.video_file_path,
+            videoFilePath: action.videoFilePath || action.data?.videoFilePath,
+            video_file: action.video_file || action.data?.video_file,
+            audio_file_path: action.audio_file_path || action.data?.audio_file_path,
+            render_status: action.render_status || action.data?.render_status,
+            render_error: action.render_error || action.data?.render_error,
+            audio_merge_status: action.audio_merge_status || action.data?.audio_merge_status,
+            audio_merge_error: action.audio_merge_error || action.data?.audio_merge_error,
             url: action.url || action.data?.url,
           }}
         />

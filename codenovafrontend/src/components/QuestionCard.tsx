@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import { Markdown } from './Markdown';
-import { Choice, Input, Textarea, Tag } from './ui';
+import { Input, Textarea, Tag } from './ui';
 
 /**
  * 统一的题目作答卡 —— 补弱练习与考试作答共用。
@@ -174,30 +175,39 @@ export function QuestionCard({
         )}
       </header>
 
-      <div className="question-card__stem" style={{ fontSize: 14.5, lineHeight: 1.65 }}>
+      <div className="question-card__stem" style={{ fontSize: 15, lineHeight: 1.7, marginBottom: 10 }}>
         <Markdown source={stem || '（题目内容缺失）'} />
       </div>
 
       {kind === 'choice' && (
-        <div className="col" style={{ gap: 8, marginTop: 10 }}>
+        <div className="q-options" role="radiogroup" style={{ display: 'grid', gap: 10 }}>
           {options.map((opt, optIndex) => {
-            const label = `${String.fromCharCode(65 + optIndex)}. ${opt.text}`;
-            return multi ? (
-              <Choice
+            const label = `${String.fromCharCode(65 + optIndex)}`;
+            const isSelected = multi
+              ? Array.isArray(value) && value.includes(opt.key)
+              : value === opt.key;
+            const onClick = () => (multi ? toggleMulti(opt.key) : onChange(opt.key));
+            return (
+              <button
                 key={opt.key}
-                title={label}
-                selected={Array.isArray(value) && value.includes(opt.key)}
+                type="button"
+                role={multi ? 'checkbox' : 'radio'}
+                aria-checked={isSelected}
+                aria-disabled={disabled}
                 disabled={disabled}
-                onClick={() => toggleMulti(opt.key)}
-              />
-            ) : (
-              <Choice
-                key={opt.key}
-                title={label}
-                selected={value === opt.key}
-                disabled={disabled}
-                onClick={() => onChange(opt.key)}
-              />
+                onClick={onClick}
+                className="q-option"
+              >
+                <span className="q-option__mark" aria-hidden="true">
+                  {label}
+                  {isSelected && (
+                    <span className="q-option__check">
+                      <CheckCircle2 size={14} strokeWidth={3} />
+                    </span>
+                  )}
+                </span>
+                <span className="q-option__text">{opt.text}</span>
+              </button>
             );
           })}
         </div>
