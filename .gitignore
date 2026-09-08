@@ -78,6 +78,14 @@ video-renderer/public/project-showcase/*.mp4
 
 # ── Local tooling ──
 .reasonix/
+.codex-ppt-build/
+.tools/
+.v2c/
+.zcode/
+/_tmp/
+/NUL
+/backend-ts/utf8
+/video-renderer/output/
 
 # Local browser QA artifacts
 .playwright-cli/

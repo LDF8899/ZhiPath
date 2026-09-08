@@ -76,7 +76,12 @@ foreach ($scene in $manifestData.scenes) {
 
 Remove-Item -LiteralPath $tmpDir -Recurse -Force
 
-$manifestData.audioSegments = $audioSegments
+$audioSegmentsValue = $audioSegments
+if ($manifestData.PSObject.Properties.Name -contains 'audioSegments') {
+  $manifestData.audioSegments = $audioSegmentsValue
+} else {
+  $manifestData | Add-Member -NotePropertyName audioSegments -NotePropertyValue $audioSegmentsValue
+}
 $manifestData.generatedAt = (Get-Date).ToString('s')
 if ($manifestData.PSObject.Properties.Name -contains 'voice') {
   $manifestData.voice = @{

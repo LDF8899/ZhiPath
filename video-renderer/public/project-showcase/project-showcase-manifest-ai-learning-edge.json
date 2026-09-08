@@ -1,0 +1,407 @@
+﻿{
+    "projectName":  "焕星·码枢 CodeNova",
+    "footerText":  "AI 人工智能学习方向",
+    "generatedAt":  "2026-09-06T21:42:33",
+    "prompt":  "各位老师评委好，我们的项目是焕星·码枢 CodeNova。它专攻 AI 人工智能学习方向，面向学习起点差异大、知识碎片化、练习与反馈脱节的问题。请用正式、自然的项目介绍口吻，先讲登录进入系统，再讲注册引导如何建立画像，然后补充可视化 RAG 引擎、多智能体协同如何实现按需导学、定制出题、补弱决策、知识沉淀和成长追踪。不要提任何公司、比赛或现实组织信息。",
+    "visualStyle":  "precision-mono",
+    "motionStyle":  "precise-ui",
+    "scenes":  [
+                   {
+                       "id":  "scene_01",
+                       "chapter":  "01 登录进入",
+                       "title":  "先从登录页进入系统",
+                       "subtitle":  "入口先确认身份，随后进入个性化导学流程。",
+                       "asset":  "project-showcase/assets/01_project_login.png",
+                       "assetKind":  "screenshot",
+                       "narration":  "各位老师评委好，我们的项目是焕星·码枢 CodeNova。它专攻 AI 人工智能学习方向，先解决的不是做题，而是每个人从哪里开始学的问题。进入系统的第一步是登录页，先确认身份和入口，再把后续学习过程接到个人账号上。这样后面的画像、路径、出题和反馈，才能始终围绕同一个学习者连续展开。",
+                       "durationSec":  28.737,
+                       "focus":  {
+                                     "x":  50,
+                                     "y":  50,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.08
+                                 },
+                       "stats":  [
+                                     {
+                                         "label":  "入口",
+                                         "value":  "登录"
+                                     },
+                                     {
+                                         "label":  "链路",
+                                         "value":  "接入"
+                                     }
+                                 ],
+                       "callouts":  [
+                                        {
+                                            "text":  "先从登录页进入，再接入个人链路",
+                                            "x":  58,
+                                            "y":  34
+                                        }
+                                    ]
+                   },
+                   {
+                       "id":  "scene_02",
+                       "chapter":  "02 建立画像",
+                       "title":  "登录之后，补全学习画像",
+                       "subtitle":  "注册引导会根据阶段、背景和目标，生成个性化起点。",
+                       "asset":  "project-showcase/assets/01_register_path.png",
+                       "assetKind":  "screenshot",
+                       "narration":  "登录之后，系统会进入注册引导，先把学习画像补完整。我们会根据每个人的阶段、背景和目标，判断他是零基础、在校学习，还是已经有一定实践经验，再生成适合自己的起点和路径。这样一来，系统不是把所有人放进同一条学习线，而是从第一步开始就做差异化导学。",
+                       "durationSec":  25.237,
+                       "focus":  {
+                                     "x":  48,
+                                     "y":  46,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.09
+                                 },
+                       "stats":  [
+                                     {
+                                         "label":  "画像",
+                                         "value":  "补全"
+                                     },
+                                     {
+                                         "label":  "路径",
+                                         "value":  "差异化"
+                                     }
+                                 ],
+                       "callouts":  [
+                                        {
+                                            "text":  "先补画像，再定路径",
+                                            "x":  52,
+                                            "y":  39
+                                        }
+                                    ]
+                   },
+                   {
+                       "id":  "scene_03",
+                       "chapter":  "03 今日任务",
+                       "title":  "今天该学什么，一眼就能看懂",
+                       "subtitle":  "学习目标、任务节奏和当前状态会同步呈现。",
+                       "asset":  "project-showcase/assets/02_today_board.png",
+                       "assetKind":  "screenshot",
+                       "narration":  "今日任务看板是系统真正开始工作的地方。它会把今天最该做的内容排在前面，把学习目标、任务节奏和当前状态同步展示出来。对于 AI 人工智能学习方向来说，最怕的就是内容太多、入口太散，最后不知道先学什么。这个页面的作用，就是把一整天的学习动作压缩成清晰的优先级，让人打开页面就能直接开始。",
+                       "durationSec":  30.175,
+                       "focus":  {
+                                     "x":  50,
+                                     "y":  42,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.08
+                                 },
+                       "stats":  [
+                                     {
+                                         "label":  "任务",
+                                         "value":  "清晰"
+                                     },
+                                     {
+                                         "label":  "节奏",
+                                         "value":  "同步"
+                                     }
+                                 ],
+                       "callouts":  [
+                                        {
+                                            "text":  "先看今天，再决定顺序",
+                                            "x":  60,
+                                            "y":  40
+                                        }
+                                    ]
+                   },
+                   {
+                       "id":  "scene_04",
+                       "chapter":  "04 AI 教练",
+                       "title":  "一句话需求，可以变成讲义、视频和练习",
+                       "subtitle":  "多智能体协同把对话变成真正可落库的学习资源。",
+                       "asset":  "project-showcase/assets/03_ai_resource_chat.jpg",
+                       "assetKind":  "screenshot",
+                       "narration":  "AI 教练模块承担的是生成和编排。用户只要说出一个学习需求，系统就会结合当前页面、学习记录和目标画像，由多个智能体分工完成分析、生成和校验，再把结果沉淀成讲义、视频、资源或者任务。它不是只返回一段回答，而是把对话推进成真正可执行的学习产物，让学习过程从‘问一下’变成‘做下去’。",
+                       "durationSec":  30.187,
+                       "focus":  {
+                                     "x":  50,
+                                     "y":  50,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.09
+                                 },
+                       "stats":  [
+                                     {
+                                         "label":  "输入",
+                                         "value":  "一句话"
+                                     },
+                                     {
+                                         "label":  "输出",
+                                         "value":  "可落库"
+                                     }
+                                 ],
+                       "callouts":  [
+                                        {
+                                            "text":  "对话不是终点，产物才是终点",
+                                            "x":  57,
+                                            "y":  57
+                                        }
+                                    ]
+                   },
+                   {
+                       "id":  "scene_05",
+                       "chapter":  "05 定制出题",
+                       "title":  "按知识点和难度，生成真正对准的题目",
+                       "subtitle":  "题目不是随手拼出来的，而是沿着能力证据生成。",
+                       "asset":  "project-showcase/assets/04_question_custom.png",
+                       "assetKind":  "screenshot",
+                       "narration":  "定制出题页体现的是系统的精确性。它会先看知识点、掌握度和当前目标，再决定题目该覆盖哪些内容、难度该怎么分布、题型该怎么搭配。这样生成出来的题目，不是为了凑数量，而是为了验证学习是否真的发生。对人工智能学习来说，这一点尤其重要，因为很多能力不是背会就行，而是要在具体任务里被真正检验出来。",
+                       "durationSec":  30.675,
+                       "focus":  {
+                                     "x":  50,
+                                     "y":  50,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.08
+                                 },
+                       "stats":  [
+                                     {
+                                         "label":  "题目",
+                                         "value":  "对准"
+                                     },
+                                     {
+                                         "label":  "难度",
+                                         "value":  "可控"
+                                     }
+                                 ],
+                       "callouts":  [
+                                        {
+                                            "text":  "题目跟着能力证据走",
+                                            "x":  60,
+                                            "y":  44
+                                        }
+                                    ]
+                   },
+                   {
+                       "id":  "scene_06",
+                       "chapter":  "06 学情补弱",
+                       "title":  "哪里弱，就把哪里拉出来补",
+                       "subtitle":  "系统会按真实差距安排复习、练习和回看顺序。",
+                       "asset":  "project-showcase/assets/05_remediation.png",
+                       "assetKind":  "screenshot",
+                       "narration":  "学情反馈和定制补弱模块，解决的是‘知道学什么以后，怎么补最有效’的问题。系统会观察当前掌握度、错题表现和最近学习反馈，把低于阈值的薄弱点主动拉出来，安排成更合适的复习和练习顺序。这样补弱不是平均撒网，而是围绕真实差距做精细决策，让有限的学习时间用在最该补的地方。",
+                       "durationSec":  28.212,
+                       "focus":  {
+                                     "x":  50,
+                                     "y":  50,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.09
+                                 },
+                       "stats":  [
+                                     {
+                                         "label":  "薄弱点",
+                                         "value":  "拉出"
+                                     },
+                                     {
+                                         "label":  "动作",
+                                         "value":  "补弱"
+                                     }
+                                 ],
+                       "callouts":  [
+                                        {
+                                            "text":  "按真实差距分配学习资源",
+                                            "x":  56,
+                                            "y":  48
+                                        }
+                                    ]
+                   },
+                   {
+                       "id":  "scene_07",
+                       "chapter":  "07 可视化 RAG",
+                       "title":  "我们的可视化 RAG 引擎",
+                       "subtitle":  "材料入库、切片召回、证据引用和生成过程都能在同一界面看见。",
+                       "asset":  "project-showcase/assets/06_knowledge_engine.png",
+                       "assetKind":  "screenshot",
+                       "narration":  "这一页展示的是我们的可视化 RAG 引擎。系统不是把资料简单堆起来，而是先把多模态学习资源入库，再切成可检索的片段，随后根据当前问题做召回、引用和重组。学习者看到的不是一条黑盒答案，而是这条答案背后用了哪些证据、引用了哪些片段、最后怎样生成讲义、题目和反馈。对于 AI 学习方向来说，这种把检索和生成放在同一张图上的方式，能让知识来源更清楚，结论更可信。",
+                       "durationSec":  37.4,
+                       "focus":  {
+                                     "x":  52,
+                                     "y":  52,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.08
+                                 },
+                       "stats":  [
+                                     {
+                                         "label":  "检索",
+                                         "value":  "可见"
+                                     },
+                                     {
+                                         "label":  "生成",
+                                         "value":  "可回溯"
+                                     }
+                                 ],
+                       "callouts":  [
+                                        {
+                                            "text":  "检索、引用、生成放在同一界面",
+                                            "x":  59,
+                                            "y":  45
+                                        }
+                                    ]
+                   },
+                   {
+                       "id":  "scene_08",
+                       "chapter":  "08 成长画像",
+                       "title":  "学习变化会被持续看见",
+                       "subtitle":  "能力画像、成长轨迹和个人状态会一起更新。",
+                       "asset":  "project-showcase/assets/08_growth_report.png",
+                       "assetKind":  "screenshot",
+                       "narration":  "成长画像页展示的是学习结果的变化。它会把能力结构、当前短板、学习轨迹和状态变化汇总起来，让用户不是凭感觉判断自己进步了没有，而是看到具体维度的变化。每次补弱、出题和资源生成之后，系统都会继续更新这张画像，让学习从单次任务变成长期可追踪的成长过程。",
+                       "durationSec":  27.8,
+                       "focus":  {
+                                     "x":  50,
+                                     "y":  50,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.08
+                                 },
+                       "stats":  [
+                                     {
+                                         "label":  "画像",
+                                         "value":  "更新"
+                                     },
+                                     {
+                                         "label":  "轨迹",
+                                         "value":  "可看见"
+                                     }
+                                 ],
+                       "callouts":  [
+                                        {
+                                            "text":  "学习变化会持续回写",
+                                            "x":  58,
+                                            "y":  50
+                                        }
+                                    ]
+                   },
+                   {
+                       "id":  "scene_09",
+                       "chapter":  "09 智能体工作台",
+                       "title":  "多智能体各司其职，协同完成整条链路",
+                       "subtitle":  "生成、审核、路径和资源都能在后台协同推进。",
+                       "asset":  "project-showcase/assets/09_agent_workbench.png",
+                       "assetKind":  "screenshot",
+                       "narration":  "智能体工作台展示的是系统背后的协同方式。不同智能体各自负责诊断、生成、审核和路径决策，任务会在后台按步骤推进，再通过可视化状态返回前台。这样，系统不是一个孤立的大模型，而是一套能分工、能接力、能追踪的工作机制。对学习者来说，这意味着每一步都不是随意发生的，而是经过协同决策后才落到页面上。",
+                       "durationSec":  32.062,
+                       "focus":  {
+                                     "x":  50,
+                                     "y":  48,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.09
+                                 },
+                       "stats":  [
+                                     {
+                                         "label":  "角色",
+                                         "value":  "分工"
+                                     },
+                                     {
+                                         "label":  "状态",
+                                         "value":  "可追踪"
+                                     }
+                                 ],
+                       "callouts":  [
+                                        {
+                                            "text":  "分工、接力、追踪都看得见",
+                                            "x":  60,
+                                            "y":  38
+                                        }
+                                    ]
+                   },
+                   {
+                       "id":  "scene_10",
+                       "chapter":  "10 资源沉淀",
+                       "title":  "最后，所有结果都会回到资源库",
+                       "subtitle":  "讲义、题目、视频和学习资源统一沉淀，后续可回看可复用。",
+                       "asset":  "project-showcase/assets/10_resource_library.png",
+                       "assetKind":  "screenshot",
+                       "narration":  "最后，所有结果都会统一回到资源库。讲义、题目、视频和多模态学习资源都会被沉淀下来，后续还能继续筛选、回看和再利用。到这里，CodeNova 的闭环就完整了：先从登录页进入，再通过注册引导补全画像；先用可视化 RAG 找到证据，再由多智能体完成导学、出题和补弱；最后把所有证据和产物都留在系统里，让学习真正变成可验证、可持续、可追踪的过程。",
+                       "durationSec":  35.675,
+                       "focus":  {
+                                     "x":  50,
+                                     "y":  50,
+                                     "scaleStart":  1.02,
+                                     "scaleEnd":  1.08
+                                 },
+                       "stats":  [
+                                     {
+                                         "label":  "沉淀",
+                                         "value":  "统一"
+                                     },
+                                     {
+                                         "label":  "闭环",
+                                         "value":  "完成"
+                                     }
+                                 ],
+                       "callouts":  [
+                                        {
+                                            "text":  "结果沉淀进资源库",
+                                            "x":  60,
+                                            "y":  47
+                                        }
+                                    ]
+                   }
+               ],
+    "audioSegments":  [
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_01.mp3",
+                              "duration_sec":  28.737,
+                              "id":  "scene_01",
+                              "voice":  "zh-CN-XiaoxiaoNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_02.mp3",
+                              "duration_sec":  25.237,
+                              "id":  "scene_02",
+                              "voice":  "zh-CN-XiaoxiaoNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_03.mp3",
+                              "duration_sec":  30.175,
+                              "id":  "scene_03",
+                              "voice":  "zh-CN-XiaoxiaoNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_04.mp3",
+                              "duration_sec":  30.187,
+                              "id":  "scene_04",
+                              "voice":  "zh-CN-XiaoxiaoNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_05.mp3",
+                              "duration_sec":  30.675,
+                              "id":  "scene_05",
+                              "voice":  "zh-CN-XiaoxiaoNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_06.mp3",
+                              "duration_sec":  28.212,
+                              "id":  "scene_06",
+                              "voice":  "zh-CN-XiaoxiaoNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_07.mp3",
+                              "duration_sec":  37.4,
+                              "id":  "scene_07",
+                              "voice":  "zh-CN-XiaoxiaoNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_08.mp3",
+                              "duration_sec":  27.8,
+                              "id":  "scene_08",
+                              "voice":  "zh-CN-XiaoxiaoNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_09.mp3",
+                              "duration_sec":  32.062,
+                              "id":  "scene_09",
+                              "voice":  "zh-CN-XiaoxiaoNeural"
+                          },
+                          {
+                              "file_path":  "D:\\ZhiPath\\video-renderer\\public\\project-showcase\\audio-edge\\scene_10.mp3",
+                              "duration_sec":  35.675,
+                              "id":  "scene_10",
+                              "voice":  "zh-CN-XiaoxiaoNeural"
+                          }
+                      ],
+    "voice":  {
+                  "provider":  "edge-tts",
+                  "rate":  "+0%",
+                  "voice":  "zh-CN-XiaoxiaoNeural"
+              }
+}

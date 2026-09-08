@@ -796,3 +796,34 @@ export const questionBankApi = {
   assemble: (questionIds: number[]) =>
     api.post<{ examId: number; questionCount: number }>('/user/question-bank/assemble', { questionIds }, { timeoutMs: 60_000 }),
 };
+
+/* ---------------------------------- AI 服务商 ---------------------------------- */
+
+export interface LlmProviderOption {
+  id: string;
+  label: string;
+  defaultBaseUrl: string;
+  note: string;
+  accent?: string;
+  needsApiKey: boolean;
+}
+
+export interface UserLlmConfig {
+  provider: string | null;
+  configured: boolean;
+  keyMasked: string | null;
+  baseUrl: string | null;
+  enabled: number;
+}
+
+export const userLlmApi = {
+  /** 可选服务商清单 */
+  providers: () => api.get<LlmProviderOption[]>('/user/llm/providers'),
+  /** 当前用户配置（脱敏视图） */
+  config: () => api.get<UserLlmConfig>('/user/llm/config'),
+  /** 保存当前用户配置 */
+  save: (body: { provider: string; apiKey?: string; baseUrl?: string }) =>
+    api.post<UserLlmConfig & { ok: boolean }>('/user/llm/config', body, { timeoutMs: 30_000 }),
+  /** 清除当前用户配置和已保存的密钥 */
+  clear: () => api.del<{ ok: boolean }>('/user/llm/config'),
+};

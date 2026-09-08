@@ -6,7 +6,7 @@ import {
   Save,
   UserRound,
 } from 'lucide-react';
-import { skillApi, studentApi } from '../lib/api';
+import { skillApi, studentApi, userLlmApi } from '../lib/api';
 import { useAsync } from '../components/ui';
 import { toast } from '../store/toast';
 import { disconnectStream } from '../lib/sse';
@@ -26,6 +26,7 @@ import {
   Tag,
 } from '../components/ui';
 import AbilityMap3D from '../components/AbilityMap3D';
+import AiProviderCard from '../components/AiProviderCard';
 
 /**
  * 用户中心 —— 个人资料、能力结构与退出入口。
@@ -45,6 +46,8 @@ export default function Profile() {
     () => skillApi.effective(),
     [],
   );
+  const llmConfig = useAsync<any>(() => userLlmApi.config(), []);
+  const llmProviders = useAsync<any[]>(() => userLlmApi.providers(), []);
 
   const student = profile.data?.student || profile.data || {};
   const profileSkills: Array<{ name: string; level?: string; source?: string }> = Array.isArray(student?.skills)
@@ -133,6 +136,16 @@ export default function Profile() {
           )}
         </CardBody>
       </Card>
+
+      <AiProviderCard
+        config={llmConfig.data || null}
+        providers={(llmProviders.data as any[]) || []}
+        loading={llmConfig.loading && !llmConfig.data}
+        reload={() => {
+          llmConfig.reload();
+          llmProviders.reload();
+        }}
+      />
 
       <div className="profile-dashboard-grid">
         <Card>

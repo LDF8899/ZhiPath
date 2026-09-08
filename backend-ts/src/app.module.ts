@@ -39,6 +39,7 @@ import { BankImportModule } from './modules/bank-import/bank-import.module';
 import { RemediationModule } from './modules/remediation/remediation.module';
 import { CompetitionModule } from './modules/competition/competition.module';
 import { KnowledgeIngestionModule } from './modules/knowledge-ingestion/knowledge-ingestion.module';
+import { UserLlmModule } from './modules/user-llm/user-llm.module';
 
 /**
  * ZhiPath API 根模块
@@ -84,6 +85,9 @@ import { KnowledgeIngestionModule } from './modules/knowledge-ingestion/knowledg
     RemediationModule,
     CompetitionModule,
     KnowledgeIngestionModule,
+
+    // AI 服务商配置（用户自带 Key）
+    UserLlmModule,
 
     // 定时任务
     SchedulerModule,

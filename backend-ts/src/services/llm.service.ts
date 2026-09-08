@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AsyncLocalStorage } from 'async_hooks';
 import OpenAI from 'openai';
+import { getLlmProvider } from './llm-provider.registry';
 
 /**
  * LLM 服务 — 对齐 Python agents/llm.py
@@ -73,66 +75,27 @@ export class LlmService {
   private jsonModel: string;
   /** 视觉模型与客户端（智谱 GLM-5V，base64 图片即可） */
   private visionModel: string;
-  private visionClient: OpenAI;
+
+  /**
+   * 用户级 AI 配置上下文（AsyncLocalStorage）。
+   * 各 controller/service 在 AI 调用前用 withUser() 包裹，LlmService 内部
+   * 选择 provider/client 时优先取用户自带配置，无配置回落平台 env 默认。
+   */
+  private static als = new AsyncLocalStorage<{ provider: string; apiKey: string; baseUrl?: string }>();
 
   constructor(private config: ConfigService) {
     const provider = this.config.get('LLM_PROVIDER', 'ollama');
     this.provider = provider;
-
-    if (provider === 'ollama') {
-      const baseUrl = this.config.get('OLLAMA_BASE_URL', 'http://127.0.0.1:11434');
-      this.client = new OpenAI({
-        baseURL: `${baseUrl}/v1`,
-        apiKey: 'ollama',
-        timeout: 30000,
-      });
-      // Ollama 不分级，都用同一个模型
-      this.flashModel = this.config.get('OLLAMA_MODEL', 'qwen2.5:7b');
-      this.proModel = this.flashModel;
-    } else if (provider === 'deepseek') {
-      this.client = new OpenAI({
-        apiKey: this.config.get('DEEPSEEK_API_KEY', ''),
-        baseURL: this.config.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
-        timeout: 60000,
-        maxRetries: 2,
-      });
-      this.flashModel = this.config.get('DEEPSEEK_FLASH_MODEL', 'deepseek-v4-flash-vision-exp');
-      this.proModel = this.config.get('DEEPSEEK_MODEL', 'deepseek-v4-flash-vision-exp');
-    } else if (provider === 'mimo') {
-      this.client = new OpenAI({
-        apiKey: this.config.get('MIMO_API_KEY', ''),
-        baseURL: this.config.get('MIMO_BASE_URL', 'https://token-plan-ams.xiaomimimo.com/v1'),
-        timeout: 180000,  // MiMo pro 推理慢，需要更长超时（实测 ~35s）
-        maxRetries: 2,
-      });
-      this.flashModel = this.config.get('MIMO_FLASH_MODEL', 'mimo-v2.5');
-      this.proModel = this.config.get('MIMO_MODEL', 'mimo-v2.5-pro');
-    } else if (provider === 'zhipu') {
-      // 智谱 GLM（OpenAI 兼容端点）——GLM-5.3 为推理模型，响应慢、需较长超时
-      this.client = new OpenAI({
-        apiKey: this.config.get('ZHIPU_LLM_API_KEY', ''),
-        baseURL: this.config.get('ZHIPU_BASE_URL', 'https://open.bigmodel.cn/api/paas/v4'),
-        timeout: 120000,
-        maxRetries: 2,
-      });
-      this.flashModel = this.config.get('ZHIPU_LLM_FLASH_MODEL', 'glm-5.3');
-      this.proModel = this.config.get('ZHIPU_LLM_MODEL', 'glm-5.3');
-    } else {
-      this.client = new OpenAI({
-        apiKey: this.config.get('OPENAI_API_KEY', ''),
-        baseURL: this.config.get('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
-        timeout: 30000,
-      });
-      this.flashModel = this.config.get('OPENAI_MODEL', 'gpt-4o-mini');
-      this.proModel = this.flashModel;
-    }
-
+    const built = this.buildClient(provider);
+    this.client = built.client;
+    this.flashModel = built.flashModel;
+    this.proModel = built.proModel;
+    this.jsonClient = this.client;
+    this.jsonModel = this.flashModel;
     this.defaultTier = (this.config.get('LLM_DEFAULT_TIER') as ModelTier) || 'flash';
     // 内容生成档：DeepSeek 下默认走 Vision Exp（内容生成实测最稳，且自带视觉能力）
     this.genModel = this.config.get('LLM_GEN_MODEL')
       || (provider === 'deepseek' ? 'deepseek-v4-flash-vision-exp' : this.flashModel);
-    this.jsonClient = this.client;
-    this.jsonModel = this.flashModel;
     const explicitVisionModel = this.config.get('VISION_MODEL');
     this.visionModel = explicitVisionModel
       || (provider === 'deepseek'
@@ -144,25 +107,141 @@ export class LlmService {
       console.warn(`[LLM] VISION_MODEL 未显式配置，临时使用 ${this.visionModel}；视觉任务建议在 .env 固定该值。`);
     }
     // 视觉走当前 provider（DeepSeek 用 deepseek-v4-flash-vision-exp；OpenAI 兼容，base64 图片即可）
-    this.visionClient = this.client;
+  }
+
+  /** 当前上下文中的用户 LLM 配置（无用户配置时为 undefined） */
+  userConfig(): { provider: string; apiKey: string; baseUrl?: string } | undefined {
+    return LlmService.als.getStore();
+  }
+
+  /** 以指定用户上下文包裹一段 AI 调用，内部所有 provider/client 判定优先采用该用户配置 */
+  withUser<T>(
+    config: { provider: string; apiKey: string; baseUrl?: string } | undefined,
+    fn: () => T,
+  ): T {
+    return LlmService.als.run(config, fn);
+  }
+
+  /** 构建指定 provider 的 OpenAI client 与模型名（私有，供无用户配置时的默认初始化与用户配置临时构建复用） */
+  private buildClient(provider: string, overrides?: { apiKey?: string; baseUrl?: string }): {
+    client: OpenAI;
+    flashModel: string;
+    proModel: string;
+    genModel?: string;
+  } {
+    const userScoped = overrides !== undefined;
+    const apiKey = overrides?.apiKey ?? '';
+    const baseUrl = overrides?.baseUrl?.replace(/\/+$/, '');
+    const cfg = getLlmProvider(provider);
+
+    if (provider === 'ollama') {
+      const ovrUrl = baseUrl || this.config.get('OLLAMA_BASE_URL', 'http://127.0.0.1:11434');
+      const client = new OpenAI({
+        baseURL: /\/v1$/i.test(ovrUrl) ? ovrUrl : `${ovrUrl.replace(/\/$/, '')}/v1`,
+        apiKey: overrides?.apiKey || 'ollama',
+        timeout: 30000,
+      });
+      const model = userScoped ? cfg?.models.flash || 'qwen2.5:7b' : this.config.get('OLLAMA_MODEL', 'qwen2.5:7b');
+      return { client, flashModel: model, proModel: model, genModel: model };
+    }
+    if (provider === 'deepseek') {
+      const client = new OpenAI({
+        apiKey: apiKey || this.config.get('DEEPSEEK_API_KEY', ''),
+        baseURL: baseUrl || this.config.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
+        timeout: 60000,
+        maxRetries: 2,
+      });
+      return {
+        client,
+        flashModel: userScoped ? cfg?.models.flash || 'deepseek-v4-flash' : this.config.get('DEEPSEEK_FLASH_MODEL', 'deepseek-v4-flash-vision-exp'),
+        proModel: userScoped ? cfg?.models.pro || 'deepseek-v4-pro' : this.config.get('DEEPSEEK_MODEL', 'deepseek-v4-flash-vision-exp'),
+        genModel: userScoped ? cfg?.models.gen || 'deepseek-v4-flash-vision-exp' : this.config.get('LLM_GEN_MODEL', 'deepseek-v4-flash-vision-exp'),
+      };
+    }
+    if (provider === 'mimo') {
+      const client = new OpenAI({
+        apiKey: apiKey || this.config.get('MIMO_API_KEY', ''),
+        baseURL: baseUrl || this.config.get('MIMO_BASE_URL', 'https://token-plan-ams.xiaomimimo.com/v1'),
+        timeout: 180000,
+        maxRetries: 2,
+      });
+      return {
+        client,
+        flashModel: this.config.get('MIMO_FLASH_MODEL', 'mimo-v2.5'),
+        proModel: this.config.get('MIMO_MODEL', 'mimo-v2.5-pro'),
+      };
+    }
+    if (provider === 'zhipu') {
+      const client = new OpenAI({
+        apiKey: apiKey || this.config.get('ZHIPU_LLM_API_KEY', ''),
+        baseURL: baseUrl || (userScoped ? cfg?.defaultBaseUrl : undefined) || this.config.get('ZHIPU_BASE_URL', 'https://open.bigmodel.cn/api/paas/v4'),
+        timeout: 120000,
+        maxRetries: 2,
+      });
+      return {
+        client,
+        flashModel: userScoped ? cfg?.models.flash || 'glm-5.2' : this.config.get('ZHIPU_LLM_FLASH_MODEL', 'glm-5.3'),
+        proModel: userScoped ? cfg?.models.pro || 'glm-5.3' : this.config.get('ZHIPU_LLM_MODEL', 'glm-5.3'),
+        genModel: userScoped ? cfg?.models.gen || 'glm-5v-turbo' : this.config.get('LLM_GEN_MODEL') || this.config.get('ZHIPU_LLM_FLASH_MODEL', 'glm-5.3'),
+      };
+    }
+    // OpenAI 兼容（含自定义 baseUrl）与默认 fallback 走同一分支
+    const client = new OpenAI({
+      apiKey: apiKey || this.config.get('OPENAI_API_KEY', ''),
+      baseURL: baseUrl || (userScoped ? cfg?.defaultBaseUrl : undefined) || this.config.get('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+      timeout: 30000,
+    });
+    return {
+      client,
+      flashModel: userScoped ? cfg?.models.flash || 'gpt-4o-mini' : this.config.get('OPENAI_MODEL', 'gpt-4o-mini'),
+      proModel: userScoped ? cfg?.models.pro || 'gpt-4o' : this.config.get('OPENAI_MODEL', 'gpt-4o'),
+      genModel: userScoped ? cfg?.models.gen || cfg?.models.flash || 'gpt-4o-mini' : this.config.get('LLM_GEN_MODEL') || this.config.get('OPENAI_MODEL', 'gpt-4o-mini'),
+    };
+  }
+
+  /** 当前应使用的运行态配置：优先用户配置，否则平台 env 默认 */
+  private effectiveCtx(): { client: OpenAI; provider: string; flashModel: string; proModel: string; genModel: string; visionModel: string } {
+    const u = this.userConfig();
+    if (u && u.provider && (u.provider === 'ollama' || u.apiKey)) {
+      const built = this.buildClient(u.provider, { apiKey: u.apiKey, baseUrl: u.baseUrl });
+      let gen = built.genModel || built.flashModel;
+      let vision = built.flashModel;
+      if (u.provider === 'deepseek') {
+        gen = built.genModel || 'deepseek-v4-flash-vision-exp';
+        vision = built.genModel || 'deepseek-v4-flash-vision-exp';
+      } else if (u.provider === 'zhipu') {
+        vision = this.config.get('ZHIPU_VISION_MODEL', 'glm-5v-turbo');
+      }
+      return { client: built.client, provider: u.provider, flashModel: built.flashModel, proModel: built.proModel, genModel: gen, visionModel: vision };
+    }
+    return { client: this.client, provider: this.provider, flashModel: this.flashModel, proModel: this.proModel, genModel: this.genModel, visionModel: this.visionModel };
   }
 
   /** 获取默认模型名称 */
   getModelName(): string {
-    return this.flashModel;
+    return this.effectiveCtx().flashModel;
   }
 
   /** 获取 OpenAI 客户端（供 tool calling 等高级用法） */
   getClient(): OpenAI {
-    return this.client;
+    return this.effectiveCtx().client;
   }
 
-  /** 根据 tier 解析模型名 */
+  /** 根据 tier 解析模型名（运行时优先取用户配置的运行态模型） */
   private resolveModel(options?: { model?: string; tier?: ModelTier }): string {
+    const ctx = this.effectiveCtx();
     if (options?.model) return options.model;
-    if (options?.tier === 'pro') return this.proModel;
-    if (options?.tier === 'gen') return this.genModel;
-    return this.flashModel;
+    if (options?.tier === 'pro') return ctx.proModel;
+    if (options?.tier === 'gen') return ctx.genModel;
+    return ctx.flashModel;
+  }
+
+  /** 获取指定 tier 的模型名（用户上下文无配置时按运行态） */
+  private tierModelName(tier: ModelTier): string {
+    const ctx = this.effectiveCtx();
+    if (tier === 'pro') return ctx.proModel;
+    if (tier === 'gen') return ctx.genModel;
+    return ctx.flashModel;
   }
 
   /** 获取当前使用的模型信息 */
@@ -180,29 +259,33 @@ export class LlmService {
     imageDataUrls: string[],
     options: Omit<LlmOptions, 'model' | 'tier'> = {},
   ): Promise<string> {
+    const ctx = this.effectiveCtx();
+    const visionClient = ctx.client;
+    const visionModel = ctx.visionModel;
+    const provider = ctx.provider;
     const content: any[] = [];
     for (const url of imageDataUrls) {
       if (url) content.push({ type: 'image_url', image_url: { url } });
     }
     content.push({ type: 'text', text });
     const vStart = Date.now();
-    const resp = await this.visionClient.chat.completions.create({
-      model: this.visionModel,
+    const resp = await visionClient.chat.completions.create({
+      model: visionModel,
       messages: [{ role: 'user', content }],
       temperature: options.temperature ?? 0.2,
       max_tokens: options.maxTokens ?? 4096,
       ...(options.jsonObject ? { response_format: { type: 'json_object' as any } } : {}),
       // 视觉任务默认关思考：实测开启时 18.7s 且正文为空（思考吃光预算）
-      ...(this.provider === 'deepseek' && options.thinking !== 'on'
+      ...(provider === 'deepseek' && options.thinking !== 'on'
         ? { thinking: { type: 'disabled' as any } }
         : {}),
-      ...(options.thinking === 'on' && options.effort && this.provider === 'deepseek'
+      ...(options.thinking === 'on' && options.effort && provider === 'deepseek'
         ? { reasoning_effort: options.effort }
         : {}),
     } as any);
     const msg = resp.choices[0]?.message;
     const visionContent = this.stripThinking(msg?.content || '');
-    console.log(`[LLM-VISION] ${this.visionModel} 图=${imageDataUrls.length} 耗时=${Date.now() - vStart}ms 内容=${visionContent.length}字 推理=${((msg as any)?.reasoning_content || '').length}字`);
+    console.log(`[LLM-VISION] ${visionModel} 图=${imageDataUrls.length} 耗时=${Date.now() - vStart}ms 内容=${visionContent.length}字 推理=${((msg as any)?.reasoning_content || '').length}字`);
     return visionContent;
   }
 
@@ -232,6 +315,9 @@ export class LlmService {
     messages: Array<{ role: string; content: string }>,
     options: LlmOptions = {},
   ): Promise<LlmResult> {
+    const ctx = this.effectiveCtx();
+    const client = ctx.client;
+    const provider = ctx.provider;
     const model = this.resolveModel(options);
     const tier = options?.tier || this.defaultTier;
     const llmStart = Date.now();
@@ -242,14 +328,14 @@ export class LlmService {
       modelName = model,
       effort?: ThinkingEffort,
     ) => {
-      const resp = await this.client.chat.completions.create({
+      const resp = await client.chat.completions.create({
         model: modelName,
         messages: messages as any,
         temperature: options.temperature ?? 0.7,
         max_tokens: maxTokens,
         ...(options.jsonObject ? { response_format: { type: 'json_object' as any } } : {}),
         // 思考开关与强度（仅 DeepSeek 支持）。注意：思考开启时 temperature 等采样参数会被忽略。
-        ...(this.provider === 'deepseek'
+        ...(provider === 'deepseek'
           ? thinking === 'off'
             ? { thinking: { type: 'disabled' as any } }
             : {
@@ -278,7 +364,7 @@ export class LlmService {
     //  1) 思考吃光 token 预算（本次开了思考）
     //  2) JSON Output 官方已知的随机空返回（详见 api-docs/guides/json_mode 注意事项第 4 条）
     // DeepSeek pro 先降低推理强度，再关闭思考，再回退 flash，避免把空正文传给上层。
-    if (!out.content && this.provider === 'deepseek' && wantThinking === 'on' && tier === 'pro') {
+    if (!out.content && provider === 'deepseek' && wantThinking === 'on' && tier === 'pro') {
       console.warn(
         `[LLM] ${model} 正文为空（推理=${out.reasoningLen}字），推理强度 ${options.effort || 'default'} → medium 重试`,
       );
@@ -292,11 +378,11 @@ export class LlmService {
       out = await invoke('off', budget, finalModel);
     }
 
-    if (!out.content && this.provider === 'deepseek' && tier === 'pro' && this.flashModel !== model) {
+    if (!out.content && provider === 'deepseek' && tier === 'pro' && ctx.flashModel !== model) {
       console.warn(
-        `[LLM] ${model} 正文仍为空，回退 ${this.flashModel}（thinking=off）`,
+        `[LLM] ${model} 正文仍为空，回退 ${this.tierModelName('flash')}（thinking=off）`,
       );
-      finalModel = this.flashModel;
+      finalModel = this.tierModelName('flash');
       out = await invoke('off', budget, finalModel);
     }
 
@@ -368,9 +454,12 @@ export class LlmService {
     messages: Array<{ role: string; content: string }>,
     options: LlmOptions = {},
   ): AsyncGenerator<string> {
+    const ctx = this.effectiveCtx();
+    const client = ctx.client;
+    const provider = ctx.provider;
     let stream: AsyncIterable<any>;
     try {
-      stream = (await this.client.chat.completions.create({
+      stream = (await client.chat.completions.create({
         model: this.resolveModel(options),
         messages: messages as any,
         temperature: options.temperature ?? 0.7,
@@ -378,7 +467,7 @@ export class LlmService {
         stream: true,
         // 流式默认关思考：思考内容不会渲染给用户，开启只会让用户盯着空白等待数十秒。
         // 调用方如需思考，显式传 options.thinking='on'。
-        ...(this.provider === 'deepseek' && options.thinking !== 'on'
+        ...(provider === 'deepseek' && options.thinking !== 'on'
           ? { thinking: { type: 'disabled' as any } }
           : {}),
       } as any)) as any;
@@ -434,7 +523,10 @@ export class LlmService {
     tools: any[],
     options: ToolCallingOptions = {},
   ): Promise<{ toolCalls: any[]; content: string }> {
-    const resp = await this.client.chat.completions.create({
+    const ctx = this.effectiveCtx();
+    const client = ctx.client;
+    const provider = ctx.provider;
+    const resp = await client.chat.completions.create({
       model: this.resolveModel(options),
       messages: messages as any,
       tools,
@@ -445,7 +537,7 @@ export class LlmService {
       // 1) 默认预算仅 256 token，开启思考会被推理吃光导致 tool_calls 为空；
       // 2) 开启思考后，带 tools 的多轮请求必须回传 reasoning_content，否则 API 返回 400。
       // 关闭思考可同时规避这两个问题。调用方如需思考，显式传 options.thinking='on' 并自行回传。
-      ...(this.provider === 'deepseek' && options.thinking !== 'on'
+      ...(provider === 'deepseek' && options.thinking !== 'on'
         ? { thinking: { type: 'disabled' as any } }
         : {}),
     } as any);
