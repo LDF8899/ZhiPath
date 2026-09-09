@@ -1,0 +1,19 @@
+[Unit]
+Description=ZhiPath shared backend API
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ai
+WorkingDirectory=/home/ai/project/ZhiPath/backend-ts
+EnvironmentFile=/home/ai/project/ZhiPath/backend-ts/.env
+Environment=APP_HOST=127.0.0.1
+Environment=NODE_ENV=production
+ExecStart=/home/ai/.local/node-v20.20.2-linux-arm64/bin/node /home/ai/project/ZhiPath/backend-ts/dist/main.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

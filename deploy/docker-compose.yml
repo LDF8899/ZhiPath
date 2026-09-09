@@ -12,7 +12,7 @@ services:
     container_name: mysql
     restart: unless-stopped
     ports:
-      - "3307:3306"
+      - "127.0.0.1:3307:3306"
     environment:
       MYSQL_ROOT_PASSWORD: root123
       MYSQL_DATABASE: zhipath
@@ -33,7 +33,7 @@ services:
     container_name: redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy noeviction
@@ -45,7 +45,7 @@ services:
     container_name: mongo
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: root
@@ -60,8 +60,8 @@ services:
     container_name: rabbitmq
     restart: unless-stopped
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -77,8 +77,8 @@ services:
     container_name: minio
     restart: unless-stopped
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
@@ -93,8 +93,8 @@ services:
     container_name: neo4j
     restart: unless-stopped
     ports:
-      - "7474:7474"
-      - "7687:7687"
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
     environment:
       NEO4J_AUTH: neo4j/neo4j123
       NEO4J_PLUGINS: '["apoc"]'
@@ -109,7 +109,7 @@ services:
     container_name: chroma
     restart: unless-stopped
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
     volumes:
       - chroma-data:/chroma/chroma
     environment:
@@ -122,7 +122,7 @@ services:
     container_name: searxng
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - searxng-data:/etc/searxng
     profiles:
@@ -133,7 +133,7 @@ services:
     container_name: redisinsight
     restart: unless-stopped
     ports:
-      - "5540:5540"
+      - "127.0.0.1:5540:5540"
     volumes:
       - redisinsight-data:/db
     profiles:

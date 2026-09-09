@@ -1061,14 +1061,14 @@ export const generateAnimation = (data: { skillName: string; difficulty?: string
   runPlatformResource({ resourceType: 'animation', payload: data }).catch((error) => {
     if (!isLegacyFallbackError(error)) throw error;
     return client.post('/user/multimodal/animation', data) as Promise<ApiResponse<any>>;
-  );
+  });
 
 /** 生成 Mermaid 图表 */
 export const generateDiagram = (data: { skillName: string; diagramType?: string }) =>
   runPlatformResource({ resourceType: 'diagram', payload: data }).catch((error) => {
     if (!isLegacyFallbackError(error)) throw error;
     return client.post('/user/multimodal/diagram', data) as Promise<ApiResponse<any>>;
-  );
+  });
 
 /** 生成短视频（智谱 AI） */
 export const generateVideo = (data: { skillName: string }) =>

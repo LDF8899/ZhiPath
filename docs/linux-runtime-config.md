@@ -224,6 +224,35 @@ cd /home/ai/project/ZhiPath
 docker compose -f deploy/docker-compose.yml -p middleware --profile core down
 ```
 
+## 当前主机的 IP 部署方式
+
+本机无线网卡地址为 `192.168.30.133`（Tailscale 地址为
+`100.104.212.16`）。生产构建已由 Nginx 提供，两个定制前端保持独立端口，
+并通过同一反向代理访问共享后端：
+
+```text
+智途 ZhiPath:  http://192.168.30.133:5173/
+CodeNova:      http://192.168.30.133:5180/
+共享 API:      由上述两个站点的 /api/ 代理到 127.0.0.1:3000
+```
+
+后端由 `zhipath-backend.service` 常驻管理，开机自动启动、异常自动重启，
+并固定使用本机 Node.js 20。Nginx 和 systemd 模板分别位于
+`deploy/nginx/zhipath.conf`、`deploy/systemd/zhipath-backend.service`。
+
+常用运维命令：
+
+```bash
+sudo systemctl status zhipath-backend
+sudo systemctl restart zhipath-backend
+sudo journalctl -u zhipath-backend -f
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+数据库、缓存和消息队列端口已绑定到 `127.0.0.1`，不会随前端 IP 对外开放。
+`192.168.30.133` 是局域网地址；若要从公网访问，还需要路由器端口转发、
+固定公网地址或域名，以及 HTTPS 和防火墙策略，不能仅凭该地址直接暴露到互联网。
+
 ## 二、项目原有依赖（仓库定义）
 
 以下内容来自仓库，不是这台 Linux 主机额外安装的系统软件。
