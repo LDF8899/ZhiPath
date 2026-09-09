@@ -203,6 +203,8 @@ p { color: var(--text-body); }
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
+  /* 允许标题和操作区在窄卡片中正常收缩，避免中文被挤成竖排 */
+  min-width: 0;
   padding: var(--sp-4) var(--sp-5);
   border-bottom: 1px solid var(--border-soft);
 }
@@ -210,9 +212,18 @@ p { color: var(--text-body); }
   display: flex;
   align-items: center;
   gap: 9px;
+  flex: 1 1 auto;
   min-width: 0;
 }
-.card__title h2, .card__title h3 { font-size: 14.5px; }
+.card__title h2, .card__title h3 {
+  min-width: 0;
+  font-size: 14.5px;
+  overflow-wrap: anywhere;
+}
+.card__head > :last-child {
+  min-width: 0;
+  flex-shrink: 1;
+}
 .card__title .icon-wrap {
   display: grid;
   place-items: center;
@@ -763,6 +774,11 @@ p { color: var(--text-body); }
   .grid--hero, .grid--sidebar, .grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .qg-type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* 中等宽度下侧栏与主内容各自过窄，会压缩卡片标题和操作区。
+   提前堆叠为单列，保持内容可读；移动端 900px 以下仍由下方规则接管。 */
+@media (max-width: 1050px) {
+  .grid--sidebar { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }
