@@ -1,0 +1,28 @@
+{
+  "name": "zhipath-platform",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "backend-ts",
+    "frontend",
+    "codenovafrontend",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace backend-ts && npm run build --workspace frontend && npm run build --workspace codenova-workbench",
+    "test": "npm test --workspace @zhipath/api-client && npm test --workspace backend-ts -- --runInBand && npm run test:e2e --workspace backend-ts -- --runInBand",
+    "dev:backend": "npm run start:dev --workspace backend-ts",
+    "dev:zhipath": "npm run dev --workspace frontend -- --host 0.0.0.0",
+    "dev:codenova": "npm run dev --workspace codenova-workbench -- --host 0.0.0.0",
+    "dev:all": "bash scripts/dev-all.sh",
+    "preview:zhipath": "npm run preview --workspace frontend -- --host 0.0.0.0 --port 4173",
+    "preview:codenova": "npm run preview --workspace codenova-workbench -- --host 0.0.0.0 --port 4180",
+    "test:api-client": "npm test --workspace @zhipath/api-client",
+    "smoke:multi-frontend": "npm run smoke:multi-frontend --workspace backend-ts",
+    "check:frontend-boundaries": "node scripts/check-frontend-boundaries.mjs",
+    "rebuild:platform-indexes": "npm run rebuild:platform-indexes --workspace backend-ts",
+    "check:platform-consistency": "npm run check:platform-consistency --workspace backend-ts",
+    "openapi:export": "npm run openapi:export --workspace backend-ts",
+    "api-client:generate": "npm run generate --workspace @zhipath/api-client"
+  }
+}

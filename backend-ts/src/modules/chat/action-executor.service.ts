@@ -73,6 +73,7 @@ const RESOURCE_DB: Record<string, Array<{ title: string; url: string; type: stri
 
 /** 视频生成任务进度 */
 interface ActionExecutionContext {
+  tenantId?: number;
   source?: string;
   chatSessionId?: string;
   userMessage?: string;
@@ -190,7 +191,7 @@ export class ActionExecutorService {
   }
 
   private withExecutionContext(action: any, context: ActionExecutionContext): any {
-    if (!context.source && !context.chatSessionId && !context.userMessage && !context.recentMessages && !context.pageContext && !context.userContext) return action;
+    if (!context.tenantId && !context.source && !context.chatSessionId && !context.userMessage && !context.recentMessages && !context.pageContext && !context.userContext) return action;
     return {
       ...action,
       _source: action?._source || context.source,
@@ -199,6 +200,7 @@ export class ActionExecutorService {
       _recentMessages: action?._recentMessages || context.recentMessages,
       _pageContext: action?._pageContext || context.pageContext,
       _userContext: action?._userContext || context.userContext,
+      _tenantId: action?._tenantId || context.tenantId,
     };
   }
 
@@ -277,17 +279,17 @@ export class ActionExecutorService {
       case 'question_config':
         return this.questionConfig(action);
       case 'show_progress':
-        return this.showProgress(userId);
+        return this.showProgress(userId, Number(action?._tenantId || 1));
       case 'show_today_tasks':
-        return this.showTodayTasks(userId);
+        return this.showTodayTasks(userId, Number(action?._tenantId || 1));
       case 'generate_animation':
-        return this.multimodal.generateAnimation(action.skillName || action.skill_name);
+        return this.multimodal.generateAnimation(action.skillName || action.skill_name, 'beginner', Number(action?._tenantId || 1));
       case 'generate_diagram':
-        return this.multimodal.generateDiagram(action.skillName || action.skill_name, action.diagramType || action.diagram_type || 'flowchart');
+        return this.multimodal.generateDiagram(action.skillName || action.skill_name, action.diagramType || action.diagram_type || 'flowchart', Number(action?._tenantId || 1));
       case 'generate_geogebra':
         return this.generateGeogebra(action);
       case 'generate_avatar':
-        return this.multimodal.generateAvatar(action.skillName || action.skill_name);
+        return this.multimodal.generateAvatar(action.skillName || action.skill_name, Number(action?._tenantId || 1));
       default:
         console.warn('[ActionExecutor] Unknown action type:', type);
         return null;
@@ -312,7 +314,7 @@ export class ActionExecutorService {
     const jobCards: any[] = [];
     for (const j of jobs) {
       try {
-        const matchResult = await this.matchAgent.calculateMatch(userId, j.id);
+          const matchResult = await this.matchAgent.calculateMatch(userId, j.id, undefined, Number(action?._tenantId || 1));
         jobCards.push({
           id: j.id,
           title: j.title || '',
@@ -350,7 +352,8 @@ export class ActionExecutorService {
     if (!jobId) return { type: 'error', message: '缺少 jobId' };
 
     // 更新 MySQL
-    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const tenantId = Number(action?._tenantId || 1);
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } });
     if (student) {
       student.targetJobId = jobId;
       await this.studentRepo.save(student);
@@ -362,14 +365,17 @@ export class ActionExecutorService {
     // 更新 MongoDB
     const collection = this.mongoConnection.db!.collection('user_profiles');
     await collection.updateOne(
-      { user_id: String(userId) },
+      { user_id: String(userId), tenantId },
       {
         $set: {
           'goals.target_job_id': jobId,
           'goals.target_job_title': jobTitle,
           updated_at: Date.now(),
+          tenantId,
+          schemaVersion: 1,
+          clientApp: action?._source || 'legacy',
         },
-        $setOnInsert: { created_at: Date.now(), version: 1 },
+        $setOnInsert: { created_at: Date.now(), version: 1, tenantId, schemaVersion: 1, clientApp: action?._source || 'legacy' },
       },
       { upsert: true },
     );
@@ -396,6 +402,8 @@ export class ActionExecutorService {
             action.dailyHours || action.daily_hours,
             customSkills,
             customPlanName,
+            undefined,
+            Number(action?._tenantId || 1),
           );
       return {
         type: 'path_generated',
@@ -422,7 +430,8 @@ export class ActionExecutorService {
     action: any,
   ) {
     const { domain, starterPath } = this.domainRegistry.resolvePath(domainId, goalType, starterPathId);
-    return this.plannerAgent.generateDomainPath(
+    const tenantId = Number(action?._tenantId || 1);
+    const args: any[] = [
       userId,
       domain,
       starterPath,
@@ -430,7 +439,9 @@ export class ActionExecutorService {
       goalTitle || starterPath.title,
       Number(action.dailyHours || action.daily_hours || 2),
       action.planType === 'side' || action.plan_type === 'side' ? 'side' : 'main',
-    );
+    ];
+    if (tenantId !== 1) args.push(tenantId);
+    return (this.plannerAgent.generateDomainPath as any)(...args);
   }
 
   /** 4. 推荐学习资源 — 对齐 Python _recommend_resources() */
@@ -447,7 +458,7 @@ export class ActionExecutorService {
 
     // 异步持久化到 MongoDB knowledge_base（fire-and-forget）
     if (resources.length > 0 && userId) {
-      this.persistResources(resources, skills, userId).catch((e) =>
+      this.persistResources(resources, skills, userId, Number(action?._tenantId || 1), action?._source).catch((e) =>
         console.warn('[ActionExecutor] persistResources failed:', e.message),
       );
     }
@@ -465,7 +476,7 @@ export class ActionExecutorService {
       sourceType: action.sourceType || action.source_type,
       limit: Number(action.limit || 5),
       explain: true,
-    });
+    }, Number(action?._tenantId || 1));
     return {
       type: 'knowledge_results',
       data: {
@@ -487,7 +498,7 @@ export class ActionExecutorService {
       sourceName: action.sourceName || action.source_name,
       sourceUrl: action.sourceUrl || action.source_url,
       skillTags: action.skillTags || action.skill_tags || action.skills || [],
-    });
+    }, Number(action?._tenantId || 1));
     return { type: 'knowledge_ingestion_task', data: { task } };
   }
 
@@ -501,23 +512,26 @@ export class ActionExecutorService {
     const result = await this.knowledgeIngestion.refreshNews(userId, {
       keywords,
       limit: Number(action.limit || 5),
-    });
+    }, Number(action?._tenantId || 1));
     return { type: 'knowledge_news_refresh', data: result };
   }
 
   /** 将推荐的资源持久化到 knowledge_base 集合 */
-  private async persistResources(resources: any[], skills: string[], userId: number): Promise<void> {
+  private async persistResources(resources: any[], skills: string[], userId: number, tenantId = 1, clientApp = 'legacy'): Promise<void> {
     const collection = this.mongoConnection.db!.collection('knowledge_base');
     const now = Date.now();
     for (const res of resources) {
       await collection.updateOne(
-        { skill: { $in: skills }, content_type: 'resource', 'content.url': res.url },
+        { tenantId, skill: { $in: skills }, content_type: 'resource', 'content.url': res.url },
         {
           $setOnInsert: {
             skill: skills.join(','),
             content_type: 'resource',
             content: { title: res.title, url: res.url, type: res.type },
-            metadata: { source: 'chat_recommend', userId },
+            metadata: { source: 'chat_recommend', userId, tenantId },
+            tenantId,
+            schemaVersion: 1,
+            clientApp,
             shared: true,
             created_at: now,
           },
@@ -544,7 +558,7 @@ export class ActionExecutorService {
       let weakTopics: Array<{ label: string }> = [];
       let instructions = String(action.instructions || '');
       if (action.remediation) {
-        const weakPoints = await this.remediation.weakPoints(userId);
+        const weakPoints = await this.remediation.weakPoints(userId, Number(action?._tenantId || 1));
         weakTopics = weakPoints.map((w) => ({ label: w.label }));
         instructions = `${instructions} 这是针对薄弱点的补弱练习，请由浅入深（先基础巩固，再进阶应用，最后综合/判断），并参考题库避免与已掌握/已出题目重复。`.trim();
       }
@@ -563,6 +577,7 @@ export class ActionExecutorService {
       try {
         const exam = await this.examRepo.save({
           userId: userId,
+          tenantId: Number(action?._tenantId || 1),
           examType: 1,
           skillName: skillName,
           answers: examData,
@@ -585,9 +600,9 @@ export class ActionExecutorService {
   }
 
   /** 6. 查看学习进度 — 对齐 Python _show_progress() */
-  private async showProgress(userId: number): Promise<any> {
+  private async showProgress(userId: number, tenantId = 1): Promise<any> {
     const paths = await this.pathRepo.find({
-      where: { userId: userId, status: 1 },
+      where: { userId: userId, tenantId, status: 1 } as any,
       order: { createTime: 'DESC' },
       take: 1,
     });
@@ -629,9 +644,9 @@ export class ActionExecutorService {
   }
 
   /** 7. 查看今日任务 — 对齐 Python _show_today_tasks() */
-  private async showTodayTasks(userId: number): Promise<any> {
+  private async showTodayTasks(userId: number, tenantId = 1): Promise<any> {
     const paths = await this.pathRepo.find({
-      where: { userId: userId, status: 1 },
+      where: { userId: userId, tenantId, status: 1 } as any,
       order: { createTime: 'DESC' },
       take: 1,
     });

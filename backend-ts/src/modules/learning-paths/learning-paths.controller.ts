@@ -26,14 +26,15 @@ export class LearningPathsController {
       userId,
       page ? Number(page) : 1,
       pageSize ? Number(pageSize) : 20,
+      Number(user.tenantId || 1),
     );
     return pageSuccess(result.list, result.total, result.page, result.pageSize);
   }
 
   /** GET /api/user/learning-paths/:pathId */
   @Get('learning-paths/:pathId')
-  async getPath(@CurrentUser('sub') userId: number, @Param('pathId') pathId: string) {
-    const path = await this.learningPathsService.getPath(userId, Number(pathId));
+  async getPath(@CurrentUser() user: any, @Param('pathId') pathId: string) {
+    const path = await this.learningPathsService.getPath(user.sub, Number(pathId), Number(user.tenantId || 1));
     return success(path);
   }
 
@@ -43,37 +44,37 @@ export class LearningPathsController {
     const path = await this.studentService.createPlan(user.sub, {
       ...body,
       targetJobId: body.targetJobId || body.target_job_id,
-    });
+    }, Number(user.tenantId || 1));
     return success(path);
   }
 
   @Post('learning-paths/:pathId/skills')
   async addSkill(
-    @CurrentUser('sub') userId: number,
+    @CurrentUser() user: any,
     @Param('pathId') pathId: string,
     @Body() body: { skillName?: string; estimatedMin?: number },
   ) {
-    return success(await this.learningPathsService.addSkill(userId, Number(pathId), body));
+    return success(await this.learningPathsService.addSkill(user.sub, Number(pathId), body, Number(user.tenantId || 1)));
   }
 
   @Patch('learning-paths/:pathId/status')
   async setPlanStatus(
-    @CurrentUser('sub') userId: number,
+    @CurrentUser() user: any,
     @Param('pathId') pathId: string,
     @Body() body: { planStatus: 'active' | 'paused' | 'archived' },
   ) {
-    return success(await this.learningPathsService.setPlanStatus(userId, Number(pathId), body.planStatus));
+    return success(await this.learningPathsService.setPlanStatus(user.sub, Number(pathId), body.planStatus, Number(user.tenantId || 1)));
   }
 
   @Post('learning-paths/:pathId/merge')
-  async mergePlan(@CurrentUser('sub') userId: number, @Param('pathId') pathId: string) {
-    return success(await this.learningPathsService.mergePlan(userId, Number(pathId)));
+  async mergePlan(@CurrentUser() user: any, @Param('pathId') pathId: string) {
+    return success(await this.learningPathsService.mergePlan(user.sub, Number(pathId), Number(user.tenantId || 1)));
   }
 
   /** GET /api/user/learning-paths/knowledge/:skill */
   @Get('learning-paths/knowledge/:skill')
-  async getSkillContent(@CurrentUser('sub') userId: number, @Param('skill') skill: string) {
-    const result = await this.learningPathsService.getSkillContent(decodeURIComponent(skill), userId);
+  async getSkillContent(@CurrentUser() user: any, @Param('skill') skill: string) {
+    const result = await this.learningPathsService.getSkillContent(decodeURIComponent(skill), user.sub, Number(user.tenantId || 1));
     return success(result);
   }
 }

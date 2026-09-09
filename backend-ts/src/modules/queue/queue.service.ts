@@ -130,6 +130,7 @@ export class QueueService {
     userId: number,
     resourceType: string,
     params: Record<string, any>,
+    options?: { priority?: number; delay?: number; jobId?: string; platformJobId?: string; tenantId?: number },
   ) {
     const job = await this.resourceQueue.add(
       resourceType,
@@ -137,12 +138,17 @@ export class QueueService {
         userId,
         resourceType,
         params,
+        platformJobId: options?.platformJobId,
+        tenantId: options?.tenantId || 1,
         createdAt: Date.now(),
       },
       {
         attempts: 2,
+        priority: options?.priority || 5,
+        delay: options?.delay || 0,
         backoff: { type: 'fixed', delay: 10000 },
         removeOnComplete: { age: 86400 },
+        ...(options?.jobId ? { jobId: options.jobId } : {}),
       },
     );
 
@@ -203,7 +209,11 @@ export class QueueService {
     const job = await queue.getJob(jobId);
 
     if (!job) return false;
-
+    const state = await job.getState();
+    // BullMQ cannot remove an active job. The processors use cooperative
+    // checkpoints and the platform tracker finalizes cancellation instead.
+    if (state === 'active') return false;
+    if (state === 'completed' || state === 'failed') return false;
     await job.remove();
     return true;
   }

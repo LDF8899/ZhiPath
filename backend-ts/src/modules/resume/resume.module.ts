@@ -9,6 +9,7 @@ import { ResumeController } from './resume.controller';
 import { SkillModule } from '../skill/skill.module';
 import { EvidenceModule } from '../evidence/evidence.module';
 import { LlmService } from '../../services/llm.service';
+import { ResumeV1Controller } from './resume-v1.controller';
 
 /**
  * 简历模块 — 简历生成与管理
@@ -19,7 +20,7 @@ import { LlmService } from '../../services/llm.service';
     SkillModule,
     EvidenceModule,
   ],
-  controllers: [ResumeController],
+  controllers: [ResumeController, ResumeV1Controller],
   providers: [ResumeAgentService, LlmService, PdfService],
   exports: [ResumeAgentService],
 })

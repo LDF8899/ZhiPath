@@ -1,7 +1,7 @@
 import { ResourceAgentService } from './resource-agent.service';
 
 describe('ResourceAgentService domain context', () => {
-  const llm = { chatCompletion: jest.fn() };
+  const llm = { chatCompletionComplete: jest.fn() };
   const knowledge = { saveLecture: jest.fn(), saveQuiz: jest.fn(), saveCoding: jest.fn(), getContent: jest.fn() };
   let service: ResourceAgentService;
 
@@ -11,7 +11,12 @@ describe('ResourceAgentService domain context', () => {
   });
 
   it('uses non-programming examples and English evidence for an English lecture', async () => {
-    llm.chatCompletion.mockResolvedValue('# 六级写作表达');
+    llm.chatCompletionComplete.mockResolvedValue({
+      content: '# 六级写作表达\n'.repeat(80),
+      complete: true,
+      finishReason: 'stop',
+      model: 'test-model',
+    });
     knowledge.saveLecture.mockResolvedValue(undefined);
 
     await service.generateLecture('六级写作表达', 'intermediate', {
@@ -22,16 +27,25 @@ describe('ResourceAgentService domain context', () => {
       evidenceTypes: ['作文版本'],
     });
 
-    const messages = llm.chatCompletion.mock.calls[0][0];
+    const messages = llm.chatCompletionComplete.mock.calls[0][0];
     expect(messages[0].content).toContain('跨学科教育内容设计师');
     expect(messages[1].content).toContain('学习领域：英语');
     expect(messages[1].content).toContain('作文批改');
     expect(messages[1].content).toContain('不要强行使用代码');
-    expect(knowledge.saveLecture).toHaveBeenCalledWith('六级写作表达', '# 六级写作表达', 'intermediate');
+    expect(knowledge.saveLecture).toHaveBeenCalledWith(
+      '六级写作表达',
+      '# 六级写作表达\n'.repeat(80),
+      'intermediate',
+    );
   });
 
   it('passes mathematics assessment modes into generated practice', async () => {
-    llm.chatCompletion.mockResolvedValue('[{"question":"q","options":["a","b","c","d"],"answer":0,"explanation":"e"}]');
+    llm.chatCompletionComplete.mockResolvedValue({
+      content: '[{"question":"q","options":["a","b","c","d"],"answer":0,"answerText":"a","explanation":"e"}]',
+      complete: true,
+      finishReason: 'stop',
+      model: 'test-model',
+    });
     knowledge.saveQuiz.mockResolvedValue(undefined);
 
     await service.generateQuiz('极限、导数与积分', 1, 'beginner', {
@@ -41,7 +55,7 @@ describe('ResourceAgentService domain context', () => {
       evidenceTypes: ['解题步骤'],
     });
 
-    const prompt = llm.chatCompletion.mock.calls[0][0][1].content;
+    const prompt = llm.chatCompletionComplete.mock.calls[0][0][1].content;
     expect(prompt).toContain('适用评价方式：分步解题、错因诊断');
     expect(prompt).toContain('不要默认使用编程语境');
     expect(knowledge.saveQuiz).toHaveBeenCalled();

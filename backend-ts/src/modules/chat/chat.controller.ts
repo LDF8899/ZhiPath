@@ -32,36 +32,37 @@ export class ChatController {
   /** POST /api/user/chat — 主聊天接口 */
   @Post('chat')
   async chat(
-    @CurrentUser('sub') userId: number,
+    @CurrentUser() user: any,
     @Body() body: { message: string; session_id?: string; page_context?: string },
   ) {
-    const result = await this.chatService.chat(userId, body);
+    const result = await this.chatService.chat(Number(user.sub), body, {
+      tenantId: Number(user.tenantId || 1),
+      clientApp: user.azp || 'legacy',
+    });
     return success(result);
   }
 
   /** GET /api/user/chat-sessions — 对话历史列表 */
   @Get('chat-sessions')
   async listSessions(
-    @CurrentUser('sub') userId: number,
+    @CurrentUser() user: any,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
     const p = Number(page) || 1;
     const ps = Number(pageSize) || 20;
-    const skip = (p - 1) * ps;
-
     try {
-      const mongoDb = this.chatHistory.getDb();
-      const query = { user_id: String(userId) };
-      const cursor = mongoDb.collection('chat_sessions').find(query).sort({ updated_at: -1, created_at: -1 }).skip(skip).limit(ps);
-      const items = await cursor.toArray();
-      const total = await mongoDb.collection('chat_sessions').countDocuments(query);
+      const userId = Number(user.sub);
+      const tenantId = Number(user.tenantId || 1);
+      const sessionPage = await this.chatHistory.listSessions(userId, tenantId, p, ps);
+      const items = sessionPage.items;
+      const total = sessionPage.pageInfo.total;
 
       const cleaned = await Promise.all(items.map(async (doc: any) => {
         doc._id = doc._id?.toString();
         doc.resources_count = await this.generatedResources.countForUser(userId, {
           chatSessionId: doc.session_id,
-        });
+        }, tenantId);
         return doc;
       }));
 
@@ -75,17 +76,14 @@ export class ChatController {
   /** GET /api/user/chat-sessions/:sessionId — 对话详情 */
   @Get('chat-sessions/:sessionId')
   async getSession(
-    @CurrentUser('sub') userId: number,
+    @CurrentUser() user: any,
     @Param('sessionId') sessionId: string,
   ) {
     try {
-      const mongoDb = this.chatHistory.getDb();
-      const doc = await mongoDb.collection('chat_sessions').findOne({
-        session_id: sessionId,
-        user_id: String(userId),
-      });
+      const userId = Number(user.sub);
+      const tenantId = Number(user.tenantId || 1);
+      const doc = await this.chatHistory.getSession(userId, sessionId, tenantId);
       if (!doc) return success(null, '会话不存在');
-      (doc as any)._id = doc._id?.toString();
       return success(doc);
     } catch (err: any) {
       console.error('[ChatController] getSession failed:', err.message);
@@ -96,17 +94,14 @@ export class ChatController {
   /** DELETE /api/user/chat-sessions/:sessionId — 删除对话 */
   @Delete('chat-sessions/:sessionId')
   async deleteSession(
-    @CurrentUser('sub') userId: number,
+    @CurrentUser() user: any,
     @Param('sessionId') sessionId: string,
   ) {
     try {
-      const mongoDb = this.chatHistory.getDb();
-      const result = await mongoDb.collection('chat_sessions').deleteOne({
-        session_id: sessionId,
-        user_id: String(userId),
-      });
-      await this.chatHistory.clearSession(userId, sessionId);
-      return success({ deleted: result.deletedCount });
+      const userId = Number(user.sub);
+      const tenantId = Number(user.tenantId || 1);
+      const deleted = await this.chatHistory.deleteSession(userId, sessionId, tenantId);
+      return success({ deleted });
     } catch (err: any) {
       console.error('[ChatController] deleteSession failed:', err.message);
       throw new HttpException('删除会话失败', HttpStatus.INTERNAL_SERVER_ERROR);
@@ -117,7 +112,7 @@ export class ChatController {
   /** GET /api/user/generated-resources */
   @Get('generated-resources')
   async listGeneratedResources(
-    @CurrentUser('sub') userId: number,
+    @CurrentUser() user: any,
     @Query('chatSessionId') chatSessionId?: string,
     @Query('source') source?: string,
     @Query('resourceType') resourceType?: string,
@@ -125,6 +120,8 @@ export class ChatController {
     @Query('search') search?: string,
     @Query('limit') limit?: string,
   ) {
+    const userId = Number(user.sub);
+    const tenantId = Number(user.tenantId) || 1;
     const resources = await this.generatedResources.listForUser(userId, {
       chatSessionId,
       source: source as any,
@@ -132,25 +129,25 @@ export class ChatController {
       status: status as any,
       search,
       limit: limit ? parseInt(limit, 10) : undefined,
-    });
+    }, tenantId);
     return success(resources);
   }
 
   /** GET /api/user/generated-resources/:id */
   @Get('generated-resources/:id')
-  async getGeneratedResource(@CurrentUser('sub') userId: number, @Param('id') id: string) {
-    const resource = await this.generatedResources.getById(userId, parseInt(id, 10));
+  async getGeneratedResource(@CurrentUser() user: any, @Param('id') id: string) {
+    const resource = await this.generatedResources.getById(Number(user.sub), parseInt(id, 10), Number(user.tenantId) || 1);
     return success(resource);
   }
 
   /** POST /api/user/generated-resources/:id/feedback */
   @Post('generated-resources/:id/feedback')
   async feedbackGeneratedResource(
-    @CurrentUser('sub') userId: number,
+    @CurrentUser() user: any,
     @Param('id') id: string,
     @Body() body: { useful: boolean },
   ) {
-    const resource = await this.generatedResources.setFeedback(userId, parseInt(id, 10), Boolean(body.useful));
+    const resource = await this.generatedResources.setFeedback(Number(user.sub), parseInt(id, 10), Boolean(body.useful), Number(user.tenantId) || 1);
     return success(resource);
   }
 

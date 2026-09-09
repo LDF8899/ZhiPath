@@ -15,28 +15,28 @@ export class SkillController {
   /** 获取用户所有技能 */
   @Get('skills')
   async getSkills(@CurrentUser() user: any) {
-    const skills = await this.skillService.getSkills(user.sub);
+    const skills = await this.skillService.getSkills(user.sub, Number(user.tenantId || 1));
     return success(skills);
   }
 
   /** 获取用户技能统计 */
   @Get('skills/stats')
   async getStats(@CurrentUser() user: any) {
-    const stats = await this.skillService.getStats(user.sub);
+    const stats = await this.skillService.getStats(user.sub, Number(user.tenantId || 1));
     return success(stats);
   }
 
   /** 获取加权后的有效技能 */
   @Get('skills/effective')
   async getEffectiveSkills(@CurrentUser() user: any) {
-    const skills = await this.skillService.getEffectiveSkills(user.sub);
+    const skills = await this.skillService.getEffectiveSkills(user.sub, Number(user.tenantId || 1));
     return success(skills);
   }
 
   /** 技能证据链（P1-1）— 学习/测评/项目/简历证据 + 岗位影响 */
   @Get('skills/:skillName/evidence')
   async getSkillEvidence(@CurrentUser() user: any, @Param('skillName') skillName: string) {
-    const evidence = await this.skillService.getSkillEvidence(user.sub, skillName);
+    const evidence = await this.skillService.getSkillEvidence(user.sub, skillName, Number(user.tenantId || 1));
     return success(evidence);
   }
 
@@ -48,6 +48,8 @@ export class SkillController {
       body.name,
       (body.source as any) || 'self_report',
       body.trustWeight || 0.3,
+      0,
+      Number(user.tenantId || 1),
     );
     return success(skill);
   }
@@ -61,9 +63,9 @@ export class SkillController {
   ) {
     let skill;
     if (body.masteryPct !== undefined) {
-      skill = await this.skillService.setMastery(user.sub, skillName, body.masteryPct);
+      skill = await this.skillService.setMastery(user.sub, skillName, body.masteryPct, 0.9, Number(user.tenantId || 1));
     } else if (body.delta !== undefined) {
-      skill = await this.skillService.updateMastery(user.sub, skillName, body.delta);
+      skill = await this.skillService.updateMastery(user.sub, skillName, body.delta, Number(user.tenantId || 1));
     }
     return success(skill);
   }
@@ -71,7 +73,7 @@ export class SkillController {
   /** 从 students_v3.skills 迁移到 user_skills_v3 */
   @Post('skills/sync')
   async syncFromStudentSkills(@CurrentUser() user: any) {
-    const migrated = await this.skillService.syncFromStudentSkills(user.sub);
+    const migrated = await this.skillService.syncFromStudentSkills(user.sub, Number(user.tenantId || 1));
     return success({ migrated });
   }
 }

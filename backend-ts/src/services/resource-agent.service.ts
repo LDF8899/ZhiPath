@@ -126,6 +126,8 @@ export interface LearningResourceContext {
   terminology?: Record<string, string>;
   assessmentModes?: string[];
   evidenceTypes?: string[];
+  tenantId?: number;
+  clientApp?: string;
 }
 
 /** Generate learning resources using the path's domain vocabulary and evidence model. */
@@ -190,7 +192,9 @@ ${domainContext}
         return null;
       }
 
-      await this.knowledgeBase.saveLecture(ability, result.content, difficulty);
+      const tenantId = Number(context.tenantId || 1);
+      if (tenantId === 1) await this.knowledgeBase.saveLecture(ability, result.content, difficulty);
+      else await this.knowledgeBase.saveLecture(ability, result.content, difficulty, tenantId, context.clientApp || 'legacy');
       console.log(`[ResourceAgent] Lecture generated: ${ability} (${result.content.length}字, ${result.model})`);
       return result.content;
     } catch (error: any) {
@@ -254,7 +258,9 @@ ${domainContext}
       const questions = this.extractJsonFromLLM(result.content);
       if (Array.isArray(questions) && isValidQuiz(questions)) {
         const normalized = normalizeQuiz(questions);
-        await this.knowledgeBase.saveQuiz(ability, normalized, difficulty);
+        const tenantId = Number(context.tenantId || 1);
+        if (tenantId === 1) await this.knowledgeBase.saveQuiz(ability, normalized, difficulty);
+        else await this.knowledgeBase.saveQuiz(ability, normalized, difficulty, tenantId, context.clientApp || 'legacy');
         console.log(
           `[ResourceAgent] Quiz generated: ${ability} (${normalized.length} 题, ` +
           `答案下标=[${normalized.map((q) => q.answer).join(',')}])`,
@@ -273,7 +279,7 @@ ${domainContext}
   }
 
   /** Explicit coding resources remain available, but are never implied by a non-software path. */
-  async generateCodingProblems(skill: string, count = 2, difficulty = 'beginner'): Promise<any[] | null> {
+  async generateCodingProblems(skill: string, count = 2, difficulty = 'beginner', context: LearningResourceContext = {}): Promise<any[] | null> {
     const prompt = `请为技能「${skill}」生成 ${count} 道编程练习题。
 
 难度：${difficulty}
@@ -306,7 +312,9 @@ ${domainContext}
       );
       const problems = this.extractJsonFromLLM(result);
       if (Array.isArray(problems)) {
-        await this.knowledgeBase.saveCoding(skill, problems, difficulty);
+        const tenantId = Number(context.tenantId || 1);
+        if (tenantId === 1) await this.knowledgeBase.saveCoding(skill, problems, difficulty);
+        else await this.knowledgeBase.saveCoding(skill, problems, difficulty, tenantId, context.clientApp || 'legacy');
         console.log(`[ResourceAgent] Coding problems generated: ${skill} (${problems.length})`);
         return problems;
       }
@@ -328,7 +336,7 @@ ${domainContext}
       for (const abilityItem of phase.skills || []) {
         const abilityName = typeof abilityItem === 'string' ? abilityItem : abilityItem.name || '';
         if (!abilityName) continue;
-        const existing = await this.knowledgeBase.getContent(abilityName, 'lecture');
+        const existing = await this.knowledgeBase.getContent(abilityName, 'lecture', Number(context.tenantId || 1));
         if (existing) {
           stats.skipped++;
           continue;

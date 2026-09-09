@@ -34,26 +34,26 @@ export class LearningPathsService {
   ) {}
 
   /** 学习路径列表 — 对齐 GET /api/user/learning-paths */
-  async getPaths(userId: number, page = 1, pageSize = 20) {
+  async getPaths(userId: number, page = 1, pageSize = 20, tenantId = 1) {
     const skip = (page - 1) * pageSize;
     const [items, total] = await this.pathRepo.findAndCount({
-      where: { userId: userId, status: 1 },
+      where: { userId: userId, tenantId, status: 1 } as any,
       order: { createTime: 'DESC' },
       skip,
       take: pageSize,
     });
     const list = await Promise.all(items.map(async (plan) => {
-      const branch = await this.branchService.ensurePlanBranch(userId, plan);
+      const branch = await this.branchService.ensurePlanBranch(userId, plan, tenantId);
       return { ...plan, branchId: branch.id };
     }));
     return { list, total, page, pageSize };
   }
 
   /** 单条路径 — 对齐 GET /api/user/learning-paths/:pathId */
-  async getPath(userId: number, pathId: number) {
-    const plan = await this.pathRepo.findOne({ where: { id: pathId, userId, status: 1 } });
+  async getPath(userId: number, pathId: number, tenantId = 1) {
+    const plan = await this.pathRepo.findOne({ where: { id: pathId, userId, tenantId, status: 1 } as any });
     if (!plan) throw new NotFoundException('学习计划不存在');
-    const branch = await this.branchService.ensurePlanBranch(userId, plan);
+    const branch = await this.branchService.ensurePlanBranch(userId, plan, tenantId);
     return { ...plan, branchId: branch.id };
   }
 
@@ -71,10 +71,10 @@ export class LearningPathsService {
     return path;
   }
 
-  async addSkill(userId: number, pathId: number, input: { skillName?: string; estimatedMin?: number }) {
+  async addSkill(userId: number, pathId: number, input: { skillName?: string; estimatedMin?: number }, tenantId = 1) {
     const skillName = String(input.skillName || '').trim();
     if (!skillName) throw new BadRequestException('请输入学习主题');
-    const plan = await this.pathRepo.findOne({ where: { id: pathId, userId, status: 1 } });
+    const plan = await this.pathRepo.findOne({ where: { id: pathId, userId, tenantId, status: 1 } as any });
     if (!plan) throw new NotFoundException('学习计划不存在');
     if (plan.planType !== 'side') throw new BadRequestException('额外学习内容只能加入自选计划');
     if (plan.planStatus === 'archived') throw new BadRequestException('归档计划不能添加学习内容');
@@ -101,19 +101,19 @@ export class LearningPathsService {
     plan.pathData = { ...pathData, phases };
     plan.updateTime = Date.now();
     await this.pathRepo.save(plan);
-    return this.getPath(userId, pathId);
+    return this.getPath(userId, pathId, tenantId);
   }
 
-  async setPlanStatus(userId: number, pathId: number, planStatus: 'active' | 'paused' | 'archived') {
-    const plan = await this.pathRepo.findOne({ where: { id: pathId, userId, status: 1 } });
+  async setPlanStatus(userId: number, pathId: number, planStatus: 'active' | 'paused' | 'archived', tenantId = 1) {
+    const plan = await this.pathRepo.findOne({ where: { id: pathId, userId, tenantId, status: 1 } as any });
     if (!plan) throw new NotFoundException('学习计划不存在');
     if (!['active', 'paused', 'archived'].includes(planStatus)) throw new BadRequestException('无效的计划状态');
     if (planStatus === 'active' && plan.planType === 'main') {
       await this.pathRepo.createQueryBuilder()
         .update(LearningPlan)
         .set({ planStatus: 'archived', scheduleEnabled: 0, updateTime: Date.now() })
-        .where('user_id = :userId AND plan_type = :type AND plan_status = :status AND id <> :id', {
-          userId,
+        .where('tenant_id = :tenantId AND user_id = :userId AND plan_type = :type AND plan_status = :status AND id <> :id', {
+          tenantId, userId,
           type: 'main',
           status: 'active',
           id: plan.id,
@@ -124,16 +124,16 @@ export class LearningPathsService {
     plan.scheduleEnabled = planStatus === 'active' ? 1 : 0;
     plan.updateTime = Date.now();
     await this.pathRepo.save(plan);
-    return this.getPath(userId, pathId);
+    return this.getPath(userId, pathId, tenantId);
   }
 
-  async mergePlan(userId: number, pathId: number) {
-    const branch = await this.branchService.ensurePlanBranch(userId, pathId);
-    return this.branchService.mergeBranch(userId, branch.id);
+  async mergePlan(userId: number, pathId: number, tenantId = 1) {
+    const branch = await this.branchService.ensurePlanBranch(userId, pathId, tenantId);
+    return this.branchService.mergeBranch(userId, branch.id, undefined, tenantId);
   }
 
   /** 知识库资源查询 — 对齐 GET /api/user/learning-paths/knowledge/:skill */
-  async getSkillContent(skill: string, userId?: number) {
+  async getSkillContent(skill: string, userId?: number, tenantId = 1) {
     try {
       // 拒绝无效技能名
       if (!skill || skill === '未知' || skill === '未知技能') {
@@ -144,10 +144,10 @@ export class LearningPathsService {
 
       // 并行查询所有内容类型
       const [lectureDoc, quizDoc, codingDoc, readingDoc] = await Promise.all([
-        this.knowledgeService.getContent(skill, 'lecture'),
-        this.knowledgeService.getContent(skill, 'quiz'),
-        this.knowledgeService.getContent(skill, 'coding'),
-        this.knowledgeService.getContent(skill, 'reading'),
+        this.knowledgeService.getContent(skill, 'lecture', tenantId),
+        this.knowledgeService.getContent(skill, 'quiz', tenantId),
+        this.knowledgeService.getContent(skill, 'coding', tenantId),
+        this.knowledgeService.getContent(skill, 'reading', tenantId),
       ]);
 
       const hasLecture = !!lectureDoc?.content?.markdown;
@@ -173,7 +173,7 @@ export class LearningPathsService {
       if (!this.generatingSkills.has(skill)) {
         this.generatingSkills.add(skill);
         console.log(`[LearningPaths] No content found, triggering generation for: ${skill}`);
-        this.generateAllContent(skill, userId)
+        this.generateAllContent(skill, userId, tenantId)
           .finally(() => this.generatingSkills.delete(skill))
           .catch((e) => console.error(`[LearningPaths] Content generation failed for ${skill}:`, e.message));
       }
@@ -200,7 +200,7 @@ export class LearningPathsService {
     );
   }
 
-  private async generateAllContent(skill: string, userId?: number): Promise<void> {
+  private async generateAllContent(skill: string, userId?: number, tenantId = 1): Promise<void> {
     console.log(`[LearningPaths] generateAllContent START for: ${skill}, userId: ${userId}, hasProfileService: ${!!this.profileService}`);
 
     // 创建办公室任务（如果 userId 可用）
@@ -208,9 +208,17 @@ export class LearningPathsService {
     if (userId) {
       try {
         const [lt, ct, rt] = await Promise.all([
-          this.taskService.createTask(userId, 'lecture', `讲义: ${skill}`, { skillName: skill }),
-          this.taskService.createTask(userId, 'code', `代码案例: ${skill}`, { skillName: skill }),
-          this.taskService.createTask(userId, 'reading', `拓展阅读: ${skill}`, { skillName: skill }),
+          ...(tenantId === 1
+            ? [
+                this.taskService.createTask(userId, 'lecture', `讲义: ${skill}`, { skillName: skill }),
+                this.taskService.createTask(userId, 'code', `代码案例: ${skill}`, { skillName: skill }),
+                this.taskService.createTask(userId, 'reading', `拓展阅读: ${skill}`, { skillName: skill }),
+              ]
+            : [
+                this.taskService.createTask(userId, 'lecture', `讲义: ${skill}`, { skillName: skill }, undefined, undefined, undefined, tenantId),
+                this.taskService.createTask(userId, 'code', `代码案例: ${skill}`, { skillName: skill }, undefined, undefined, undefined, tenantId),
+                this.taskService.createTask(userId, 'reading', `拓展阅读: ${skill}`, { skillName: skill }, undefined, undefined, undefined, tenantId),
+              ]),
         ]);
         taskIds.lecture = lt.id;
         taskIds.code = ct.id;
@@ -222,13 +230,21 @@ export class LearningPathsService {
         ]);
         // 标记为运行中 + 员工上岗
         const runningTasks = await Promise.all([
-          this.taskService.updateStatus(lt.id, 'running'),
-          this.taskService.updateStatus(ct.id, 'running'),
-          this.taskService.updateStatus(rt.id, 'running'),
+          ...(tenantId === 1
+            ? [
+                this.taskService.updateStatus(lt.id, 'running'),
+                this.taskService.updateStatus(ct.id, 'running'),
+                this.taskService.updateStatus(rt.id, 'running'),
+              ]
+            : [
+                this.taskService.updateStatus(lt.id, 'running', undefined, undefined, tenantId),
+                this.taskService.updateStatus(ct.id, 'running', undefined, undefined, tenantId),
+                this.taskService.updateStatus(rt.id, 'running', undefined, undefined, tenantId),
+              ]),
         ]);
         await Promise.all(runningTasks.map((task) => this.syncGeneratedResource(userId, task)));
         // 员工上岗：busy + 直接分配工位（不依赖 updateStatus 内部逻辑）
-        const profiles = await this.profileService.getProfiles(userId);
+        const profiles = await this.profileService.getProfiles(userId, tenantId);
         for (const agentType of ['lecture', 'code', 'reading'] as const) {
           const profile = profiles.find(p => p.agentType === agentType);
           if (!profile) continue;
@@ -240,10 +256,10 @@ export class LearningPathsService {
             // 同步更新本地 profiles 数组，避免后续 agent 重复分配同一工位
             profile.stationId = stationId;
           }
-          await this.profileService.updateStatus(userId, agentType, 'busy').catch(() => {});
+          await this.profileService.updateStatus(userId, agentType, 'busy', undefined, tenantId).catch(() => {});
           // 无论 updateStatus 内部是否分配了工位，这里再确保一次
           if (stationId !== null) {
-            await this.profileService.assignStation(userId, agentType, stationId).catch(() => {});
+            await this.profileService.assignStation(userId, agentType, stationId, tenantId).catch(() => {});
           }
         }
       } catch (e: any) {
@@ -264,7 +280,9 @@ export class LearningPathsService {
     if (userId) {
       const update = async (id: number | undefined, status: 'success' | 'failed', result?: any, error?: string) => {
         if (!id) return;
-        const task = await this.taskService.updateStatus(id, status, result, error).catch(() => null);
+        const task = await (tenantId === 1
+          ? this.taskService.updateStatus(id, status, result, error)
+          : this.taskService.updateStatus(id, status, result, error, tenantId)).catch(() => null);
         if (status === 'failed') {
           await this.syncGeneratedResource(userId, task, undefined, error || 'Content generation failed');
         } else {
@@ -283,9 +301,9 @@ export class LearningPathsService {
           readingResult.status === 'rejected' ? readingResult.reason?.message : undefined),
       ]);
       // 员工下岗
-      this.profileService.updateStatus(userId, 'lecture', 'idle', { releaseStation: true }).catch(() => {});
-      this.profileService.updateStatus(userId, 'code', 'idle', { releaseStation: true }).catch(() => {});
-      this.profileService.updateStatus(userId, 'reading', 'idle', { releaseStation: true }).catch(() => {});
+      this.profileService.updateStatus(userId, 'lecture', 'idle', { releaseStation: true }, tenantId).catch(() => {});
+      this.profileService.updateStatus(userId, 'code', 'idle', { releaseStation: true }, tenantId).catch(() => {});
+      this.profileService.updateStatus(userId, 'reading', 'idle', { releaseStation: true }, tenantId).catch(() => {});
     }
 
     if (lectureResult.status === 'rejected') console.error(`[LearningPaths] Lecture error:`, lectureResult.reason);

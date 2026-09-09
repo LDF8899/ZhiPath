@@ -7,6 +7,9 @@ import { BaseEntity } from '../common/base.entity';
  */
 @Entity('students_v3')
 export class Student extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1, comment: '租户边界' })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id', comment: '关联users_v3' })
   userId: number;
 
@@ -51,6 +54,9 @@ export class Student extends BaseEntity {
 
   @Column({ type: 'json', nullable: true, name: 'awards', comment: '获奖/证书' })
   awards: Array<Record<string, any>> | null;
+
+  @Column({ type: 'json', nullable: true, name: 'profile_meta_json', comment: '画像扩展事实：traits/goals/chat insights' })
+  profileMeta: Record<string, any> | null;
 
   @Column({ type: 'text', nullable: true, name: 'self_intro', comment: '自我评价/个人简介' })
   selfIntro: string;

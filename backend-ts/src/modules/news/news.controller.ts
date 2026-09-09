@@ -17,15 +17,15 @@ export class NewsController {
 
   /** 获取资讯列表 */
   @Get('news')
-  async getNews(@Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('type') type?: string) {
+  async getNews(@CurrentUser() user: any, @Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('type') type?: string) {
     const pageNo = page ? Number(page) : 1;
     const size = pageSize ? Number(pageSize) : 20;
-    let result = await this.newsService.getNews(pageNo, size, type);
+    let result = await this.newsService.getNews(pageNo, size, type, Number(user?.tenantId || 1));
     let refreshStats: any = null;
 
     if (pageNo === 1 && !type && result.total === 0) {
       refreshStats = await this.newsCrawl.crawl(undefined, 2);
-      result = await this.newsService.getNews(pageNo, size, type);
+      result = await this.newsService.getNews(pageNo, size, type, Number(user?.tenantId || 1));
     }
 
     return { ...pageSuccess(result.list, result.total, result.page, result.pageSize), meta: { autoRefreshed: !!refreshStats, refreshStats } };
@@ -34,7 +34,7 @@ export class NewsController {
   /** 个性化推荐资讯（静态路由须在 :newsId 之前） */
   @Get('news/recommend')
   async recommend(@CurrentUser() user: any, @Query('limit') limit?: string) {
-    const items = await this.newsEnhanced.recommend(user.sub, limit ? Number(limit) : 10);
+    const items = await this.newsEnhanced.recommend(user.sub, limit ? Number(limit) : 10, Number(user.tenantId || 1));
     return success(items);
   }
 
@@ -59,8 +59,8 @@ export class NewsController {
 
   /** 获取资讯详情（参数路由放最后） */
   @Get('news/:newsId')
-  async getNewsDetail(@Param('newsId') newsId: string) {
-    const result = await this.newsService.getNewsDetail(Number(newsId));
+  async getNewsDetail(@CurrentUser() user: any, @Param('newsId') newsId: string) {
+    const result = await this.newsService.getNewsDetail(Number(newsId), Number(user?.tenantId || 1));
     return success(result);
   }
 }

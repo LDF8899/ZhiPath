@@ -13,6 +13,7 @@ import { AgentProfileService } from '../../services/agent-profile.service';
 import { GeneratedResourceService } from '../../services/generated-resource.service';
 import { GitLearningModule } from '../git-learning/git-learning.module';
 import { StudentModule } from '../student/student.module';
+import { LearningKnowledgeV1Controller } from './learning-knowledge-v1.controller';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { StudentModule } from '../student/student.module';
     GitLearningModule,
     StudentModule,
   ],
-  controllers: [LearningPathsController],
+  controllers: [LearningPathsController, LearningKnowledgeV1Controller],
   providers: [LearningPathsService, AgentTaskService, AgentProfileService, GeneratedResourceService],
   exports: [LearningPathsService],
 })

@@ -44,6 +44,7 @@ export class ChromaService {
     text: string,
     embedding: number[],
     metadata: Record<string, any>,
+    tenantId = 1,
   ): Promise<boolean> {
     if (!this.enabled) return false;
     try {
@@ -57,7 +58,7 @@ export class ChromaService {
           ids: [String(chunkId)],
           embeddings: [embedding],
           documents: [text],
-          metadatas: [{ ...metadata, userId: String(userId) }],
+          metadatas: [{ ...metadata, userId: String(userId), tenantId: String(tenantId) }],
         }),
       });
       if (!res.ok) {
@@ -77,12 +78,13 @@ export class ChromaService {
     embedding: number[],
     topK: number,
     where?: Record<string, any>,
+    tenantId = 1,
   ): Promise<ChromaQueryResult[]> {
     if (!this.enabled) return [];
     try {
       const collectionId = await this.getCollectionId();
       if (!collectionId) return [];
-      const filter: Record<string, any> = { userId: String(userId) };
+      const filter: Record<string, any> = { userId: String(userId), tenantId: String(tenantId) };
       if (where?.sourceType) filter.sourceType = where.sourceType;
       const res = await fetch(`${this.baseUrl}/api/v1/collections/${collectionId}/query`, {
         method: 'POST',
@@ -117,7 +119,7 @@ export class ChromaService {
   }
 
   /** 按来源删除向量（重建/删除索引用） */
-  async deleteBySource(userId: number, sourceId: string): Promise<boolean> {
+  async deleteBySource(userId: number, sourceId: string, tenantId = 1): Promise<boolean> {
     if (!this.enabled) return false;
     try {
       const collectionId = await this.getCollectionId();
@@ -127,7 +129,7 @@ export class ChromaService {
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(this.timeoutMs),
         body: JSON.stringify({
-          where: { $and: [{ userId: String(userId) }, { sourceId }] },
+          where: { $and: [{ userId: String(userId) }, { tenantId: String(tenantId) }, { sourceId }] },
         }),
       });
       return res.ok;

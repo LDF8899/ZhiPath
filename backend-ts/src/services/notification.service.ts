@@ -11,7 +11,7 @@ import { EventsService } from '../modules/events/events.service';
  *
  * 对齐 CONSTITUTION.md §25 通知系统：
  *   - 学习提醒 / 进度变化 / 岗位匹配 / 考试结果 / 系统公告
- *   - Redis 缓存未读数
+ *   - MySQL notifications 是带 tenant_id 的事实源，Redis 仅缓存未读数
  *   - 支持标记已读
  */
 @Injectable()
@@ -31,10 +31,15 @@ export class NotificationService {
     title: string,
     content: string,
     link?: string,
+    tenantId?: number,
+    clientAppId: number | null = null,
   ): Promise<Notification> {
     const now = Date.now();
+    const scopedTenantId = await this.resolveTenantId(userId, tenantId);
 
     const notification = await this.notificationRepo.save({
+      tenantId: scopedTenantId,
+      clientAppId,
       userId,
       type,
       title,
@@ -66,17 +71,17 @@ export class NotificationService {
   /**
    * 获取未读通知列表
    */
-  async getUnread(userId: number, limit: number = 20): Promise<Notification[]> {
+  async getUnread(userId: number, limit: number = 20, tenantId = 1): Promise<Notification[]> {
     try {
       return await this.notificationRepo.find({
-        where: { userId, isRead: 0, status: 1 },
+        where: { tenantId, userId, isRead: 0, status: 1 },
         order: { createTime: 'DESC' },
         take: limit,
       });
     } catch {
       // fallback: 表可能缺少 status 列
       return await this.notificationRepo.find({
-        where: { userId, isRead: 0 },
+        where: { tenantId, userId, isRead: 0 },
         order: { createTime: 'DESC' },
         take: limit,
       });
@@ -90,10 +95,11 @@ export class NotificationService {
     userId: number,
     page: number = 1,
     pageSize: number = 20,
+    tenantId = 1,
   ): Promise<{ notifications: Notification[]; total: number }> {
     try {
       const [notifications, total] = await this.notificationRepo.findAndCount({
-        where: { userId, status: 1 },
+        where: { tenantId, userId, status: 1 },
         order: { createTime: 'DESC' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -102,7 +108,7 @@ export class NotificationService {
     } catch {
       // fallback: 表可能缺少 status 列
       const [notifications, total] = await this.notificationRepo.findAndCount({
-        where: { userId },
+        where: { tenantId, userId },
         order: { createTime: 'DESC' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -114,9 +120,9 @@ export class NotificationService {
   /**
    * 标记单条通知为已读
    */
-  async markAsRead(notificationId: number, userId: number): Promise<boolean> {
+  async markAsRead(notificationId: number, userId: number, tenantId = 1): Promise<boolean> {
     const notification = await this.notificationRepo.findOne({
-      where: { id: notificationId, userId, status: 1 },
+      where: { id: notificationId, tenantId, userId, status: 1 },
     });
 
     if (!notification || notification.isRead === 1) return false;
@@ -138,10 +144,10 @@ export class NotificationService {
   /**
    * 标记所有通知为已读
    */
-  async markAllAsRead(userId: number): Promise<number> {
+  async markAllAsRead(userId: number, tenantId = 1): Promise<number> {
     const now = Date.now();
     const result = await this.notificationRepo.update(
-      { userId, isRead: 0, status: 1 },
+      { tenantId, userId, isRead: 0, status: 1 },
       { isRead: 1, updateTime: now },
     );
 
@@ -156,7 +162,7 @@ export class NotificationService {
   /**
    * 获取未读通知数（Redis 缓存）
    */
-  async getUnreadCount(userId: number): Promise<number> {
+  async getUnreadCount(userId: number, tenantId = 1): Promise<number> {
     if (this.redis) {
       const cached = await this.redis.get(`user:unread:${userId}`);
       if (cached !== null) return parseInt(cached, 10);
@@ -166,12 +172,12 @@ export class NotificationService {
     let count: number;
     try {
       count = await this.notificationRepo.count({
-        where: { userId, isRead: 0, status: 1 },
+        where: { tenantId, userId, isRead: 0, status: 1 },
       });
     } catch {
       // fallback: 表可能缺少 status 列
       count = await this.notificationRepo.count({
-        where: { userId, isRead: 0 },
+        where: { tenantId, userId, isRead: 0 },
       });
     }
 
@@ -184,9 +190,9 @@ export class NotificationService {
   /**
    * 删除通知（软删除）
    */
-  async delete(notificationId: number, userId: number): Promise<boolean> {
+  async delete(notificationId: number, userId: number, tenantId = 1): Promise<boolean> {
     const notification = await this.notificationRepo.findOne({
-      where: { id: notificationId, userId, status: 1 },
+      where: { id: notificationId, tenantId, userId, status: 1 },
     });
 
     if (!notification) return false;
@@ -268,5 +274,26 @@ export class NotificationService {
   /** 系统通知 */
   async notifySystem(userId: number, title: string, content: string, link?: string): Promise<void> {
     await this.create(userId, 'system', title, content, link);
+  }
+
+  /**
+   * 后台通知通常只有 userId。此时从 membership 解析租户，避免把新租户
+   * 的通知错误写入默认租户；历史无 membership 用户才回退到租户 1。
+   */
+  private async resolveTenantId(userId: number, tenantId?: number): Promise<number> {
+    if (tenantId && Number.isFinite(tenantId)) return tenantId;
+    try {
+      const rows = await this.notificationRepo.manager.query(
+        `SELECT tenant_id AS tenantId
+           FROM tenant_memberships
+          WHERE user_id = ? AND status = 'active'
+          ORDER BY tenant_id ASC LIMIT 1`,
+        [userId],
+      );
+      if (rows?.[0]?.tenantId) return Number(rows[0].tenantId);
+    } catch {
+      // 兼容极早期数据库快照：membership 表不存在时使用平台默认租户。
+    }
+    return 1;
   }
 }

@@ -37,9 +37,9 @@ export class MultimodalService {
    * 生成自包含 HTML 动画演示。
    * 返回 { type:'animation', data:{ skill, title, html, status:'ready' } }
    */
-  async generateAnimation(skill: string, difficulty = 'beginner'): Promise<any> {
+  async generateAnimation(skill: string, difficulty = 'beginner', tenantId = 1): Promise<any> {
     // 命中缓存直接复用
-    const cached = await this.knowledgeBase.getAnimation(skill);
+    const cached = await this.knowledgeBase.getAnimation(skill, tenantId);
     if (cached) {
       return { type: 'animation', data: { skill, title: cached.title, html: cached.html, status: 'ready' } };
     }
@@ -71,7 +71,7 @@ export class MultimodalService {
       }
 
       const title = `${skill} 动画演示`;
-      await this.knowledgeBase.saveAnimation(skill, title, html, difficulty);
+      await this.knowledgeBase.saveAnimation(skill, title, html, difficulty, tenantId);
       console.log(`[Multimodal] Animation generated: ${skill} (${html.length} chars)`);
       return { type: 'animation', data: { skill, title, html, status: 'ready' } };
     } catch (e: any) {
@@ -86,8 +86,8 @@ export class MultimodalService {
    * 生成 Mermaid 图表源码（流程图/架构图/时序图）。
    * 返回 { type:'diagram', data:{ skill, title, mermaid, diagram_type, status:'ready' } }
    */
-  async generateDiagram(skill: string, diagramType = 'flowchart'): Promise<any> {
-    const cached = await this.knowledgeBase.getDiagram(skill);
+  async generateDiagram(skill: string, diagramType = 'flowchart', tenantId = 1): Promise<any> {
+    const cached = await this.knowledgeBase.getDiagram(skill, tenantId);
     if (cached) {
       return {
         type: 'diagram',
@@ -129,7 +129,7 @@ export class MultimodalService {
       }
 
       const title = `${skill} 图解`;
-      await this.knowledgeBase.saveDiagram(skill, title, mermaid, diagramType);
+      await this.knowledgeBase.saveDiagram(skill, title, mermaid, diagramType, 'beginner', tenantId);
       console.log(`[Multimodal] Diagram generated: ${skill} (${diagramType})`);
       return { type: 'diagram', data: { skill, title, mermaid, diagram_type: diagramType, status: 'ready' } };
     } catch (e: any) {
@@ -144,8 +144,8 @@ export class MultimodalService {
    * 生成 5 秒可视化教学短视频（智谱 AI）。
    * 缺少 ZHIPU_API_KEY 时返回 status:'not_configured'，前端展示占位与脚本。
    */
-  async generateVideo(skill: string): Promise<any> {
-    const cached = await this.knowledgeBase.getVideo(skill);
+  async generateVideo(skill: string, tenantId = 1): Promise<any> {
+    const cached = await this.knowledgeBase.getVideo(skill, tenantId);
     if (cached?.status === 'ready' && cached?.url) {
       return { type: 'video', data: { skill, ...cached } };
     }
@@ -165,7 +165,7 @@ export class MultimodalService {
         url: '',
         poster: '',
       };
-      await this.knowledgeBase.saveVideo(skill, data);
+      await this.knowledgeBase.saveVideo(skill, data, 'beginner', tenantId);
       return { type: 'video', data };
     }
 
@@ -183,7 +183,7 @@ export class MultimodalService {
         url: '',
         poster: '',
       };
-      await this.knowledgeBase.saveVideo(skill, data);
+      await this.knowledgeBase.saveVideo(skill, data, 'beginner', tenantId);
       return { type: 'video', data };
     } catch (e: any) {
       console.error(`[Multimodal] Zhipu video task failed for ${skill}:`, e.message);
@@ -201,8 +201,8 @@ export class MultimodalService {
    * 缺少讯飞 key 时返回 status:'not_configured'，前端展示占位与讲解词。
    * key 存在时创建真实会话，返回 streamUrl 供前端 RTCPlayer 播放。
    */
-  async generateAvatar(skill: string): Promise<any> {
-    const cached = await this.knowledgeBase.getAvatar(skill);
+  async generateAvatar(skill: string, tenantId = 1): Promise<any> {
+    const cached = await this.knowledgeBase.getAvatar(skill, tenantId);
     if (cached?.status === 'ready' && cached?.sessionId) {
       return { type: 'avatar', data: { skill, ...cached } };
     }
@@ -221,7 +221,7 @@ export class MultimodalService {
         poster: '',
         avatar_id: this.config.get('XFYUN_AVATAR_ID', '110017'),
       };
-      await this.knowledgeBase.saveAvatar(skill, data);
+      await this.knowledgeBase.saveAvatar(skill, data, 'beginner', tenantId);
       return { type: 'avatar', data };
     }
 
@@ -247,7 +247,7 @@ export class MultimodalService {
         url: session.streamUrl,
         poster: '',
       };
-      await this.knowledgeBase.saveAvatar(skill, data);
+      await this.knowledgeBase.saveAvatar(skill, data, 'beginner', tenantId);
       this.logger.log(`[Multimodal] Avatar session created for ${skill}: ${session.sessionId}`);
       return { type: 'avatar', data };
     } catch (e: any) {
@@ -264,7 +264,7 @@ export class MultimodalService {
         poster: '',
         avatar_id: this.config.get('XFYUN_AVATAR_ID', '110017'),
       };
-      await this.knowledgeBase.saveAvatar(skill, data);
+      await this.knowledgeBase.saveAvatar(skill, data, 'beginner', tenantId);
       return { type: 'avatar', data };
     }
   }
@@ -272,12 +272,12 @@ export class MultimodalService {
   // ── 聚合查询（KnowledgeDetail 多模态 Tab 用） ─────────────────
 
   /** 获取某技能已有的全部多模态资源（不触发生成） */
-  async getMultimodal(skill: string): Promise<any> {
+  async getMultimodal(skill: string, tenantId = 1): Promise<any> {
     const [animation, diagram, video, avatar] = await Promise.all([
-      this.knowledgeBase.getAnimation(skill),
-      this.knowledgeBase.getDiagram(skill),
-      this.knowledgeBase.getVideo(skill),
-      this.knowledgeBase.getAvatar(skill),
+      this.knowledgeBase.getAnimation(skill, tenantId),
+      this.knowledgeBase.getDiagram(skill, tenantId),
+      this.knowledgeBase.getVideo(skill, tenantId),
+      this.knowledgeBase.getAvatar(skill, tenantId),
     ]);
     return {
       skill,

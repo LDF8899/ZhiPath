@@ -30,9 +30,9 @@ export class LearningCommitService {
     private readonly eventsService: EventsService,
   ) {}
 
-  async ensureMainBranch(userId: number): Promise<LearningBranch> {
+  async ensureMainBranch(userId: number, tenantId = 1): Promise<LearningBranch> {
     let branch = await this.branchRepo.findOne({
-      where: { userId, branchType: 'main', status: 1 },
+      where: { userId, tenantId, branchType: 'main', status: 1 },
       order: { id: 'ASC' },
     });
     if (branch) return branch;
@@ -40,6 +40,7 @@ export class LearningCommitService {
     const now = Date.now();
     branch = await this.branchRepo.save({
       userId,
+      tenantId,
       branchName: 'main',
       branchType: 'main',
       planId: null,
@@ -54,6 +55,7 @@ export class LearningCommitService {
 
     const commit = await this.commitRepo.save({
       userId,
+      tenantId,
       branchId: branch.id,
       parentCommitId: null,
       mergeSourceCommitId: null,
@@ -67,11 +69,12 @@ export class LearningCommitService {
       updateTime: now,
       status: 1,
     });
-    const skills = await this.skillService.getEffectiveSkills(userId);
+    const skills = await this.skillService.getEffectiveSkills(userId, tenantId);
     const snapshot = await this.snapshotService.saveSnapshot({
       userId,
       branchId: branch.id,
       commitId: commit.id,
+      tenantId,
       skills,
       previous: null,
       matchSummary: null,
@@ -87,37 +90,38 @@ export class LearningCommitService {
     return this.branchRepo.save(branch);
   }
 
-  async listLog(userId: number, branchId: number, limit = 50): Promise<LearningCommit[]> {
-    await this.assertBranch(userId, branchId);
+  async listLog(userId: number, branchId: number, limit = 50, tenantId = 1): Promise<LearningCommit[]> {
+    await this.assertBranch(userId, branchId, tenantId);
     return this.commitRepo.find({
-      where: { userId, branchId, status: 1 },
+      where: { userId, tenantId, branchId, status: 1 },
       order: { createTime: 'DESC', id: 'DESC' },
       take: Math.max(1, Math.min(200, limit)),
     });
   }
 
-  async getCommit(userId: number, commitId: number): Promise<LearningCommit> {
-    const commit = await this.commitRepo.findOne({ where: { id: commitId, userId, status: 1 } });
+  async getCommit(userId: number, commitId: number, tenantId = 1): Promise<LearningCommit> {
+    const commit = await this.commitRepo.findOne({ where: { id: commitId, userId, tenantId, status: 1 } });
     if (!commit) throw new NotFoundException('commit not found');
     return commit;
   }
 
-  async commitSkill(userId: number, branchId: number | undefined, action: CommitSkillAction) {
+  async commitSkill(userId: number, branchId: number | undefined, action: CommitSkillAction, tenantId = 1) {
     const branch = branchId
-      ? await this.assertBranch(userId, branchId)
-      : await this.ensureMainBranch(userId);
+      ? await this.assertBranch(userId, branchId, tenantId)
+      : await this.ensureMainBranch(userId, tenantId);
     const parentCommitId = branch.headCommitId || null;
     const previousSnapshot = parentCommitId
-      ? await this.snapshotService.getSnapshotByCommit(userId, parentCommitId)
-      : await this.snapshotService.getLatestSnapshot(userId, branch.id);
+      ? await this.snapshotService.getSnapshotByCommit(userId, parentCommitId, tenantId)
+      : await this.snapshotService.getLatestSnapshot(userId, branch.id, tenantId);
     const beforeBest = this.bestMatchScore(previousSnapshot?.matchSummaryJson);
 
     const affectsAbilityMain = branch.branchType === 'main';
-    if (affectsAbilityMain) await this.applySkillAction(userId, action);
+    if (affectsAbilityMain) await this.applySkillAction(userId, action, tenantId);
 
     const now = Date.now();
     const commit = await this.commitRepo.save({
       userId,
+      tenantId,
       branchId: branch.id,
       parentCommitId,
       mergeSourceCommitId: null,
@@ -133,17 +137,18 @@ export class LearningCommitService {
     });
 
     const matchSummary = affectsAbilityMain
-      ? await this.calculateMatchSummary(userId)
+      ? await this.calculateMatchSummary(userId, tenantId)
       : (previousSnapshot?.matchSummaryJson || null);
     const afterBest = this.bestMatchScore(matchSummary);
     const skills = affectsAbilityMain
-      ? await this.skillService.getEffectiveSkills(userId)
-      : await this.applySkillActionToSnapshot(userId, previousSnapshot, action);
-    const velocity = await this.calculateVelocity(userId, branch.id);
+      ? await this.skillService.getEffectiveSkills(userId, tenantId)
+      : await this.applySkillActionToSnapshot(userId, previousSnapshot, action, tenantId);
+    const velocity = await this.calculateVelocity(userId, branch.id, tenantId);
     const snapshot = await this.snapshotService.saveSnapshot({
       userId,
       branchId: branch.id,
       commitId: commit.id,
+      tenantId,
       skills,
       previous: previousSnapshot,
       matchSummary,
@@ -161,28 +166,31 @@ export class LearningCommitService {
     branch.updateTime = Date.now();
     await this.branchRepo.save(branch);
 
-    this.emitCommitEvents(userId, branch, commit, snapshot, delta, matchSummary);
-    this.emitMatchChangeIfAny(userId, branch, delta, matchSummary, beforeBest, afterBest);
+    this.emitCommitEvents(userId, branch, commit, snapshot, delta, matchSummary, tenantId);
+    this.emitMatchChangeIfAny(userId, branch, delta, matchSummary, beforeBest, afterBest, tenantId);
 
     return { commit, snapshot, delta, branch, matchSummary };
   }
 
   async createCommitFromCurrentSkills(input: {
     userId: number;
+    tenantId?: number;
     branch: LearningBranch;
     commitType: LearningCommitType;
     message: string;
     payload?: Record<string, any>;
     mergeSourceCommitId?: number | null;
   }) {
+    const tenantId = input.tenantId ?? 1;
     const parentCommitId = input.branch.headCommitId || null;
     const previousSnapshot = parentCommitId
-      ? await this.snapshotService.getSnapshotByCommit(input.userId, parentCommitId)
+      ? await this.snapshotService.getSnapshotByCommit(input.userId, parentCommitId, tenantId)
       : null;
     const beforeBest = this.bestMatchScore(previousSnapshot?.matchSummaryJson);
     const now = Date.now();
     const commit = await this.commitRepo.save({
       userId: input.userId,
+      tenantId,
       branchId: input.branch.id,
       parentCommitId,
       mergeSourceCommitId: input.mergeSourceCommitId || null,
@@ -196,12 +204,13 @@ export class LearningCommitService {
       updateTime: now,
       status: 1,
     });
-    const matchSummary = await this.calculateMatchSummary(input.userId);
-    const skills = await this.skillService.getEffectiveSkills(input.userId);
+    const matchSummary = await this.calculateMatchSummary(input.userId, tenantId);
+    const skills = await this.skillService.getEffectiveSkills(input.userId, tenantId);
     const snapshot = await this.snapshotService.saveSnapshot({
       userId: input.userId,
       branchId: input.branch.id,
       commitId: commit.id,
+      tenantId,
       skills,
       previous: previousSnapshot,
       matchSummary,
@@ -214,39 +223,50 @@ export class LearningCommitService {
     input.branch.headCommitId = commit.id;
     input.branch.updateTime = Date.now();
     await this.branchRepo.save(input.branch);
-    this.emitCommitEvents(input.userId, input.branch, commit, snapshot, delta, matchSummary);
-    this.emitMatchChangeIfAny(input.userId, input.branch, delta, matchSummary, beforeBest, this.bestMatchScore(matchSummary));
+    this.emitCommitEvents(input.userId, input.branch, commit, snapshot, delta, matchSummary, tenantId);
+    this.emitMatchChangeIfAny(input.userId, input.branch, delta, matchSummary, beforeBest, this.bestMatchScore(matchSummary), tenantId);
     return { commit, snapshot, delta, branch: input.branch, matchSummary };
   }
 
-  private async assertBranch(userId: number, branchId: number): Promise<LearningBranch> {
-    const branch = await this.branchRepo.findOne({ where: { id: branchId, userId, status: 1 } });
+  private async assertBranch(userId: number, branchId: number, tenantId = 1): Promise<LearningBranch> {
+    const branch = await this.branchRepo.findOne({ where: { id: branchId, userId, tenantId, status: 1 } });
     if (!branch) throw new NotFoundException('branch not found');
     return branch;
   }
 
-  private async applySkillAction(userId: number, action: CommitSkillAction) {
+  private async applySkillAction(userId: number, action: CommitSkillAction, tenantId = 1) {
     const skillName = action.skillName?.trim();
     if (!skillName) return;
     const source = action.source || 'exam';
     const trustWeight = action.trustWeight ?? 0.7;
-    const existing = await this.skillService.getSkill(userId, skillName);
+    const existing = await this.skillService.getSkill(userId, skillName, tenantId);
     if (!existing) {
-      await this.skillService.addSkill(userId, skillName, source, trustWeight, 0);
+      if (tenantId === 1) await this.skillService.addSkill(userId, skillName, source, trustWeight, 0);
+      else await this.skillService.addSkill(userId, skillName, source, trustWeight, 0, tenantId);
     }
     if (action.masteryPct !== undefined) {
-      const updated = await this.skillService.setMastery(userId, skillName, action.masteryPct);
-      if (!updated) await this.skillService.addSkill(userId, skillName, source, trustWeight, action.masteryPct);
+      const updated = tenantId === 1
+        ? await this.skillService.setMastery(userId, skillName, action.masteryPct)
+        : await this.skillService.setMastery(userId, skillName, action.masteryPct, 0.9, tenantId);
+      if (!updated) {
+        if (tenantId === 1) await this.skillService.addSkill(userId, skillName, source, trustWeight, action.masteryPct);
+        else await this.skillService.addSkill(userId, skillName, source, trustWeight, action.masteryPct, tenantId);
+      }
     } else if (action.delta !== undefined) {
-      const updated = await this.skillService.updateMastery(userId, skillName, action.delta);
-      if (!updated) await this.skillService.addSkill(userId, skillName, source, trustWeight, action.delta);
+      const updated = tenantId === 1
+        ? await this.skillService.updateMastery(userId, skillName, action.delta)
+        : await this.skillService.updateMastery(userId, skillName, action.delta, tenantId);
+      if (!updated) {
+        if (tenantId === 1) await this.skillService.addSkill(userId, skillName, source, trustWeight, action.delta);
+        else await this.skillService.addSkill(userId, skillName, source, trustWeight, action.delta, tenantId);
+      }
     }
   }
 
-  private async applySkillActionToSnapshot(userId: number, previousSnapshot: any, action: CommitSkillAction) {
+  private async applySkillActionToSnapshot(userId: number, previousSnapshot: any, action: CommitSkillAction, tenantId = 1) {
     const sourceSkills = previousSnapshot?.skillsJson?.length
       ? previousSnapshot.skillsJson
-      : await this.skillService.getEffectiveSkills(userId);
+      : await this.skillService.getEffectiveSkills(userId, tenantId);
     const skills = this.snapshotService.normalizeSkills(sourceSkills).map((skill) => ({ ...skill }));
     const skillName = action.skillName?.trim();
     if (!skillName || (action.delta === undefined && action.masteryPct === undefined)) return skills;
@@ -275,8 +295,10 @@ export class LearningCommitService {
     return skills;
   }
 
-  private async calculateMatchSummary(userId: number) {
-    const results = await this.matchAgentService.calculateForAllJobs(userId, 'learning_commit');
+  private async calculateMatchSummary(userId: number, tenantId = 1) {
+    const results = tenantId === 1
+      ? await this.matchAgentService.calculateForAllJobs(userId, 'learning_commit')
+      : await this.matchAgentService.calculateForAllJobs(userId, 'learning_commit', tenantId);
     return {
       best: results[0] || null,
       jobs: results,
@@ -288,10 +310,10 @@ export class LearningCommitService {
     return Number(summary?.best?.matchScore || 0);
   }
 
-  private async calculateVelocity(userId: number, branchId: number) {
+  private async calculateVelocity(userId: number, branchId: number, tenantId = 1) {
     const since = Date.now() - 14 * 86400000;
     const commits = await this.commitRepo.find({
-      where: { userId, branchId, status: 1 },
+      where: { userId, tenantId, branchId, status: 1 },
       order: { createTime: 'DESC' },
       take: 100,
     });
@@ -308,12 +330,15 @@ export class LearningCommitService {
     return `${action.type}: ${action.skillName}`;
   }
 
-  private emitCommitEvents(userId: number, branch: LearningBranch, commit: LearningCommit, snapshot: any, delta: any, matchSummary: any) {
-    this.eventsService.emit(userId, { type: 'commit_created', data: { commit, delta, branch } });
-    this.eventsService.emit(userId, { type: 'branch_updated', data: { branch } });
+  private emitCommitEvents(userId: number, branch: LearningBranch, commit: LearningCommit, snapshot: any, delta: any, matchSummary: any, tenantId = 1) {
+    const emit = (event: { type: string; data: any }) => tenantId === 1
+      ? this.eventsService.emit(userId, event)
+      : this.eventsService.emit(userId, event, tenantId);
+    emit({ type: 'commit_created', data: { commit, delta, branch } });
+    emit({ type: 'branch_updated', data: { branch } });
     if (branch.branchType === 'main') {
-      this.eventsService.emit(userId, { type: 'radar_updated', data: { snapshot, radar: snapshot.radarJson, abilityMetrics: snapshot.abilityMetricsJson } });
-      this.eventsService.emit(userId, { type: 'match_updated', data: matchSummary });
+      emit({ type: 'radar_updated', data: { snapshot, radar: snapshot.radarJson, abilityMetrics: snapshot.abilityMetricsJson } });
+      emit({ type: 'match_updated', data: matchSummary });
     }
   }
 
@@ -322,7 +347,7 @@ export class LearningCommitService {
    * 推送 match_update 事件（首页 SSE toast 据此弹出"匹配度变化提示"），
    * 并附带可读变化原因（来自 skill delta）。
    */
-  private emitMatchChangeIfAny(userId: number, branch: LearningBranch, delta: any, matchSummary: any, beforeBest: number, afterBest: number) {
+  private emitMatchChangeIfAny(userId: number, branch: LearningBranch, delta: any, matchSummary: any, beforeBest: number, afterBest: number, tenantId = 1) {
     if (branch.branchType !== 'main') return;
     const best = matchSummary?.best;
     if (!best) return;
@@ -338,7 +363,8 @@ export class LearningCommitService {
       ? `${changes.join('、')}，${best.jobTitle}匹配度${direction} ${this.round1(beforeBest)}% → ${this.round1(afterBest)}%`
       : `${best.jobTitle}匹配度${direction} ${this.round1(beforeBest)}% → ${this.round1(afterBest)}%`;
 
-    this.eventsService.emitMatchUpdate(userId, best.jobId, best.matchScore, reason);
+    if (tenantId === 1) this.eventsService.emitMatchUpdate(userId, best.jobId, best.matchScore, reason);
+    else this.eventsService.emitMatchUpdate(userId, best.jobId, best.matchScore, reason, tenantId);
   }
 
   private round1(v: number): number {

@@ -8,6 +8,9 @@ import { LearningGoalType } from '../domains/learning-domain.types';
  */
 @Entity('learning_plans_v3')
 export class LearningPlan extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1, comment: '租户边界' })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

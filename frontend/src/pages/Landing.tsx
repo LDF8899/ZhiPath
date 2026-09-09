@@ -95,7 +95,7 @@ export default function Landing() {
         password: regForm.password,
         realName: regForm.realName || undefined,
       });
-      if (res.code === 200) {
+      if (res.id) {
         showMsg('注册成功，请登录');
         setActiveTab('login');
         setLoginForm({ username: regForm.username, password: '' });
@@ -117,26 +117,24 @@ export default function Landing() {
     setLoginLoading(true);
     try {
       const res = await login(loginForm.username, loginForm.password);
-      if (res.code === 200) {
-        const d = res.data;
-        const u = {
-          id: d.userId,
-          username: d.username,
-          realName: d.realName,
-          phone: '',
-          email: '',
-          avatar: '',
-          role: d.role,
-          onboardingCompleted: d.onboardingCompleted,
-        };
-        setAuth(d.token, u);
-        showMsg('登录成功');
-        setTimeout(() => {
-          if (d.role === 'admin') navigate('/admin/dashboard');
-          else if (d.onboardingCompleted) navigate('/user/home');
-          else navigate('/onboarding');
-        }, 600);
-      }
+      const d = res;
+      const u = {
+        id: d.userId,
+        username: d.username,
+        realName: d.realName,
+        phone: '',
+        email: '',
+        avatar: '',
+        role: d.role,
+        onboardingCompleted: d.onboardingCompleted,
+      };
+      setAuth(d.token, u, d.refreshToken);
+      showMsg('登录成功');
+      setTimeout(() => {
+        if (d.role === 'admin') navigate('/admin/dashboard');
+        else if (d.onboardingCompleted) navigate('/user/home');
+        else navigate('/onboarding');
+      }, 600);
     } catch (err: any) {
       showMsg(err?.message || '登录失败，请稍后重试', 'error');
     } finally {

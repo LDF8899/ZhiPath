@@ -1,9 +1,10 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { AppShell } from './components/AppShell';
 import { Toaster } from './components/ui';
 import { useAuthStore } from './store/auth';
+import { experienceApi } from './lib/api';
 import Landing from './pages/Landing';
 import Onboarding from './pages/Onboarding';
 import PlanCreate from './pages/PlanCreate';
@@ -73,6 +74,43 @@ function PublicOnly({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
+  const token = useAuthStore((state) => state.token);
+  const ready = useAuthStore((state) => state.ready);
+  const [clientMismatch, setClientMismatch] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token || !ready) {
+      setClientMismatch(null);
+      return;
+    }
+    try {
+      const cached = JSON.parse(sessionStorage.getItem('codenova_experience') || 'null');
+      const key = cached?.client?.key;
+      if (key) {
+        setClientMismatch(key !== 'codenova-web' ? key : null);
+        return;
+      }
+    } catch { /* fall through to a fresh bootstrap request */ }
+    experienceApi.bootstrap()
+      .then((response: any) => {
+        const key = response?.client?.key;
+        setClientMismatch(key && key !== 'codenova-web' ? key : null);
+      })
+      .catch(() => setClientMismatch(null));
+  }, [token, ready]);
+
+  if (clientMismatch) {
+    return (
+      <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, fontFamily: 'system-ui' }}>
+        <section style={{ maxWidth: 520, padding: 28, border: '1px solid #f0b8b8', borderRadius: 16, background: '#fff8f8' }}>
+          <h1 style={{ marginTop: 0 }}>CodeNova 客户端配置异常</h1>
+          <p>当前端口返回的是 <code>{clientMismatch}</code> 配置，而不是 <code>codenova-web</code>。请打开 CodeNova 端口 <code>5180</code>，或检查 Vite 代理配置。</p>
+          <button onClick={() => window.location.reload()}>重新检查</button>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <BootGate>
       <Routes>

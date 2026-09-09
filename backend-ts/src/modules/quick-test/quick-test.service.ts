@@ -32,20 +32,24 @@ export class QuickTestService {
   /**
    * 获取速测题目
    */
-  async getQuestions(userId: number, direction?: string): Promise<{
+  async getQuestions(userId: number, direction?: string, tenantId = 1): Promise<{
     questions: any[];
     skillName: string;
   }> {
     // 获取用户方向
-    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
-    const context = await this.assessmentContext.resolve(userId);
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } as any });
+    const context = await this.assessmentContext.resolve(userId, tenantId);
     const skillName = direction || context?.currentAbilityName || student?.interests?.[0] || '通用学习能力';
 
     // 先从题库找
-    const existingQuestions = await this.questionRepo.find({
-      where: { skillName, status: 1, examType: 3 },
-      take: 5,
-    });
+    const existingQuestions = typeof (this.questionRepo as any).createQueryBuilder === 'function'
+      ? await this.questionRepo.createQueryBuilder('q')
+        .where('q.skill_name = :skillName AND q.status = 1 AND q.exam_type = 3', { skillName })
+        .andWhere('(q.tenant_id IS NULL OR q.tenant_id = :tenantId)', { tenantId })
+        .take(5)
+        .getMany()
+      : (await this.questionRepo.find({ where: { skillName, status: 1, examType: 3 }, take: 5 }))
+        .filter((q) => q.tenantId == null || q.tenantId === tenantId);
 
     if (existingQuestions.length >= 5) {
       return {
@@ -73,6 +77,7 @@ export class QuickTestService {
     skillName: string,
     answers: Record<string, any>,
     questions: any[],
+    tenantId = 1,
   ): Promise<{
     examRecordId: number;
     score: number;
@@ -107,13 +112,14 @@ export class QuickTestService {
 
     const totalCount = questions.length;
     const score = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
-    const context = await this.assessmentContext.resolve(userId);
+    const context = await this.assessmentContext.resolve(userId, tenantId);
     const passScore = context?.passScore || 70;
     const passed = score >= passScore;
 
     // 保存考试记录
     const examRecord = await this.examRepo.save({
       userId,
+      tenantId,
       examType: 3, // 速测
       skillName,
       answers: { questions, userAnswers: answers },
@@ -146,6 +152,7 @@ export class QuickTestService {
     });
     const evaluation = await this.evaluationService.record({
       userId,
+      tenantId,
       attemptType: 'quick_test',
       sourceType: 'exam_record',
       sourceId: examRecord.id,

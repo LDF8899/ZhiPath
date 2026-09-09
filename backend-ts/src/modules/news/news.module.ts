@@ -7,10 +7,11 @@ import { NewsCrawlService } from '../../services/news-crawl.service';
 import { News } from '../../entities/news.entity';
 import { Student } from '../../entities/student.entity';
 import { LlmService } from '../../services/llm.service';
+import { NewsV1Controller } from './news-v1.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([News, Student])],
-  controllers: [NewsController],
+  controllers: [NewsController, NewsV1Controller],
   providers: [NewsService, NewsEnhancedService, NewsCrawlService, LlmService],
   exports: [NewsEnhancedService, NewsCrawlService],
 })

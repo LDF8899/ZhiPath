@@ -7,10 +7,12 @@ import { QuestionGenerationTask } from '../../entities/question-generation-task.
 import { QuestionGenerationSnapshot } from '../../entities/question-generation-snapshot.entity';
 import { QuestionGenerationController } from './question-generation.controller';
 import { QuestionGenerationService } from './question-generation.service';
+import { QuestionGenerationV1Controller } from './question-generation-v1.controller';
+import { PlatformJobsModule } from '../../domains/platform-jobs/platform-jobs.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ExamQuestion, QuestionGenerationTask, QuestionGenerationSnapshot]), NotificationModule],
-  controllers: [QuestionGenerationController],
+  imports: [TypeOrmModule.forFeature([ExamQuestion, QuestionGenerationTask, QuestionGenerationSnapshot]), NotificationModule, PlatformJobsModule],
+  controllers: [QuestionGenerationController, QuestionGenerationV1Controller],
   providers: [LlmService, QuestionGenerationService],
   exports: [QuestionGenerationService],
 })

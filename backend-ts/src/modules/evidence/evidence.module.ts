@@ -5,6 +5,7 @@ import { Student } from '../../entities/student.entity';
 import { EvidenceRagService } from '../../services/evidence-rag.service';
 import { ChromaService } from '../../services/chroma.service';
 import { EvidenceController } from './evidence.controller';
+import { EvidenceV1Controller } from './evidence-v1.controller';
 
 /**
  * Evidence RAG 模块 — 个人证据召回闭环（P0）
@@ -14,7 +15,7 @@ import { EvidenceController } from './evidence.controller';
  */
 @Module({
   imports: [TypeOrmModule.forFeature([EvidenceChunk, Student])],
-  controllers: [EvidenceController],
+  controllers: [EvidenceController, EvidenceV1Controller],
   providers: [EvidenceRagService, ChromaService],
   exports: [EvidenceRagService, ChromaService],
 })

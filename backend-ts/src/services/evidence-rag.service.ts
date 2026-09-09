@@ -146,7 +146,7 @@ export class EvidenceRagService {
    * 入库：切 chunk → 去重 → MySQL → Chroma（失败降级，不阻塞主流程）
    * @returns 生成的 chunk 列表
    */
-  async ingest(userId: number, input: IngestEvidenceInput): Promise<EvidenceChunk[]> {
+  async ingest(userId: number, input: IngestEvidenceInput, tenantId = 1): Promise<EvidenceChunk[]> {
     const content = (input.content || '').trim();
     if (!content) return [];
     const chunks = this.splitChunks(content);
@@ -159,6 +159,7 @@ export class EvidenceRagService {
       const existing = await this.chunkRepo.findOne({
         where: {
           userId,
+          tenantId,
           sourceType: input.sourceType,
           sourceId: input.sourceId,
           contentHash,
@@ -174,6 +175,7 @@ export class EvidenceRagService {
 
       const chunk = await this.chunkRepo.save({
         userId,
+        tenantId,
         sourceType: input.sourceType,
         sourceId: input.sourceId,
         chunkIndex: i,
@@ -191,7 +193,7 @@ export class EvidenceRagService {
       });
 
       // 向量化 + 写 Chroma（失败标记 failed，不影响保存成功）
-      const indexed = await this.indexVector(userId, chunk);
+      const indexed = await this.indexVector(userId, chunk, tenantId);
       chunk.vectorStatus = indexed ? 'indexed' : 'failed';
       await this.chunkRepo.save(chunk);
       saved.push(chunk);
@@ -201,7 +203,7 @@ export class EvidenceRagService {
   }
 
   /** 向量化并写入 Chroma；embedding 不可用或写入失败返回 false */
-  private async indexVector(userId: number, chunk: EvidenceChunk): Promise<boolean> {
+  private async indexVector(userId: number, chunk: EvidenceChunk, tenantId = 1): Promise<boolean> {
     if (!this.chroma.enabled) return false;
     try {
       const text = `${chunk.title}\n${chunk.content}`;
@@ -216,7 +218,7 @@ export class EvidenceRagService {
         jobTargetId: chunk.jobTargetId ? String(chunk.jobTargetId) : '',
         visibility: chunk.visibility,
         createdAt: String(chunk.createTime || Date.now()),
-      });
+      }, tenantId);
     } catch (e) {
       this.logger.warn(`[EvidenceRag] indexVector failed: ${e.message}`);
       return false;
@@ -232,6 +234,7 @@ export class EvidenceRagService {
     userId: number,
     query: string,
     opts: { skill?: string; sourceType?: string; jobTargetId?: number; limit?: number; explain?: boolean } = {},
+    tenantId = 1,
   ): Promise<EvidenceSearchItem[]> {
     const limit = Math.max(1, Math.min(10, opts.limit || 5));
     const queryText = (query || '').trim();
@@ -242,7 +245,7 @@ export class EvidenceRagService {
       try {
         const embedding = await this.embed(queryText);
         if (embedding) {
-          const hits = await this.chroma.query(userId, embedding, 12, opts.sourceType ? { sourceType: opts.sourceType } : undefined);
+          const hits = await this.chroma.query(userId, embedding, 12, opts.sourceType ? { sourceType: opts.sourceType } : undefined, tenantId);
           vectorHits = hits
             .filter((h) => /^\d+$/.test(h.id))
             .map((h) => ({ chunkId: Number(h.id), score: h.score }));
@@ -253,7 +256,7 @@ export class EvidenceRagService {
     }
 
     // 2. MySQL 取候选 chunk（向量命中 + 关键词兜底）
-    const where: Record<string, any> = { userId, status: 1 };
+    const where: Record<string, any> = { userId, tenantId, status: 1 };
     if (opts.sourceType) where.sourceType = opts.sourceType;
     const candidates = await this.chunkRepo.find({ where, order: { createTime: 'DESC' }, take: 500 });
 
@@ -291,7 +294,9 @@ export class EvidenceRagService {
           0.2 * tagScore +
           0.05 * Math.max(Number(jobHit || 0), typeScore) +
           0.05 * freshness;
-        if (score < 0.25) return null;
+        // 明确由向量库召回的候选应保留；阈值只剔除为补充重排而读取、
+        // 且既无向量命中也无足够文本相关性的 MySQL 候选。
+        if (score < 0.25 && !vectorHitIds.has(c.id)) return null;
       } else {
         // 关键词降级：仅保留有一定命中或技能匹配的
         score =
@@ -418,7 +423,7 @@ export class EvidenceRagService {
   }
 
   /** 从学生历史项目重建索引（补历史数据 / Chroma 丢失恢复） */
-  async reindexFromProjects(userId: number, projects: Array<Record<string, any>>): Promise<number> {
+  async reindexFromProjects(userId: number, projects: Array<Record<string, any>>, tenantId = 1): Promise<number> {
     let count = 0;
     for (const p of projects || []) {
       const name = p.name || p.projectName || '';
@@ -432,16 +437,45 @@ export class EvidenceRagService {
         title: `项目证据：${name}`,
         content,
         skillTags: p.tech || p.techStack || p.skills || [],
-      });
+      }, tenantId);
       count += saved.length;
     }
     return count;
   }
 
+  /**
+   * Re-index chunks already present in MySQL. This is intentionally separate
+   * from ingest(): ingest() de-duplicates existing rows, while an operational
+   * rebuild must still repopulate a missing Chroma collection.
+   */
+  async reindexExisting(opts: { tenantId?: number; userId?: number; limit?: number } = {}): Promise<{ scanned: number; indexed: number; failed: number }> {
+    const where: any = { status: 1 };
+    if (opts.tenantId != null) where.tenantId = opts.tenantId;
+    if (opts.userId != null) where.userId = opts.userId;
+    const chunks = await this.chunkRepo.find({
+      where,
+      order: { id: 'ASC' },
+      take: Math.max(1, Math.min(100000, Number(opts.limit || 100000))),
+    });
+    // An unavailable/disabled Chroma is a degraded dependency, not evidence
+    // that every MySQL chunk failed. Leave vector_status untouched so a later
+    // rebuild can safely retry after the index service recovers.
+    if (!this.chroma.enabled) return { scanned: chunks.length, indexed: 0, failed: 0 };
+    let indexed = 0;
+    let failed = 0;
+    for (const chunk of chunks) {
+      const ok = await this.indexVector(Number(chunk.userId), chunk, Number(chunk.tenantId || 1));
+      chunk.vectorStatus = ok ? 'indexed' : 'failed';
+      await this.chunkRepo.save(chunk);
+      if (ok) indexed++; else failed++;
+    }
+    return { scanned: chunks.length, indexed, failed };
+  }
+
   /** 生成 RAG 可视化图谱快照：core -> source -> chunk，并按 skillTags 生成知识主题簇 */
-  async getGraphSnapshot(userId: number, limit = 120): Promise<EvidenceGraphSnapshot> {
+  async getGraphSnapshot(userId: number, limit = 120, tenantId = 1): Promise<EvidenceGraphSnapshot> {
     const take = Math.max(1, Math.min(300, Number(limit) || 120));
-    const chunks = await this.chunkRepo.find({ where: { userId, status: 1 }, order: { createTime: 'DESC' }, take });
+    const chunks = await this.chunkRepo.find({ where: { userId, tenantId, status: 1 }, order: { createTime: 'DESC' }, take });
     const nodes: EvidenceGraphSnapshot['nodes'] = [{ id: 'core:rag', kind: 'core', label: 'RAG Engine · Chroma Core' }];
     const edges: EvidenceGraphSnapshot['edges'] = [];
     const sourceMap = new Map<string, EvidenceGraphSnapshot['nodes'][number]>();
@@ -535,12 +569,12 @@ export class EvidenceRagService {
   }
 
   /** 证据索引状态汇总（供 Projects 页展示已索引/待索引/失败） */
-  async getSummary(userId: number): Promise<{
+  async getSummary(userId: number, tenantId = 1): Promise<{
     total: number;
     byStatus: Record<string, number>;
     bySource: Array<{ sourceId: string; sourceType: string; title: string; vectorStatus: string; chunkCount: number }>;
   }> {
-    const chunks = await this.chunkRepo.find({ where: { userId, status: 1 }, order: { createTime: 'DESC' }, take: 1000 });
+    const chunks = await this.chunkRepo.find({ where: { userId, tenantId, status: 1 }, order: { createTime: 'DESC' }, take: 1000 });
     const byStatus: Record<string, number> = { pending: 0, indexed: 0, failed: 0 };
     const bySourceMap = new Map<string, { sourceId: string; sourceType: string; title: string; vectorStatus: string; chunkCount: number }>();
     for (const c of chunks) {

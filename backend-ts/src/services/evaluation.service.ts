@@ -31,6 +31,7 @@ export interface EvaluationDimensionInput {
 
 export interface EvaluationRecordInput {
   userId: number;
+  tenantId?: number;
   attemptType: EvaluationAttemptType;
   sourceType?: string | null;
   sourceId?: string | number | null;
@@ -75,6 +76,7 @@ export class EvaluationService {
 
   async record(input: EvaluationRecordInput) {
     const now = Date.now();
+    const tenantId = input.tenantId ?? 1;
     const rubricKey = input.rubricKey || this.defaultRubricKey(input.attemptType);
     const rubricVersion = input.rubricVersion || '1.0.0';
     const maxScore = input.maxScore || 100;
@@ -93,6 +95,7 @@ export class EvaluationService {
 
     const attempt = await this.attemptRepo.save({
       userId: input.userId,
+      tenantId,
       attemptType: input.attemptType,
       sourceType: input.sourceType || null,
       sourceId: input.sourceId == null ? null : String(input.sourceId),
@@ -111,6 +114,7 @@ export class EvaluationService {
 
     const evidence = await this.evidenceRepo.save({
       userId: input.userId,
+      tenantId,
       attemptId: attempt.id,
       evidenceType: input.evidenceType || this.defaultEvidenceType(input.attemptType),
       sourceType: input.sourceType || null,
@@ -125,6 +129,7 @@ export class EvaluationService {
 
     const result = await this.resultRepo.save({
       userId: input.userId,
+      tenantId,
       attemptId: attempt.id,
       skillName: input.skillName || null,
       evaluatorType: input.evaluatorType || 'system',
@@ -145,21 +150,20 @@ export class EvaluationService {
       status: 1,
     });
 
-    const dimensions = await this.saveDimensions(input.userId, attempt.id, result.id, input.dimensions, evidence.id);
-    const impact = await this.saveImpact(input.userId, attempt.id, result.id, input.commitOutcome, input.nextActions);
+    const dimensions = await this.saveDimensions(input.userId, attempt.id, result.id, input.dimensions, evidence.id, tenantId);
+    const impact = await this.saveImpact(input.userId, attempt.id, result.id, input.commitOutcome, input.nextActions, tenantId);
 
     const payload = { attempt, evidence, result, dimensions, impact };
-    this.eventsService.emit(input.userId, {
-      type: 'evaluation_updated',
-      data: payload,
-    });
+    const evaluationEvent = { type: 'evaluation_updated', data: payload };
+    if (tenantId === 1) this.eventsService.emit(input.userId, evaluationEvent);
+    else this.eventsService.emit(input.userId, evaluationEvent, tenantId);
 
     return payload;
   }
 
-  async listRecent(userId: number, limit = 20) {
+  async listRecent(userId: number, limit = 20, tenantId = 1) {
     const attempts = await this.attemptRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { completedAt: 'DESC', id: 'DESC' },
       take: Math.max(1, Math.min(100, limit)),
     });
@@ -169,13 +173,13 @@ export class EvaluationService {
     const [results, impacts] = await Promise.all([
       this.resultRepo
         .createQueryBuilder('r')
-        .where('r.user_id = :userId', { userId })
+        .where('r.user_id = :userId AND r.tenant_id = :tenantId', { userId, tenantId })
         .andWhere('r.attempt_id IN (:...attemptIds)', { attemptIds })
         .andWhere('r.status = 1')
         .getMany(),
       this.impactRepo
         .createQueryBuilder('i')
-        .where('i.user_id = :userId', { userId })
+        .where('i.user_id = :userId AND i.tenant_id = :tenantId', { userId, tenantId })
         .andWhere('i.attempt_id IN (:...attemptIds)', { attemptIds })
         .andWhere('i.status = 1')
         .getMany(),
@@ -189,14 +193,14 @@ export class EvaluationService {
     }));
   }
 
-  async getDetail(userId: number, attemptId: number) {
-    const attempt = await this.attemptRepo.findOne({ where: { id: attemptId, userId, status: 1 } });
+  async getDetail(userId: number, attemptId: number, tenantId = 1) {
+    const attempt = await this.attemptRepo.findOne({ where: { id: attemptId, userId, tenantId, status: 1 } });
     if (!attempt) throw new NotFoundException('evaluation attempt not found');
     const [evidence, result, dimensions, impact] = await Promise.all([
-      this.evidenceRepo.find({ where: { userId, attemptId, status: 1 }, order: { id: 'ASC' } }),
-      this.resultRepo.findOne({ where: { userId, attemptId, status: 1 } }),
-      this.dimensionRepo.find({ where: { userId, attemptId, status: 1 }, order: { id: 'ASC' } }),
-      this.impactRepo.findOne({ where: { userId, attemptId, status: 1 } }),
+      this.evidenceRepo.find({ where: { userId, tenantId, attemptId, status: 1 }, order: { id: 'ASC' } }),
+      this.resultRepo.findOne({ where: { userId, tenantId, attemptId, status: 1 } }),
+      this.dimensionRepo.find({ where: { userId, tenantId, attemptId, status: 1 }, order: { id: 'ASC' } }),
+      this.impactRepo.findOne({ where: { userId, tenantId, attemptId, status: 1 } }),
     ]);
     return { attempt, evidence, result, dimensions, impact };
   }
@@ -207,12 +211,14 @@ export class EvaluationService {
     resultId: number,
     dimensions: EvaluationDimensionInput[] | undefined,
     evidenceId: number,
+    tenantId = 1,
   ) {
     const now = Date.now();
     const rows = (dimensions || []).map((dimension) => {
       const maxScore = dimension.maxScore || 100;
       return {
         userId,
+        tenantId,
         attemptId,
         resultId,
         dimensionKey: dimension.key || this.key(dimension.name),
@@ -232,7 +238,7 @@ export class EvaluationService {
     return rows.length ? this.dimensionRepo.save(rows) : [];
   }
 
-  private async saveImpact(userId: number, attemptId: number, resultId: number, commitOutcome: any, nextActions?: any[]) {
+  private async saveImpact(userId: number, attemptId: number, resultId: number, commitOutcome: any, nextActions?: any[], tenantId = 1) {
     const now = Date.now();
     const delta = commitOutcome?.delta || commitOutcome?.gitDelta || null;
     const commit = commitOutcome?.commit || null;
@@ -240,6 +246,7 @@ export class EvaluationService {
     const branch = commitOutcome?.branch || null;
     return this.impactRepo.save({
       userId,
+      tenantId,
       attemptId,
       resultId,
       commitId: commit?.id || null,

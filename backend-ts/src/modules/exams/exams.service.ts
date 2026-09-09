@@ -27,9 +27,9 @@ export class ExamsService {
   ) {}
 
   /** 考试列表 — 对齐 GET /api/user/exams */
-  async getExams(userId: number, page = 1, pageSize = 20, examType?: number) {
+  async getExams(userId: number, page = 1, pageSize = 20, examType?: number, tenantId = 1) {
     const skip = (page - 1) * pageSize;
-    const where: any = { userId: userId, status: 1 };
+    const where: any = { userId: userId, tenantId, status: 1 };
     if (examType) where.examType = examType;
 
     const [items, total] = await this.examRepo.findAndCount({
@@ -42,8 +42,8 @@ export class ExamsService {
   }
 
   /** 考试详情 — 对齐 GET /api/user/exams/:examId */
-  async getExam(examId: number) {
-    return this.examRepo.findOne({ where: { id: examId, status: 1 } });
+  async getExam(examId: number, tenantId = 1) {
+    return this.examRepo.findOne({ where: { id: examId, tenantId, status: 1 } });
   }
 
   /**
@@ -57,7 +57,7 @@ export class ExamsService {
    *
    * 服务端保存 served 快照（含正确答案），下发给前端的版本剔除答案。
    */
-  async getExamForTake(userId: number, examId: number, count = 10): Promise<{
+  async getExamForTake(userId: number, examId: number, count = 10, tenantId = 1): Promise<{
     examId: number;
     examType: number;
     skillName: string | null;
@@ -65,7 +65,7 @@ export class ExamsService {
     timeLimitSec: number;
     startedAt: number;
   } | null> {
-    const record = await this.examRepo.findOne({ where: { id: examId, status: 1 } });
+    const record = await this.examRepo.findOne({ where: { id: examId, userId, tenantId, status: 1 } });
     if (!record) return null;
 
     // 已抽题且未提交 → 续答（不重新抽题，防止刷新换简单题）
@@ -87,7 +87,7 @@ export class ExamsService {
     if (record.skillName) where.skillName = record.skillName;
     if (record.jobId) where.jobId = record.jobId;
 
-    const bank = await this.questionRepo.find({ where });
+    const bank = (await this.questionRepo.find({ where })).filter((q) => q.tenantId == null || q.tenantId === tenantId);
     // 随机抽 count 题（题库不足则全取）
     const sampled = this.sampleRandom(bank, count);
     // 选项乱序 + 重算答案
@@ -122,17 +122,26 @@ export class ExamsService {
     jobId?: number;
     answers: any;
     questionTimings?: Record<string, number>; // 每题用时(秒)
-  }) {
+  }, tenantId = 1) {
     // ── 路径 A：有 examId，按服务端快照批改 ──
     if (data.examId) {
-      return this.submitByRecord(userId, data);
+      return this.submitByRecord(userId, data, tenantId);
     }
 
     // ── 路径 B（兼容旧逻辑）：按 answers 的题目 ID 批改 ──
     const questionIds = Object.keys(data.answers).map(Number).filter((id) => !isNaN(id));
-    const questions = questionIds.length > 0
-      ? await this.questionRepo.find({ where: { id: In(questionIds), status: 1 } })
-      : [];
+    let questions: ExamQuestion[] = [];
+    if (questionIds.length > 0) {
+      if (typeof (this.questionRepo as any).createQueryBuilder === 'function') {
+        questions = await this.questionRepo.createQueryBuilder('q')
+          .where('q.id IN (:...questionIds) AND q.status = 1', { questionIds })
+          .andWhere('(q.tenant_id IS NULL OR q.tenant_id = :tenantId)', { tenantId })
+          .getMany();
+      } else {
+        const legacy = await this.questionRepo.find({ where: { id: In(questionIds), status: 1 } });
+        questions = legacy.filter((q) => q.tenantId == null || q.tenantId === tenantId);
+      }
+    }
 
     const totalQuestions = questions.length;
     let correctCount = 0;
@@ -166,7 +175,7 @@ export class ExamsService {
     }
 
     const exam = await this.examRepo.save({
-      userId, examType: data.examType, skillName: data.skillName, jobId: data.jobId,
+      userId, tenantId, examType: data.examType, skillName: data.skillName, jobId: data.jobId,
       answers: data.answers, score, passed, wrongAnalysis, retryCount: 0,
       createTime: Date.now(), updateTime: Date.now(), status: 1,
     });
@@ -177,7 +186,7 @@ export class ExamsService {
     }
 
     const evaluationPackage = await this.commitAndEvaluateExam(
-      userId, exam, totalQuestions, correctCount, data.answers, questions, wrongAnalysis, context, passScore,
+      userId, exam, totalQuestions, correctCount, data.answers, questions, wrongAnalysis, context, passScore, tenantId,
     );
 
     return {
@@ -195,8 +204,8 @@ export class ExamsService {
   /** 按已抽题记录批改（§24.1：答案保存在服务端 served 快照） */
   private async submitByRecord(userId: number, data: {
     examId?: number; skillName?: string; answers: any; questionTimings?: Record<string, number>;
-  }) {
-    const record = await this.examRepo.findOne({ where: { id: data.examId, userId, status: 1 } });
+  }, tenantId = 1) {
+    const record = await this.examRepo.findOne({ where: { id: data.examId, userId, tenantId, status: 1 } });
     if (!record) throw new Error('考试不存在');
 
     const served = (record.answers?.served as any[]) || [];
@@ -209,7 +218,13 @@ export class ExamsService {
       .map((q) => q.id);
     const answerPatchMap = new Map<number, any>();
     if (missingAnswerIds.length > 0) {
-      const patched = await this.questionRepo.find({ where: { id: In(missingAnswerIds), status: 1 } });
+      const patched = typeof (this.questionRepo as any).createQueryBuilder === 'function'
+        ? await this.questionRepo.createQueryBuilder('q')
+          .where('q.id IN (:...missingAnswerIds) AND q.status = 1', { missingAnswerIds })
+          .andWhere('(q.tenant_id IS NULL OR q.tenant_id = :tenantId)', { tenantId })
+          .getMany()
+        : (await this.questionRepo.find({ where: { id: In(missingAnswerIds), status: 1 }}))
+          .filter((q) => q.tenantId == null || q.tenantId === tenantId);
       for (const q of patched) answerPatchMap.set(q.id, { answer: q.answer, questionType: q.questionType });
     }
     const resolveServed = (q: any) => {
@@ -285,7 +300,7 @@ export class ExamsService {
     }
 
     const evaluationPackage = await this.commitAndEvaluateExam(
-      userId, record, totalQuestions, correctCount, userAnswers, served, wrongAnalysis, context, passScore,
+      userId, record, totalQuestions, correctCount, userAnswers, served, wrongAnalysis, context, passScore, tenantId,
     );
 
     return {
@@ -311,6 +326,7 @@ export class ExamsService {
     wrongAnalysis: Record<string, any> | null,
     context: LearningAssessmentContext | null,
     passScore: number,
+    tenantId = 1,
   ) {
     const score = Number(exam.score || 0);
     const passed = Number(exam.passed || 0) === 1;
@@ -337,6 +353,7 @@ export class ExamsService {
     });
     const evaluation = await this.evaluationService.record({
       userId,
+      tenantId,
       attemptType: 'exam',
       sourceType: 'exam_record',
       sourceId: exam.id,
@@ -601,8 +618,8 @@ export class ExamsService {
   }
 
   /** 获取用户错题本 — 聚合所有考试中的错题 */
-  async getWrongAnswers(userId: number, skillName?: string) {
-    const where: any = { userId, status: 1 };
+  async getWrongAnswers(userId: number, skillName?: string, tenantId = 1) {
+    const where: any = { userId, tenantId, status: 1 };
     if (skillName) where.skillName = skillName;
 
     const exams = await this.examRepo.find({
@@ -810,9 +827,10 @@ export class ExamsService {
    * 创建占位符考试记录（score=null, passed=null）
    * 返回 record.id，后续 submitExam 可更新这条记录
    */
-  async createPlaceholderRecord(userId: number, data: { examId?: number; examType: number; skillName?: string }): Promise<number> {
+  async createPlaceholderRecord(userId: number, data: { examId?: number; examType: number; skillName?: string }, tenantId = 1): Promise<number> {
     const record = await this.examRepo.save({
       userId,
+      tenantId,
       examType: data.examType,
       skillName: data.skillName,
       answers: {},
@@ -832,9 +850,10 @@ export class ExamsService {
     questionId: string,
     type: 'helpful' | 'complaint',
     reason?: string,
+    tenantId = 1,
   ) {
     if (!['helpful', 'complaint'].includes(type)) throw new Error('反馈类型无效');
-    const record = await this.examRepo.findOne({ where: { id: examId, userId, status: 1 } });
+    const record = await this.examRepo.findOne({ where: { id: examId, userId, tenantId, status: 1 } });
     if (!record) throw new Error('考试记录不存在');
 
     const wrongAnalysis = record.wrongAnalysis || {};
@@ -1037,10 +1056,10 @@ export class ExamsService {
   // ── 考试重试调度 ──────────────────────────────
 
   /** 获取可重试的考试 */
-  async getRetryableExams(userId: number) {
+  async getRetryableExams(userId: number, tenantId = 1) {
     const now = Date.now();
     const exams = await this.examRepo.find({
-      where: { userId, status: 1, passed: 0 as any },
+      where: { userId, tenantId, status: 1, passed: 0 as any },
       order: { createTime: 'DESC' },
     });
     return exams.filter(e => {
@@ -1050,8 +1069,8 @@ export class ExamsService {
   }
 
   /** 调度重试 */
-  async scheduleRetry(examId: number, userId: number) {
-    const exam = await this.examRepo.findOne({ where: { id: examId, userId, status: 1 } });
+  async scheduleRetry(examId: number, userId: number, tenantId = 1) {
+    const exam = await this.examRepo.findOne({ where: { id: examId, userId, tenantId, status: 1 } });
     if (!exam) throw new Error('考试不存在');
     if (exam.passed === 1) throw new Error('已通过的考试无需重试');
 

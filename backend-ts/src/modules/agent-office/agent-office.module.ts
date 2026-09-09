@@ -10,17 +10,19 @@ import { AgentTaskService } from '../../services/agent-task.service';
 import { AgentProfileService } from '../../services/agent-profile.service';
 import { GeneratedResourceService } from '../../services/generated-resource.service';
 import { AgentOfficeController } from './agent-office.controller';
+import { AgentOfficeV1Controller } from './agent-office-v1.controller';
 import { AgentsModule } from '../agents/agents.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { EventsModule } from '../events/events.module';
+import { PlatformJobsModule } from '../../domains/platform-jobs/platform-jobs.module';
 
 /**
  * 智能体办公室模块
  * 导入 EventsModule 以支持 SSE 实时推送
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([AgentTask, AgentProfile, GeneratedResource, Student, JobPosition, UserSkill]), AgentsModule, KnowledgeModule, EventsModule],
-  controllers: [AgentOfficeController],
+  imports: [TypeOrmModule.forFeature([AgentTask, AgentProfile, GeneratedResource, Student, JobPosition, UserSkill]), AgentsModule, KnowledgeModule, EventsModule, PlatformJobsModule],
+  controllers: [AgentOfficeController, AgentOfficeV1Controller],
   providers: [AgentTaskService, AgentProfileService, GeneratedResourceService],
   exports: [AgentTaskService, AgentProfileService, GeneratedResourceService],
 })

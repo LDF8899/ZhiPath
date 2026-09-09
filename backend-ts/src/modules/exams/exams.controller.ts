@@ -24,6 +24,7 @@ export class ExamsController {
       page ? Number(page) : 1,
       pageSize ? Number(pageSize) : 20,
       examType ? Number(examType) : undefined,
+      Number(user.tenantId) || 1,
     );
     return pageSuccess(result.list, result.total, result.page, result.pageSize);
   }
@@ -34,7 +35,7 @@ export class ExamsController {
     @CurrentUser() user: any,
     @Query('skillName') skillName?: string,
   ) {
-    const result = await this.examsService.getWrongAnswers(user.sub, skillName);
+    const result = await this.examsService.getWrongAnswers(user.sub, skillName, Number(user.tenantId) || 1);
     return success(result);
   }
 
@@ -48,7 +49,7 @@ export class ExamsController {
   /** POST /api/user/exams/submit */
   @Post('exams/submit')
   async submitExam(@CurrentUser() user: any, @Body() body: any) {
-    const result = await this.examsService.submitExam(user.sub, body);
+    const result = await this.examsService.submitExam(user.sub, body, Number(user.tenantId) || 1);
     return success(result);
   }
 
@@ -66,6 +67,7 @@ export class ExamsController {
       questionId,
       body.type,
       body.reason,
+      Number(user.tenantId) || 1,
     );
     return success(result);
   }
@@ -81,6 +83,7 @@ export class ExamsController {
       user.sub,
       Number(examId),
       count ? Number(count) : 10,
+      Number(user.tenantId) || 1,
     );
     return success(result);
   }
@@ -88,21 +91,21 @@ export class ExamsController {
   /** GET /api/user/exams/retryable — 获取可重试的考试（静态路由须在 :examId 之前） */
   @Get('exams/retryable')
   async getRetryableExams(@CurrentUser() user: any) {
-    const result = await this.examsService.getRetryableExams(user.sub);
+    const result = await this.examsService.getRetryableExams(user.sub, Number(user.tenantId) || 1);
     return success(result);
   }
 
   /** GET /api/user/exams/:examId */
   @Get('exams/:examId')
-  async getExam(@Param('examId') examId: string) {
-    const exam = await this.examsService.getExam(Number(examId));
+  async getExam(@CurrentUser() user: any, @Param('examId') examId: string) {
+    const exam = await this.examsService.getExam(Number(examId), Number(user.tenantId) || 1);
     return success(exam);
   }
 
   /** POST /api/user/exams/:examId/retry — 调度重试 */
   @Post('exams/:examId/retry')
   async scheduleRetry(@CurrentUser() user: any, @Param('examId') examId: string) {
-    const result = await this.examsService.scheduleRetry(+examId, user.sub);
+    const result = await this.examsService.scheduleRetry(+examId, user.sub, Number(user.tenantId) || 1);
     return success(result);
   }
 }

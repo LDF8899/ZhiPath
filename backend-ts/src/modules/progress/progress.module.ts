@@ -4,12 +4,14 @@ import { LearningPlan } from '../../entities/learning.entity';
 import { LearningTask } from '../../entities/learning-tasks.entity';
 import { ExamRecord } from '../../entities/exam.entity';
 import { ProgressController } from './progress.controller';
+import { ProgressV1Controller } from './progress-v1.controller';
 import { SkillModule } from '../skill/skill.module';
 import { NotificationModule } from '../notification/notification.module';
 import { LearningProgressService } from '../../services/learning-progress.service';
 import { GitLearningModule } from '../git-learning/git-learning.module';
 import { EvaluationModule } from '../evaluation/evaluation.module';
 import { LearningDomainModule } from '../../domains/learning-domain.module';
+import { TransactionalCommandService } from '../../platform/transactional-command/transactional-command.service';
 
 /**
  * 学习进度模块 — Phase 9 补齐 + §17 三层存储
@@ -22,7 +24,7 @@ import { LearningDomainModule } from '../../domains/learning-domain.module';
  */
 @Module({
   imports: [TypeOrmModule.forFeature([LearningPlan, LearningTask, ExamRecord]), SkillModule, NotificationModule, GitLearningModule, EvaluationModule, LearningDomainModule],
-  controllers: [ProgressController],
-  providers: [LearningProgressService],
+  controllers: [ProgressController, ProgressV1Controller],
+  providers: [LearningProgressService, ProgressController, TransactionalCommandService],
 })
 export class ProgressModule {}

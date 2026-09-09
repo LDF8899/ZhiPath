@@ -33,6 +33,9 @@ export class OperationLog {
   @Column({ type: 'bigint', primary: true, generated: true })
   id: number;
 
+  @Column({ type: 'bigint', nullable: false, name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', nullable: true, name: 'user_id' })
   userId: number;
 

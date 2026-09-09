@@ -8,6 +8,9 @@ import { BaseEntity } from '../common/base.entity';
  */
 @Entity('agent_profiles_v3')
 export class AgentProfile extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id' })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

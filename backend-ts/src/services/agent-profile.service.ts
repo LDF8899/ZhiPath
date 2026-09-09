@@ -50,10 +50,12 @@ export class AgentProfileService {
     color: string,
     nickname: string,
     displayRole: string,
+    tenantId = 1,
   ): Promise<AgentProfile> {
     const now = Date.now();
 
     return this.profileRepo.save({
+      tenantId,
       userId,
       agentType,
       animalType,
@@ -68,33 +70,34 @@ export class AgentProfileService {
     });
   }
 
-  async getProfile(userId: number, profileId: number): Promise<AgentProfile | null> {
-    return this.profileRepo.findOne({ where: { id: profileId, userId, status: 1 } });
+  async getProfile(userId: number, profileId: number, tenantId?: number): Promise<AgentProfile | null> {
+    return this.profileRepo.findOne({ where: { id: profileId, userId, ...(tenantId ? { tenantId } : {}), status: 1 } as any });
   }
 
-  async softDelete(userId: number, profileId: number): Promise<void> {
-    await this.profileRepo.update({ id: profileId, userId }, { status: 0, updateTime: Date.now() });
+  async softDelete(userId: number, profileId: number, tenantId?: number): Promise<void> {
+    await this.profileRepo.update({ id: profileId, userId, ...(tenantId ? { tenantId } : {}) } as any, { status: 0, updateTime: Date.now() });
   }
 
-  async getProfiles(userId: number): Promise<AgentProfile[]> {
+  async getProfiles(userId: number, tenantId?: number): Promise<AgentProfile[]> {
     let profiles = await this.profileRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, ...(tenantId ? { tenantId } : {}), status: 1 } as any,
       order: { agentType: 'ASC' },
     });
 
     if (profiles.length === 0) {
-      profiles = await this.createDefaults(userId);
+      profiles = await this.createDefaults(userId, tenantId || 1);
     }
 
     return profiles;
   }
 
-  async releaseInactiveStations(userId: number, activeAgentTypes: string[]): Promise<void> {
+  async releaseInactiveStations(userId: number, activeAgentTypes: string[], tenantId?: number): Promise<void> {
     const qb = this.profileRepo
       .createQueryBuilder()
       .update(AgentProfile)
       .set({ stationId: null, agentStatus: 'idle', updateTime: Date.now() } as any)
       .where('user_id = :userId', { userId })
+      .andWhere(tenantId ? 'tenant_id = :tenantId' : '1=1', tenantId ? { tenantId } : {})
       .andWhere('status = :status', { status: 1 })
       .andWhere('station_id IS NOT NULL');
 
@@ -109,9 +112,10 @@ export class AgentProfileService {
     userId: number,
     agentType: AgentProfile['agentType'],
     updates: Partial<Pick<AgentProfile, 'animalType' | 'color' | 'nickname' | 'displayRole'>>,
+    tenantId?: number,
   ): Promise<AgentProfile | null> {
     const profile = await this.profileRepo.findOne({
-      where: { userId, agentType, status: 1 },
+      where: { userId, agentType, ...(tenantId ? { tenantId } : {}), status: 1 } as any,
     });
     if (!profile) return null;
 
@@ -126,15 +130,16 @@ export class AgentProfileService {
     userId: number,
     agentType: AgentProfile['agentType'],
     stationId: number | null,
+    tenantId?: number,
   ): Promise<AgentProfile | null> {
     const profile = await this.profileRepo.findOne({
-      where: { userId, agentType, status: 1 },
+      where: { userId, agentType, ...(tenantId ? { tenantId } : {}), status: 1 } as any,
     });
     if (!profile) return null;
 
     if (stationId !== null) {
       const existing = await this.profileRepo.findOne({
-        where: { userId, stationId, status: 1 },
+        where: { userId, stationId, ...(tenantId ? { tenantId } : {}), status: 1 } as any,
       });
       if (existing && existing.agentType !== agentType) {
         await this.profileRepo.update(existing.id, { stationId: null, updateTime: Date.now() });
@@ -150,6 +155,7 @@ export class AgentProfileService {
     agentType: AgentProfile['agentType'],
     agentStatus: 'idle' | 'busy',
     options?: { releaseStation?: boolean },
+    tenantId?: number,
   ): Promise<void> {
     const updateData: any = { agentStatus, updateTime: Date.now() };
 
@@ -158,9 +164,9 @@ export class AgentProfileService {
     }
 
     if (agentStatus === 'busy') {
-      const profile = await this.profileRepo.findOne({ where: { userId, agentType, status: 1 } });
+      const profile = await this.profileRepo.findOne({ where: { userId, agentType, ...(tenantId ? { tenantId } : {}), status: 1 } as any });
       if (profile && profile.stationId === null) {
-        const allProfiles = await this.profileRepo.find({ where: { userId, status: 1 } });
+        const allProfiles = await this.profileRepo.find({ where: { userId, ...(tenantId ? { tenantId } : {}), status: 1 } as any });
         const usedStations = allProfiles.filter(p => p.stationId !== null).map(p => p.stationId);
         const maxStation = Math.max(0, ...usedStations as number[]);
         updateData.stationId = maxStation + 1;
@@ -168,14 +174,14 @@ export class AgentProfileService {
     }
 
     await this.profileRepo.update(
-      { userId, agentType, status: 1 },
+      { userId, agentType, ...(tenantId ? { tenantId } : {}), status: 1 } as any,
       updateData,
     );
   }
 
-  async ensureAgent(userId: number, agentType: AgentProfile['agentType']): Promise<AgentProfile> {
+  async ensureAgent(userId: number, agentType: AgentProfile['agentType'], tenantId?: number): Promise<AgentProfile> {
     const existing = await this.profileRepo.findOne({
-      where: { userId, agentType, status: 1 },
+      where: { userId, agentType, ...(tenantId ? { tenantId } : {}), status: 1 } as any,
     });
     if (existing) return existing;
 
@@ -193,13 +199,15 @@ export class AgentProfileService {
       preset.color,
       preset.nickname,
       preset.displayRole,
+      tenantId || 1,
     );
   }
 
-  private async createDefaults(userId: number): Promise<AgentProfile[]> {
+  private async createDefaults(userId: number, tenantId = 1): Promise<AgentProfile[]> {
     const now = Date.now();
     const entities = DEFAULT_PROFILES.map((def) =>
       this.profileRepo.create({
+        tenantId,
         userId,
         agentType: def.agentType,
         animalType: def.animalType,

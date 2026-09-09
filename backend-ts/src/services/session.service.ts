@@ -28,13 +28,13 @@ export class SessionService {
   /**
    * 开始学习会话
    */
-  async startSession(userId: number, planId?: number): Promise<LearningSession> {
+  async startSession(userId: number, planId?: number, tenantId = 1): Promise<LearningSession> {
     const now = Date.now();
     const today = new Date(now).toISOString().slice(0, 10);
 
     // 检查是否已有今日会话
     const existing = await this.sessionRepo.findOne({
-      where: { userId, sessionDate: today, status: 1 },
+      where: { userId, tenantId, sessionDate: today, status: 1 },
       order: { createTime: 'DESC' },
     });
 
@@ -43,7 +43,7 @@ export class SessionService {
     }
 
     // 获取当前技能快照
-    const skills = await this.skillService.getEffectiveSkills(userId);
+    const skills = await this.skillService.getEffectiveSkills(userId, tenantId);
     const skillSnapshot = skills.map((s) => ({
       name: s.name,
       masteryPct: s.masteryPct,
@@ -51,6 +51,7 @@ export class SessionService {
 
     return this.sessionRepo.save({
       userId,
+      tenantId,
       planId: planId || null,
       sessionDate: today,
       startedAt: now,
@@ -75,8 +76,9 @@ export class SessionService {
     skillName: string,
     masteryBefore: number,
     masteryAfter: number,
+    tenantId = 1,
   ): Promise<void> {
-    const session = await this.sessionRepo.findOne({ where: { id: sessionId, status: 1 } });
+    const session = await this.sessionRepo.findOne({ where: { id: sessionId, tenantId, status: 1 } });
     if (!session) return;
 
     const now = Date.now();
@@ -107,15 +109,15 @@ export class SessionService {
   /**
    * 结束学习会话
    */
-  async endSession(sessionId: number): Promise<LearningSession> {
-    const session = await this.sessionRepo.findOne({ where: { id: sessionId, status: 1 } });
+  async endSession(sessionId: number, tenantId = 1): Promise<LearningSession> {
+    const session = await this.sessionRepo.findOne({ where: { id: sessionId, tenantId, status: 1 } });
     if (!session) throw new Error('会话不存在');
 
     const now = Date.now();
     const durationMs = session.startedAt ? now - session.startedAt : 0;
 
     // 获取结束时的技能快照
-    const skills = await this.skillService.getEffectiveSkills(session.userId);
+    const skills = await this.skillService.getEffectiveSkills(session.userId, tenantId);
     const tasksSnapshot = session.tasksSnapshot || {};
     tasksSnapshot.skillsEnd = skills.map((s) => ({
       name: s.name,
@@ -129,16 +131,16 @@ export class SessionService {
       updateTime: now,
     });
 
-    return this.sessionRepo.findOne({ where: { id: sessionId } }) as Promise<LearningSession>;
+    return this.sessionRepo.findOne({ where: { id: sessionId, tenantId } }) as Promise<LearningSession>;
   }
 
   /**
    * 获取学习历史（git log）
    */
-  async getHistory(userId: number, page = 1, pageSize = 20): Promise<{ sessions: LearningSession[]; total: number }> {
+  async getHistory(userId: number, page = 1, pageSize = 20, tenantId = 1): Promise<{ sessions: LearningSession[]; total: number }> {
     const skip = (page - 1) * pageSize;
     const [sessions, total] = await this.sessionRepo.findAndCount({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { sessionDate: 'DESC', createTime: 'DESC' },
       skip,
       take: pageSize,
@@ -150,7 +152,7 @@ export class SessionService {
   /**
    * 获取学习统计
    */
-  async getStats(userId: number): Promise<{
+  async getStats(userId: number, tenantId = 1): Promise<{
     totalSessions: number;
     totalDurationHours: number;
     totalSkillsImproved: number;
@@ -158,7 +160,7 @@ export class SessionService {
     avgSessionMinutes: number;
   }> {
     const sessions = await this.sessionRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { sessionDate: 'DESC' },
     });
 
@@ -211,6 +213,7 @@ export class SessionService {
     userId: number,
     dateA: string,
     dateB: string,
+    tenantId = 1,
   ): Promise<{
     dateA: string;
     dateB: string;
@@ -218,13 +221,13 @@ export class SessionService {
   }> {
     // 获取 dateA 的会话
     const sessionA = await this.sessionRepo.findOne({
-      where: { userId, sessionDate: dateA, status: 1 },
+      where: { userId, tenantId, sessionDate: dateA, status: 1 },
       order: { createTime: 'DESC' },
     });
 
     // 获取 dateB 的会话
     const sessionB = await this.sessionRepo.findOne({
-      where: { userId, sessionDate: dateB, status: 1 },
+      where: { userId, tenantId, sessionDate: dateB, status: 1 },
       order: { createTime: 'DESC' },
     });
 
@@ -259,10 +262,11 @@ export class SessionService {
   async rollback(
     userId: number,
     targetDate: string,
+    tenantId = 1,
   ): Promise<{ success: boolean; restoredSkills: number }> {
     // 获取目标日期的会话
     const session = await this.sessionRepo.findOne({
-      where: { userId, sessionDate: targetDate, status: 1 },
+      where: { userId, tenantId, sessionDate: targetDate, status: 1 },
       order: { createTime: 'DESC' },
     });
 
@@ -274,9 +278,9 @@ export class SessionService {
     let restored = 0;
 
     for (const skill of targetSkills) {
-      const current = await this.skillService.getSkill(userId, skill.name);
+      const current = await this.skillService.getSkill(userId, skill.name, tenantId);
       if (current && Math.abs(Number(current.masteryPct) - skill.masteryPct) > 0.01) {
-        await this.skillService.setMastery(userId, skill.name, skill.masteryPct);
+        await this.skillService.setMastery(userId, skill.name, skill.masteryPct, 0.9, tenantId);
         restored++;
       }
     }

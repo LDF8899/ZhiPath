@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AsyncLocalStorage } from 'async_hooks';
 import OpenAI from 'openai';
+import { DataSource } from 'typeorm';
 import { getLlmProvider } from './llm-provider.registry';
 
 /**
@@ -60,8 +61,22 @@ interface ToolCallingOptions extends LlmOptions {
   toolChoice?: string;
 }
 
+export interface LlmAttributionContext {
+  tenantId: number;
+  userId: number;
+  clientApp: string;
+  requestId: string;
+  agentRunId?: number | null;
+}
+
+interface LlmExecutionContext {
+  config?: { provider: string; apiKey: string; baseUrl?: string };
+  attribution?: LlmAttributionContext;
+}
+
 @Injectable()
 export class LlmService {
+  private readonly logger = new Logger(LlmService.name);
   private client: OpenAI;
   private flashModel: string;
   private proModel: string;
@@ -81,9 +96,12 @@ export class LlmService {
    * 各 controller/service 在 AI 调用前用 withUser() 包裹，LlmService 内部
    * 选择 provider/client 时优先取用户自带配置，无配置回落平台 env 默认。
    */
-  private static als = new AsyncLocalStorage<{ provider: string; apiKey: string; baseUrl?: string }>();
+  private static als = new AsyncLocalStorage<LlmExecutionContext>();
 
-  constructor(private config: ConfigService) {
+  constructor(
+    private config: ConfigService,
+    @Optional() private readonly dataSource?: DataSource,
+  ) {
     const provider = this.config.get('LLM_PROVIDER', 'ollama');
     this.provider = provider;
     const built = this.buildClient(provider);
@@ -111,15 +129,16 @@ export class LlmService {
 
   /** 当前上下文中的用户 LLM 配置（无用户配置时为 undefined） */
   userConfig(): { provider: string; apiKey: string; baseUrl?: string } | undefined {
-    return LlmService.als.getStore();
+    return LlmService.als.getStore()?.config;
   }
 
   /** 以指定用户上下文包裹一段 AI 调用，内部所有 provider/client 判定优先采用该用户配置 */
   withUser<T>(
     config: { provider: string; apiKey: string; baseUrl?: string } | undefined,
     fn: () => T,
+    attribution?: LlmAttributionContext,
   ): T {
-    return LlmService.als.run(config, fn);
+    return LlmService.als.run({ config, attribution }, fn);
   }
 
   /** 构建指定 provider 的 OpenAI client 与模型名（私有，供无用户配置时的默认初始化与用户配置临时构建复用） */
@@ -285,7 +304,9 @@ export class LlmService {
     } as any);
     const msg = resp.choices[0]?.message;
     const visionContent = this.stripThinking(msg?.content || '');
-    console.log(`[LLM-VISION] ${visionModel} 图=${imageDataUrls.length} 耗时=${Date.now() - vStart}ms 内容=${visionContent.length}字 推理=${((msg as any)?.reasoning_content || '').length}字`);
+    const latencyMs = Date.now() - vStart;
+    await this.recordUsage(provider, visionModel, resp.usage, latencyMs);
+    console.log(`[LLM-VISION] ${visionModel} 图=${imageDataUrls.length} 耗时=${latencyMs}ms 内容=${visionContent.length}字 推理=${((msg as any)?.reasoning_content || '').length}字`);
     return visionContent;
   }
 
@@ -387,9 +408,11 @@ export class LlmService {
     }
 
     const usage = out.resp.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    const latencyMs = Date.now() - llmStart;
+    await this.recordUsage(provider, finalModel, usage, latencyMs);
     console.log(
       `[LLM] ${finalModel} tier=${tier} 思考=${wantThinking}${options.effort ? '/' + options.effort : ''} ` +
-      `json=${!!options.jsonObject} 耗时=${Date.now() - llmStart}ms 内容=${out.content.length}字 ` +
+      `json=${!!options.jsonObject} 耗时=${latencyMs}ms 内容=${out.content.length}字 ` +
       `推理=${out.reasoningLen}字 finish=${out.finishReason} tokens=${JSON.stringify(usage)}`,
     );
 
@@ -526,8 +549,10 @@ export class LlmService {
     const ctx = this.effectiveCtx();
     const client = ctx.client;
     const provider = ctx.provider;
+    const startedAt = Date.now();
+    const model = this.resolveModel(options);
     const resp = await client.chat.completions.create({
-      model: this.resolveModel(options),
+      model,
       messages: messages as any,
       tools,
       tool_choice: (options.toolChoice as any) || 'auto',
@@ -541,11 +566,49 @@ export class LlmService {
         ? { thinking: { type: 'disabled' as any } }
         : {}),
     } as any);
+    await this.recordUsage(provider, model, resp.usage, Date.now() - startedAt);
 
     const msg = resp.choices[0]?.message;
     return {
       toolCalls: msg?.tool_calls || [],
       content: msg?.content || '',
     };
+  }
+
+  private async recordUsage(
+    provider: string,
+    model: string,
+    usage: { prompt_tokens?: number; completion_tokens?: number } | null | undefined,
+    latencyMs: number,
+  ): Promise<void> {
+    const attribution = LlmService.als.getStore()?.attribution;
+    if (!this.dataSource || !attribution) return;
+    try {
+      await this.dataSource.query(
+        `INSERT INTO ai_usage_ledger
+          (tenant_id, user_id, client_app_id, agent_run_id, provider, model,
+           input_tokens, output_tokens, latency_ms, cost_micros, request_id)
+         SELECT ?, ?, id, ?, ?, ?, ?, ?, ?, 0, ?
+           FROM client_apps WHERE client_key = ? AND status = 'active'`,
+        [
+          attribution.tenantId,
+          attribution.userId,
+          attribution.agentRunId || null,
+          provider,
+          model,
+          Number(usage?.prompt_tokens || 0),
+          Number(usage?.completion_tokens || 0),
+          Math.max(0, Math.round(latencyMs)),
+          attribution.requestId,
+          attribution.clientApp,
+        ],
+      );
+    } catch (error: any) {
+      // Usage telemetry must never turn a successful model response into a
+      // failed user request. The requestId still makes the warning traceable.
+      this.logger.warn(
+        `AI usage ledger write failed request=${attribution.requestId}: ${error?.message || error}`,
+      );
+    }
   }
 }

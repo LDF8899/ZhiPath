@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { Student } from '../../entities/student.entity';
 import { LlmService } from '../../services/llm.service';
 import { ProfileService } from '../../services/profile.service';
@@ -58,18 +58,20 @@ export class ChatService {
   }
 
   /** 主聊天入口 — 对齐 Python chat() */
-  async chat(userId: number, body: { message: string; session_id?: string; page_context?: string }) {
-    const sessionId = body.session_id || uuidv4();
+  async chat(userId: number, body: { message: string; session_id?: string; page_context?: string }, context: { tenantId?: number; clientApp?: string } = {}) {
+    const tenantId = Number(context.tenantId || 1);
+    const clientApp = context.clientApp || 'legacy';
+    const sessionId = body.session_id || randomUUID();
     const pageContext = body.page_context || 'general';
 
     // 1. 读取对话历史
-    const history = await this.chatHistory.getHistory(userId, sessionId);
+    const history = await this.chatHistory.getHistory(userId, sessionId, tenantId);
     const messages = history.map((m: any) => ({ role: m.role, content: m.content }));
     messages.push({ role: 'user', content: body.message });
 
     // 2. 保存用户消息
-    await this.chatHistory.saveMessage(userId, sessionId, 'user', body.message, { pageContext });
-    await this.profileService.markUserActive(userId);
+    await this.chatHistory.saveMessage(userId, sessionId, 'user', body.message, { pageContext }, tenantId, clientApp);
+    await this.profileService.markUserActive(userId, tenantId);
 
     // 3. 根据配置选择引擎
     let reply = '';
@@ -82,13 +84,13 @@ export class ChatService {
     if (this.useLangGraph) {
       // LangGraph 引擎：流式状态图编排（每个节点推送 SSE 事件）
       console.log(`[Chat] Using LangGraph engine (streaming)`);
-      this.eventsService.emit(userId, { type: 'chat_thinking', data: { message: '正在思考中...' } });
+      this.eventsService.emit(userId, { type: 'chat_thinking', data: { message: '正在思考中...' } }, tenantId);
       let lastResult: any = null;
       const accumulatedActions: any[] = [];
       const streamTimeout = 15000; // 15s 超时（给 fallback 留时间，前端 axios 超时 30s）
       try {
         const streamPromise = (async () => {
-          for await (const chunk of this.langGraphEngine.streamExecute(userId, messages, pageContext, sessionId)) {
+          for await (const chunk of this.langGraphEngine.streamExecute(userId, messages, pageContext, sessionId, tenantId)) {
             lastResult = chunk;
             // 累积每个节点产生的 actions，避免只取最后节点的 partial state
             const nodeActions = (chunk.state as any)?.actions;
@@ -115,9 +117,9 @@ export class ChatService {
 
       if (!reply) {
         console.warn('[Chat] LangGraph stream produced no reply, falling back to invoke');
-        this.eventsService.emit(userId, { type: 'chat_thinking', data: { message: '正在重新处理...' } });
+        this.eventsService.emit(userId, { type: 'chat_thinking', data: { message: '正在重新处理...' } }, tenantId);
         try {
-          const fallback = await this.langGraphEngine.execute(userId, messages, pageContext, sessionId);
+          const fallback = await this.langGraphEngine.execute(userId, messages, pageContext, sessionId, tenantId);
           reply = fallback.reply;
           // 如果 invoke 有新 actions 则用，否则保留 stream 累积的
           if (fallback.actions?.length > 0) {
@@ -132,9 +134,9 @@ export class ChatService {
 
       if (!reply) {
         console.warn('[Chat] LangGraph invoke also empty, falling back to Simple engine');
-        this.eventsService.emit(userId, { type: 'chat_thinking', data: { message: '切换到备用模式...' } });
+        this.eventsService.emit(userId, { type: 'chat_thinking', data: { message: '切换到备用模式...' } }, tenantId);
         try {
-          const result = await this.agentEngine.chatNode(userId, messages, pageContext, sessionId);
+          const result = await this.agentEngine.chatNode(userId, messages, pageContext, sessionId, tenantId);
           reply = result.reply;
           // Simple 引擎产生的 actions 如果有则用，否则保留之前的
           if (result.actions?.length > 0) {
@@ -150,7 +152,7 @@ export class ChatService {
     } else {
       // 简化版引擎：意图路由 + 直接调用
       console.log(`[Chat] Using Simple engine`);
-      this.eventsService.emit(userId, { type: 'chat_thinking', data: { message: '正在思考中...' } });
+      this.eventsService.emit(userId, { type: 'chat_thinking', data: { message: '正在思考中...' } }, tenantId);
 
       // Phase B: 关键词匹配
       let intent = this.intentRouter.matchIntent(body.message);
@@ -158,7 +160,7 @@ export class ChatService {
 
       // Phase C: LLM Tool Calling（Phase B 没匹配到时）
       if (!intent) {
-        const userContext = await this.buildUserContext(userId);
+        const userContext = await this.buildUserContext(userId, tenantId);
         intent = await this.intentRouter.llmDecideAction(messages, userContext);
         console.log(`[Chat] Phase C result:`, intent ? intent.name : 'null');
       }
@@ -166,7 +168,7 @@ export class ChatService {
       // 执行动作
       if (intent) {
         console.log(`[Chat] Executing intent: ${intent.name}`);
-        const executed = await this.executeIntent(intent, userId, sessionId, body.message, messages, pageContext);
+        const executed = await this.executeIntent(intent, userId, sessionId, body.message, messages, pageContext, tenantId);
         actionResults = executed.actions;
         reply = executed.reply;
         agent = this.officeBridge.getAgentForAction(intent.name) || intent.name || 'chat';
@@ -182,7 +184,7 @@ export class ChatService {
       // 没有命中意图 → 走 AgentEngine 普通聊天
       if (!reply) {
         console.log(`[Chat] No reply from intent, falling back to AgentEngine`);
-        const result = await this.agentEngine.chatNode(userId, messages, pageContext, sessionId);
+        const result = await this.agentEngine.chatNode(userId, messages, pageContext, sessionId, tenantId);
         reply = result.reply;
         actionResults = result.actions;
         agent = result.agent;
@@ -194,19 +196,19 @@ export class ChatService {
 
     // 4. 保存回复
     if (reply) {
-      await this.chatHistory.saveMessage(userId, sessionId, 'assistant', reply, { agent, actions: actionResults });
+      await this.chatHistory.saveMessage(userId, sessionId, 'assistant', reply, { agent, actions: actionResults }, tenantId, clientApp);
     }
 
     // 5. 通知前端处理完成
-    this.eventsService.emit(userId, { type: 'chat_done', data: { agent, reply_length: reply.length } });
+    this.eventsService.emit(userId, { type: 'chat_done', data: { agent, reply_length: reply.length } }, tenantId);
 
     // 5. 异步更新画像（fire-and-forget）
-    this.updateProfileAsync(userId, sessionId).catch((e) =>
+    this.updateProfileAsync(userId, sessionId, tenantId, clientApp).catch((e) =>
       console.warn('[Chat] Async profile update failed:', e.message),
     );
 
     // 6. 返回
-    const profileVersion = await this.profileService.getProfileVersion(userId);
+    const profileVersion = await this.profileService.getProfileVersion(userId, tenantId);
     const agentInfo = AGENT_INFO_MAP[agent] || DEFAULT_AGENT_INFO;
 
     return {
@@ -233,6 +235,7 @@ export class ChatService {
     userMessage = '',
     messages: Array<{ role: string; content: string }> = [],
     pageContext = 'general',
+    tenantId = 1,
   ): Promise<{ actions: any[]; reply: string }> {
     const { name, filters } = intent;
 
@@ -292,7 +295,7 @@ export class ChatService {
     // 对于 generate_path，如果没有 targetJobId 也没有自定义技能，从用户画像取
     // 如果有自定义技能，直接放行（用户通过聊天指定了想学的技能）
     if (name === 'generate_path' && !filters.targetJobId && !(filters.skills && filters.skills.length > 0)) {
-      const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+      const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } as any });
       if (student?.targetJobId) {
         action.targetJobId = student.targetJobId;
       } else {
@@ -302,6 +305,7 @@ export class ChatService {
 
     try {
       const results = await this.actionExecutor.executeActions([action], userId, {
+        tenantId,
         source: 'chat',
         chatSessionId: sessionId,
         userMessage,
@@ -393,11 +397,11 @@ export class ChatService {
   }
 
   /** 构建用户上下文 — 对齐 Python _build_user_context() */
-  private async buildUserContext(userId: number): Promise<string> {
+  private async buildUserContext(userId: number, tenantId = 1): Promise<string> {
     const parts: string[] = [];
 
     try {
-      const profile = await this.profileService.getProfile(userId);
+      const profile = await this.profileService.getProfile(userId, tenantId);
       if (profile) {
         const skills = profile.skills || [];
         if (skills.length) {
@@ -412,7 +416,7 @@ export class ChatService {
     }
 
     try {
-      const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+      const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } as any });
       if (student) {
         if (student.major) parts.push(`专业：${student.major}`);
         if (student.grade) parts.push(`年级：${student.grade}`);
@@ -426,9 +430,9 @@ export class ChatService {
   }
 
   /** 异步更新画像 — 对齐 Python _update_profile_async() */
-  private async updateProfileAsync(userId: number, sessionId: string) {
+  private async updateProfileAsync(userId: number, sessionId: string, tenantId = 1, clientApp = 'legacy') {
     try {
-      const history = await this.chatHistory.getHistory(userId, sessionId);
+      const history = await this.chatHistory.getHistory(userId, sessionId, tenantId);
       const recent = history.slice(-10);
       if (recent.length < 2) return;
 
@@ -440,7 +444,7 @@ export class ChatService {
       if (avgLen < 15) return; // 用户消息平均太短，多为指令型对话
 
       // 使用 LLM 分析聊天记录，提取画像增量
-      const profile = (await this.profileService.getProfile(userId)) || {};
+      const profile = (await this.profileService.getProfile(userId, tenantId)) || {};
       const profileSummary = JSON.stringify({
         skills: profile.skills || [],
         goals: profile.goals || {},
@@ -475,7 +479,7 @@ export class ChatService {
 
       const delta = extractJson(result);
       if (delta && Object.keys(delta).length > 0) {
-        await this.profileService.mergeProfileDelta(userId, delta, 'chat');
+        await this.profileService.mergeProfileDelta(userId, delta, 'chat', tenantId, clientApp);
 
         // 对话中提取的技能写入 user_skills_v3（source=conversation, trustWeight=0.5）
         if (delta.skills_to_add?.length) {

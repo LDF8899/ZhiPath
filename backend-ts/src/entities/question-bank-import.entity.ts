@@ -6,6 +6,9 @@ import { BaseEntity } from '../common/base.entity';
 @Index('idx_question_bank_import_user_time', ['userId', 'createTime'])
 @Index('idx_question_bank_import_status', ['status'])
 export class QuestionBankImport extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

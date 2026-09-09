@@ -9,6 +9,7 @@ import { EvaluationRubric } from '../../entities/evaluation-rubric.entity';
 import { EventsModule } from '../events/events.module';
 import { EvaluationController } from './evaluation.controller';
 import { EvaluationService } from '../../services/evaluation.service';
+import { EvaluationV1Controller } from './evaluation-v1.controller';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { EvaluationService } from '../../services/evaluation.service';
     ]),
     EventsModule,
   ],
-  controllers: [EvaluationController],
+  controllers: [EvaluationController, EvaluationV1Controller],
   providers: [EvaluationService],
   exports: [EvaluationService],
 })

@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { LearningPlan } from '../entities/learning.entity';
 import { LearningDomainRegistry } from './learning-domain.registry';
-import type { LearningGoalType } from './learning-domain.types';
+import type { LearningDomain, LearningGoalType } from './learning-domain.types';
 
 export interface MaterializedRadarDimension {
   id: string;
@@ -34,9 +34,9 @@ export class LearningAssessmentContextService {
     private readonly domainRegistry: LearningDomainRegistry,
   ) {}
 
-  async resolve(userId: number): Promise<LearningAssessmentContext | null> {
+  async resolve(userId: number, tenantId = 1): Promise<LearningAssessmentContext | null> {
     const plan = await this.planRepo.findOne({
-      where: { userId, status: 1, planStatus: 'active', planType: 'main' },
+      where: { userId, tenantId, status: 1, planStatus: 'active', planType: 'main' } as any,
       order: { createTime: 'DESC', id: 'DESC' },
     });
     if (!plan) return null;
@@ -45,7 +45,13 @@ export class LearningAssessmentContextService {
   }
 
   fromPlan(plan: LearningPlan): LearningAssessmentContext {
-    const domain = this.domainRegistry.get(plan.domainId || 'software-engineering');
+    // 历史计划可能引用已下线的领域 key；评测上下文必须可降级，不能阻断速测/考试页面。
+    let domain: LearningDomain;
+    try {
+      domain = this.domainRegistry.get(plan.domainId || 'software-engineering');
+    } catch {
+      domain = this.domainRegistry.get('software-engineering');
+    }
     const pathData = plan.pathData || {};
     const phases = Array.isArray(pathData.phases) ? pathData.phases : [];
     const abilityNames = new Map<string, string>();

@@ -188,9 +188,11 @@ export class AgentsController {
    */
   @Post('assess')
   async assessLearning(
-    @CurrentUser('sub') userId: number,
+    @CurrentUser() user: any,
     @Body() body: { learningData: string; goal?: string; currentProgress?: string; skillName?: string },
   ) {
+    const userId = Number(user?.sub || user?.id);
+    const tenantId = Number(user?.tenantId) || 1;
     if (!body.learningData?.trim()) {
       return error(400, '请提供学习数据');
     }
@@ -218,6 +220,7 @@ export class AgentsController {
       });
       const evaluation = await this.evaluationService.record({
         userId,
+        tenantId,
         attemptType: 'ai_assessment',
         sourceType: 'agent_assess',
         sourceId: git.commit.id,

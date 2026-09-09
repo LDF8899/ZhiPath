@@ -19,6 +19,9 @@ export type EvaluationAttemptStatus = 'started' | 'graded' | 'committed' | 'fail
 @Index(['userId', 'skillName'])
 @Index(['sourceType', 'sourceId'])
 export class EvaluationAttempt extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

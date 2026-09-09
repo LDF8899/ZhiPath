@@ -35,18 +35,29 @@ export class LearningProgressService {
     @InjectRepository(LearningTask) private taskRepo: Repository<LearningTask>,
   ) {}
 
-  private hotKey(userId: number): string {
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.mongo.db!.collection(this.mongoCollection).createIndexes([
+        { key: { tenantId: 1, user_id: 1, date: 1 }, unique: true, name: 'uq_learning_session_tenant_user_date' },
+        { key: { tenantId: 1, user_id: 1, expire_at: 1 }, name: 'idx_learning_session_tenant_expire' },
+      ]);
+    } catch (error: any) {
+      console.warn('[LearningProgress] index initialization failed:', error?.message || error);
+    }
+  }
+
+  private hotKey(userId: number, tenantId = 1): string {
     const today = new Date().toISOString().slice(0, 10);
-    return `learn:hot:${userId}:${today}`;
+    return `learn:hot:${tenantId}:${userId}:${today}`;
   }
 
   // ── 热层（Redis）写入 ──────────────────────────────
 
   /** 更新当前正在学习的技能点 + 阅读位置 */
-  async setCurrentSkill(userId: number, skillName: string, lecturePosition = 0): Promise<void> {
+  async setCurrentSkill(userId: number, skillName: string, lecturePosition = 0, tenantId = 1): Promise<void> {
     if (!this.redis) return;
     try {
-      const key = this.hotKey(userId);
+      const key = this.hotKey(userId, tenantId);
       await this.redis.hset(key, {
         currentSkill: skillName,
         lecturePosition: String(lecturePosition),
@@ -59,10 +70,10 @@ export class LearningProgressService {
   }
 
   /** 累计今日学习时长（毫秒增量） */
-  async addStudyTime(userId: number, deltaMs: number): Promise<void> {
+  async addStudyTime(userId: number, deltaMs: number, tenantId = 1): Promise<void> {
     if (!this.redis || deltaMs <= 0) return;
     try {
-      const key = this.hotKey(userId);
+      const key = this.hotKey(userId, tenantId);
       await this.redis.hincrby(key, 'studyMs', Math.round(deltaMs));
       await this.redis.expire(key, this.HOT_TTL);
     } catch (e: any) {
@@ -71,10 +82,10 @@ export class LearningProgressService {
   }
 
   /** 标记今日某任务状态 */
-  async setTaskStatus(userId: number, taskId: number, taskStatus: string): Promise<void> {
+  async setTaskStatus(userId: number, taskId: number, taskStatus: string, tenantId = 1): Promise<void> {
     if (!this.redis) return;
     try {
-      const key = this.hotKey(userId);
+      const key = this.hotKey(userId, tenantId);
       await this.redis.hset(key, `task:${taskId}`, taskStatus);
       await this.redis.expire(key, this.HOT_TTL);
     } catch (e: any) {
@@ -83,10 +94,10 @@ export class LearningProgressService {
   }
 
   /** 读取今日热数据（原始 hash） */
-  async getHot(userId: number): Promise<Record<string, string> | null> {
+  async getHot(userId: number, tenantId = 1): Promise<Record<string, string> | null> {
     if (!this.redis) return null;
     try {
-      const data = await this.redis.hgetall(this.hotKey(userId));
+      const data = await this.redis.hgetall(this.hotKey(userId, tenantId));
       return data && Object.keys(data).length > 0 ? data : null;
     } catch (e: any) {
       console.warn('[LearningProgress] getHot failed:', e.message);
@@ -100,8 +111,8 @@ export class LearningProgressService {
    * 将今日热数据归档到 MongoDB learning_sessions（温层，90 天）。
    * 通常在会话结束或定时任务调用。
    */
-  async archiveToWarm(userId: number, planId?: number): Promise<boolean> {
-    const hot = await this.getHot(userId);
+  async archiveToWarm(userId: number, planId?: number, tenantId = 1): Promise<boolean> {
+    const hot = await this.getHot(userId, tenantId);
     if (!hot) return false;
     try {
       const today = new Date().toISOString().slice(0, 10);
@@ -113,10 +124,11 @@ export class LearningProgressService {
       }
 
       await collection.updateOne(
-        { user_id: String(userId), date: today },
+        { tenantId, user_id: String(userId), date: today },
         {
           $set: {
             user_id: String(userId),
+            tenantId,
             plan_id: planId ? String(planId) : (hot.planId || null),
             date: today,
             current_skill: hot.currentSkill || null,
@@ -137,10 +149,10 @@ export class LearningProgressService {
   }
 
   /** 从 MongoDB 温层读取某日会话 */
-  private async getWarm(userId: number, date: string): Promise<any | null> {
+  private async getWarm(userId: number, date: string, tenantId = 1): Promise<any | null> {
     try {
       const collection = this.mongo.db!.collection(this.mongoCollection);
-      return await collection.findOne({ user_id: String(userId), date });
+      return await collection.findOne({ tenantId, user_id: String(userId), date });
     } catch (e: any) {
       console.warn('[LearningProgress] getWarm failed:', e.message);
       return null;
@@ -155,7 +167,7 @@ export class LearningProgressService {
    *   2. MongoDB 温层（今日会话）
    *   3. MySQL 冷层（路径结构 + 当前阶段 + 今日任务）
    */
-  async restoreProgress(userId: number, planId?: number): Promise<{
+  async restoreProgress(userId: number, planId?: number, tenantId = 1): Promise<{
     source: 'hot' | 'warm' | 'cold' | 'empty';
     currentSkill: string | null;
     lecturePosition: number;
@@ -167,7 +179,9 @@ export class LearningProgressService {
 
     // 冷层：路径结构（始终读取，作为 fallback 基础）
     const plan = await this.planRepo.findOne({
-      where: planId ? { id: planId, status: 1 } : { userId, status: 1 },
+      where: planId
+        ? { id: planId, userId, tenantId, status: 1 }
+        : { userId, tenantId, status: 1 },
       order: { createTime: 'DESC' },
     });
     const coldPlan = plan
@@ -175,7 +189,7 @@ export class LearningProgressService {
       : null;
 
     // 1. 热层
-    const hot = await this.getHot(userId);
+    const hot = await this.getHot(userId, tenantId);
     if (hot) {
       const taskStatuses: Record<string, string> = {};
       for (const [k, v] of Object.entries(hot)) {
@@ -192,7 +206,7 @@ export class LearningProgressService {
     }
 
     // 2. 温层
-    const warm = await this.getWarm(userId, today);
+    const warm = await this.getWarm(userId, today, tenantId);
     if (warm) {
       return {
         source: 'warm',
@@ -207,7 +221,7 @@ export class LearningProgressService {
     // 3. 冷层：用 MySQL 今日任务状态兜底
     if (coldPlan) {
       const tasks = await this.taskRepo.find({
-        where: { userId, planId: coldPlan.id, planDate: today, isActive: 1 },
+        where: { userId, tenantId, planId: coldPlan.id, planDate: today, isActive: 1 } as any,
       });
       const taskStatuses: Record<string, string> = {};
       for (const t of tasks) taskStatuses[String(t.id)] = t.taskStatus;

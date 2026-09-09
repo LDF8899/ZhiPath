@@ -29,6 +29,7 @@ import type { LearningGoalType } from '../../domains/learning-domain.types';
 const ChatState = Annotation.Root({
   // 输入
   userId: Annotation<number>,
+  tenantId: Annotation<number>,
   message: Annotation<string>,
   messages: Annotation<Array<{ role: string; content: string }>>,
   pageContext: Annotation<string>,
@@ -137,6 +138,7 @@ export class LangGraphEngineService {
       _recentMessages: action?._recentMessages || state.messages?.slice(-8),
       _pageContext: action?._pageContext || state.pageContext,
       _userContext: action?._userContext || state.userContext,
+      _tenantId: action?._tenantId || state.tenantId,
     };
   }
 
@@ -148,6 +150,7 @@ export class LangGraphEngineService {
       recentMessages: state.messages?.slice(-8),
       pageContext: state.pageContext,
       userContext: state.userContext,
+      tenantId: state.tenantId,
     };
   }
 
@@ -233,9 +236,11 @@ export class LangGraphEngineService {
     messages: Array<{ role: string; content: string }>,
     pageContext: string = 'general',
     chatSessionId = '',
+    tenantId = 1,
   ): Promise<{ reply: string; actions: any[]; agent: string }> {
     const state = await this.graph.invoke({
       userId,
+      tenantId,
       message: messages[messages.length - 1]?.content || '',
       messages,
       pageContext,
@@ -274,9 +279,11 @@ export class LangGraphEngineService {
     messages: Array<{ role: string; content: string }>,
     pageContext: string = 'general',
     chatSessionId = '',
+    tenantId = 1,
   ): AsyncGenerator<{ node: string; agent: string; label: string; state: Partial<ChatStateType> }> {
     const initialState = {
       userId,
+      tenantId,
       message: messages[messages.length - 1]?.content || '',
       messages,
       pageContext,
@@ -324,7 +331,7 @@ export class LangGraphEngineService {
               reply: (nodeState as any)?.reply || '',
               actions: (nodeState as any)?.actions || [],
             },
-          });
+          }, tenantId);
 
           yield { node: nodeName, ...meta, state: nodeState as Partial<ChatStateType> };
         }
@@ -347,7 +354,7 @@ export class LangGraphEngineService {
             reply: state.reply || '',
             actions: state.actions || [],
           },
-        });
+        }, tenantId);
         yield { node: 'error_fallback', ...fallbackMeta, state };
       } catch (e2) {
         console.error('[LangGraph] invoke fallback also failed:', e2.message);
@@ -370,7 +377,7 @@ export class LangGraphEngineService {
     const parts: string[] = [];
 
     try {
-      profile = await this.profileService.getProfile(state.userId);
+      profile = await this.profileService.getProfile(state.userId, Number(state.tenantId || 1));
       if (profile) {
         const skills = profile.skills || [];
         if (skills.length) {
@@ -385,7 +392,7 @@ export class LangGraphEngineService {
     }
 
     try {
-      student = await this.studentRepo.findOne({ where: { userId: state.userId, status: 1 } });
+      student = await this.studentRepo.findOne({ where: { userId: state.userId, tenantId: Number(state.tenantId || 1), status: 1 } as any });
       if (student) {
         if (student.major) parts.push(`专业：${student.major}`);
         if (student.grade) parts.push(`年级：${student.grade}`);
@@ -584,7 +591,7 @@ export class LangGraphEngineService {
       const jobCards: any[] = [];
       for (const j of jobs) {
         try {
-          const matchResult = await this.matchAgent.calculateMatch(state.userId, j.id);
+          const matchResult = await this.matchAgent.calculateMatch(state.userId, j.id, undefined, Number(state.tenantId || 1));
           jobCards.push({ id: j.id, title: j.title || '', company: j.company || '', location: j.location || '', salaryRange: j.salaryRange || '面议', requiredSkills: j.requiredSkills || [], preferredSkills: j.preferredSkills || [], matchScore: matchResult.totalScore, canApply: matchResult.canApply, gapCount: matchResult.gapAnalysis.length });
         } catch (e) {
           jobCards.push({ id: j.id, title: j.title || '', company: j.company || '', matchScore: 0 });
@@ -625,12 +632,13 @@ export class LangGraphEngineService {
     if (!jobId) return { actions: [] };
     return this.trackOfficeNode(state, { type: 'set_target_job', jobId }, async () => {
       try {
-      const student = await this.studentRepo.findOne({ where: { userId: state.userId, status: 1 } });
+      const tenantId = Number(state.tenantId || 1);
+      const student = await this.studentRepo.findOne({ where: { userId: state.userId, tenantId, status: 1 } });
       if (student) { student.targetJobId = jobId; await this.studentRepo.save(student); }
       const job = await this.jobRepo.findOne({ where: { id: jobId, status: 1 } });
       const jobTitle = job?.title || '';
       const collection = this.mongoConnection.db!.collection('user_profiles');
-      await collection.updateOne({ user_id: String(state.userId) }, { $set: { 'goals.target_job_id': jobId, 'goals.target_job_title': jobTitle, updated_at: Date.now() } }, { upsert: true });
+      await collection.updateOne({ user_id: String(state.userId), tenantId }, { $set: { 'goals.target_job_id': jobId, 'goals.target_job_title': jobTitle, updated_at: Date.now(), tenantId, schemaVersion: 1, clientApp: 'legacy' }, $setOnInsert: { created_at: Date.now(), version: 1 } }, { upsert: true });
       return { actions: [{ type: 'target_set', data: { jobId, jobTitle } }] };
       } catch (e) {
       console.error('[LangGraph] setTargetJob failed:', e.message);
@@ -645,7 +653,7 @@ export class LangGraphEngineService {
     if (!skillName) return { actions: [] };
     return this.trackOfficeNode(state, { type: 'generate_animation', skillName }, async () => {
       try {
-      const result = await this.multimodal.generateAnimation(skillName);
+      const result = await this.multimodal.generateAnimation(skillName, 'beginner', Number(state.tenantId || 1));
       return { animationResult: result, actions: [result] };
       } catch (e) {
       console.error('[LangGraph] generateAnimation failed:', e.message);
@@ -661,7 +669,7 @@ export class LangGraphEngineService {
     if (!skillName) return { actions: [] };
     return this.trackOfficeNode(state, { type: 'generate_diagram', skillName, diagramType }, async () => {
       try {
-      const result = await this.multimodal.generateDiagram(skillName, diagramType);
+      const result = await this.multimodal.generateDiagram(skillName, diagramType, Number(state.tenantId || 1));
       return { diagramResult: result, actions: [result] };
       } catch (e) {
       console.error('[LangGraph] generateDiagram failed:', e.message);
@@ -698,7 +706,7 @@ export class LangGraphEngineService {
     if (!skillName) return { actions: [] };
     return this.trackOfficeNode(state, { type: 'generate_avatar', skillName }, async () => {
       try {
-      const result = await this.multimodal.generateAvatar(skillName);
+      const result = await this.multimodal.generateAvatar(skillName, Number(state.tenantId || 1));
       return { avatarResult: result, actions: [result] };
       } catch (e) {
       console.error('[LangGraph] generateAvatar failed:', e.message);
@@ -801,7 +809,7 @@ export class LangGraphEngineService {
       ], { temperature: 0.5, maxTokens: 8192, tier: 'gen', thinking: 'off' });
       const examData = extractJson(result);
       try {
-        const exam = await this.examRepo.save({ userId: state.userId, examType: 1, skillName, answers: examData, passed: 0, retryCount: 0, createTime: Date.now(), updateTime: Date.now(), status: 1 });
+        const exam = await this.examRepo.save({ userId: state.userId, tenantId: Number(state.tenantId || 1), examType: 1, skillName, answers: examData, passed: 0, retryCount: 0, createTime: Date.now(), updateTime: Date.now(), status: 1 });
         examData.exam_id = exam.id;
       } catch (e) { console.warn('[LangGraph] Save exam failed:', e.message); }
       return { examResult: examData, actions: [{ type: 'exam', data: examData }] };
@@ -816,7 +824,7 @@ export class LangGraphEngineService {
   private async showProgressNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
     return this.trackOfficeNode(state, { type: 'show_progress' }, async () => {
     try {
-      const paths = await this.pathRepo.find({ where: { userId: state.userId, status: 1 }, order: { createTime: 'DESC' }, take: 1 });
+      const paths = await this.pathRepo.find({ where: { userId: state.userId, tenantId: Number(state.tenantId || 1), status: 1 }, order: { createTime: 'DESC' }, take: 1 } as any);
       if (!paths.length) {
         return { progressResult: { message: '暂无学习路径' }, actions: [{ type: 'progress', data: { message: '暂无学习路径' } }] };
       }
@@ -844,7 +852,7 @@ export class LangGraphEngineService {
   private async showTodayTasksNode(state: ChatStateType): Promise<Partial<ChatStateType>> {
     return this.trackOfficeNode(state, { type: 'show_today_tasks' }, async () => {
     try {
-      const paths = await this.pathRepo.find({ where: { userId: state.userId, status: 1 }, order: { createTime: 'DESC' }, take: 1 });
+      const paths = await this.pathRepo.find({ where: { userId: state.userId, tenantId: Number(state.tenantId || 1), status: 1 }, order: { createTime: 'DESC' }, take: 1 } as any);
       if (!paths.length) {
         return { dailyTasksResult: { message: '暂无学习路径', tasks: [] }, actions: [{ type: 'today_tasks', data: { message: '暂无学习路径' } }] };
       }
@@ -1110,7 +1118,7 @@ export class LangGraphEngineService {
       && (filters.starterPathId || filters.starter_path_id),
     );
     if (name === 'generate_path' && !filters.targetJobId && !hasDomainPath && !(filters.skills && filters.skills.length > 0)) {
-      const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+      const student = await this.studentRepo.findOne({ where: { userId, tenantId: Number(state?.tenantId || 1), status: 1 } as any });
       if (student?.targetJobId) {
         action.targetJobId = student.targetJobId;
       } else {

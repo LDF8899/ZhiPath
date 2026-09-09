@@ -41,7 +41,7 @@ export class GitHubController {
   /** POST /api/user/projects/save — 保存项目经历到学生档案 */
   @Post('projects/save')
   async saveProject(
-    @CurrentUser('sub') userId: number,
+    @CurrentUser() user: any,
     @Body() body: {
       name: string;
       description?: string;
@@ -58,7 +58,9 @@ export class GitHubController {
       question?: string;
     },
   ) {
-    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const userId = Number(user.sub || user.id);
+    const tenantId = Number(user.tenantId || 1);
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } as any });
     if (!student) return success(null, '学生信息不存在');
 
     // 构建项目记录
@@ -86,7 +88,7 @@ export class GitHubController {
     existing.push(project);
     student.projects = existing;
     await this.studentRepo.save(student);
-    await this.profileService.addProjectEvidence(userId, project).catch((e) => {
+    await this.profileService.addProjectEvidence(userId, project, tenantId).catch((e) => {
       console.warn('[GitHub] Sync project evidence to Mongo failed:', e.message);
     });
 
@@ -108,7 +110,7 @@ export class GitHubController {
         title: `${sourceType === 'file_qa' ? '文件证据' : '项目证据'}：${project.name}`,
         content: contentParts.filter(Boolean).join('\n'),
         skillTags: tech,
-      })
+      }, tenantId)
       .catch((e) => console.warn('[EvidenceRag] ingest failed:', e.message));
 
     // 自动将 tech 中的新技能加入 skills

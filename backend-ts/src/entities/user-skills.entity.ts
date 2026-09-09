@@ -8,6 +8,9 @@ import { BaseEntity } from '../common/base.entity';
  */
 @Entity('user_skills_v3')
 export class UserSkill extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1, comment: '租户边界' })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

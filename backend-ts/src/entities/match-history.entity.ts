@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 
 
 @Entity('match_history_v3')
 @Index(['userId', 'jobId'])
+@Index(['tenantId', 'userId', 'jobId'])
 @Index(['createdAt'])
 export class MatchHistory {
   @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
@@ -9,6 +10,9 @@ export class MatchHistory {
 
   @Column({ type: 'int', comment: '用户ID' })
   userId: number;
+
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1, comment: '租户边界' })
+  tenantId: number;
 
   @Column({ type: 'int', comment: '岗位ID' })
   jobId: number;

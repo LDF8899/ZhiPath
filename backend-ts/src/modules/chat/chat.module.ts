@@ -34,6 +34,7 @@ import { KnowledgeIngestionModule } from '../knowledge-ingestion/knowledge-inges
 import { LearningDomainModule } from '../../domains/learning-domain.module';
 import { QuestionGenerationModule } from '../question-generation/question-generation.module';
 import { RemediationModule } from '../remediation/remediation.module';
+import { ChatV1Controller } from './chat-v1.controller';
 
 /**
  * Chat 模块 — Phase 6 核心模块
@@ -58,7 +59,7 @@ import { RemediationModule } from '../remediation/remediation.module';
     QuestionGenerationModule,
     RemediationModule,
   ],
-  controllers: [ChatController],
+  controllers: [ChatController, ChatV1Controller],
   providers: [
     LlmService,
     ChatHistoryService,

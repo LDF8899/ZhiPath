@@ -18,7 +18,7 @@ export class QuickTestController {
    */
   @Get('quick-test')
   async getQuestions(@CurrentUser() user: any, @Query('direction') direction?: string) {
-    const result = await this.quickTestService.getQuestions(user.sub, direction);
+    const result = await this.quickTestService.getQuestions(user.sub, direction, Number(user.tenantId || 1));
     return success(result);
   }
 
@@ -36,6 +36,7 @@ export class QuickTestController {
       body.skillName,
       body.answers,
       body.questions,
+      Number(user.tenantId || 1),
     );
     return success(result);
   }

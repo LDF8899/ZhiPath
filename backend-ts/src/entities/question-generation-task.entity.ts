@@ -8,6 +8,15 @@ export type QuestionGenerationTaskStatus = 'pending' | 'running' | 'completed' |
 @Index('idx_question_generation_user_status', ['userId', 'taskStatus'])
 @Index('idx_question_generation_user_time', ['userId', 'createTime'])
 export class QuestionGenerationTask extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id' })
+  tenantId: number;
+
+  @Column({ type: 'char', length: 36, name: 'platform_job_id', nullable: true })
+  platformJobId: string | null;
+
+  @Column({ type: 'varchar', length: 200, name: 'idempotency_key', nullable: true })
+  idempotencyKey: string | null;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

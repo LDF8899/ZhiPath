@@ -8,8 +8,11 @@ import { BaseEntity } from '../common/base.entity';
  * 用户按预算自选服务商，AI 请求走后端 LlmService 代理，费用进用户自己的服务商账户。
  */
 @Entity('user_llm_config')
+@Index(['tenantId', 'userId'], { unique: true })
 export class UserLlmConfig extends BaseEntity {
-  @Index({ unique: true })
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id', comment: '关联users_v3' })
   userId: number;
 

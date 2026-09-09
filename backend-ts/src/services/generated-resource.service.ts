@@ -10,6 +10,7 @@ import {
 
 interface ResourceUpsertInput {
   userId: number;
+  tenantId: number;
   resourceType: string;
   title: string;
   status: GeneratedResourceStatus;
@@ -99,11 +100,12 @@ export class GeneratedResourceService {
       search?: string;
       limit?: number;
     } = {},
+    tenantId = 1,
   ): Promise<GeneratedResource[]> {
     const limit = Math.min(Math.max(filters.limit || 100, 1), 500);
     const qb = this.resourceRepo
       .createQueryBuilder('resource')
-      .where('resource.userId = :userId', { userId })
+      .where('resource.userId = :userId AND resource.tenantId = :tenantId', { userId, tenantId })
       .andWhere('resource.status = 1');
 
     if (filters.chatSessionId) qb.andWhere('resource.chatSessionId = :chatSessionId', { chatSessionId: filters.chatSessionId });
@@ -122,8 +124,8 @@ export class GeneratedResourceService {
       .getMany();
   }
 
-  async getById(userId: number, id: number): Promise<GeneratedResource | null> {
-    return this.resourceRepo.findOne({ where: { id, userId, status: 1 } });
+  async getById(userId: number, id: number, tenantId = 1): Promise<GeneratedResource | null> {
+    return this.resourceRepo.findOne({ where: { id, userId, tenantId, status: 1 } });
   }
 
   async countForUser(
@@ -134,10 +136,11 @@ export class GeneratedResourceService {
       resourceType?: string;
       status?: GeneratedResourceStatus;
     } = {},
+    tenantId = 1,
   ): Promise<number> {
     const qb = this.resourceRepo
       .createQueryBuilder('resource')
-      .where('resource.userId = :userId', { userId })
+      .where('resource.userId = :userId AND resource.tenantId = :tenantId', { userId, tenantId })
       .andWhere('resource.status = 1');
 
     if (filters.chatSessionId) qb.andWhere('resource.chatSessionId = :chatSessionId', { chatSessionId: filters.chatSessionId });
@@ -148,8 +151,8 @@ export class GeneratedResourceService {
     return qb.getCount();
   }
 
-  async setFeedback(userId: number, id: number, useful: boolean): Promise<GeneratedResource | null> {
-    const resource = await this.getById(userId, id);
+  async setFeedback(userId: number, id: number, useful: boolean, tenantId = 1): Promise<GeneratedResource | null> {
+    const resource = await this.getById(userId, id, tenantId);
     if (!resource) return null;
     const previewMeta = {
       ...(resource.previewMeta || {}),
@@ -160,16 +163,16 @@ export class GeneratedResourceService {
       previewMeta: previewMeta as GeneratedResource['previewMeta'],
       updateTime: Date.now(),
     });
-    return this.getById(userId, id);
+    return this.getById(userId, id, tenantId);
   }
 
-  async upsertFromTask(userId: number, task: AgentTask, result?: any): Promise<GeneratedResource> {
-    const normalized = this.normalizeTask(userId, task, result ?? task.result);
+  async upsertFromTask(userId: number, task: AgentTask, result?: any, tenantId = Number(task.tenantId) || 1): Promise<GeneratedResource> {
+    const normalized = this.normalizeTask(userId, task, result ?? task.result, tenantId);
     return this.upsert(normalized);
   }
 
-  async failFromTask(userId: number, task: AgentTask, errorMessage: string): Promise<GeneratedResource> {
-    const normalized = this.normalizeTask(userId, task, task.result);
+  async failFromTask(userId: number, task: AgentTask, errorMessage: string, tenantId = Number(task.tenantId) || 1): Promise<GeneratedResource> {
+    const normalized = this.normalizeTask(userId, task, task.result, tenantId);
     return this.upsert({
       ...normalized,
       status: 'failed',
@@ -186,15 +189,16 @@ export class GeneratedResourceService {
   async upsert(input: ResourceUpsertInput): Promise<GeneratedResource> {
     const now = Date.now();
     const externalId = input.externalId || this.createStableExternalId(input);
-    let existing = await this.resourceRepo.findOne({ where: { externalId, status: 1 } });
+    let existing = await this.resourceRepo.findOne({ where: { externalId, tenantId: input.tenantId, status: 1 } });
     if (!existing && input.sourceTaskId) {
       existing = await this.resourceRepo.findOne({
-        where: { sourceTaskId: input.sourceTaskId, userId: input.userId, status: 1 },
+        where: { sourceTaskId: input.sourceTaskId, userId: input.userId, tenantId: input.tenantId, status: 1 },
       });
     }
 
     const patch: Partial<GeneratedResource> = {
       userId: input.userId,
+      tenantId: input.tenantId,
       resourceType: input.resourceType || 'unknown',
       title: input.title || this.titleFor(input.resourceType, input.skillName),
       skillName: input.skillName || null,
@@ -229,7 +233,7 @@ export class GeneratedResourceService {
     });
   }
 
-  private normalizeTask(userId: number, task: AgentTask, result: any): ResourceUpsertInput {
+  private normalizeTask(userId: number, task: AgentTask, result: any, tenantId = Number(task.tenantId) || 1): ResourceUpsertInput {
     const params = task.params || {};
     const taskStatus = this.statusFromTask(task.taskStatus);
     const actionType = this.actionTypeFromResult(result) || this.actionTypeFromParams(params, taskStatus);
@@ -243,6 +247,7 @@ export class GeneratedResourceService {
 
     return {
       userId,
+      tenantId,
       resourceType,
       title: this.titleFor(resourceType, skillName, task.title),
       status: taskStatus,

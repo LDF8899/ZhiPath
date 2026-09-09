@@ -76,7 +76,8 @@ function openSharedConnection(token: string | null, options: Required<SSEOptions
   closeSharedConnection();
   sourceToken = token;
 
-  const eventSource = new EventSource(`/api/user/events/stream?token=${encodeURIComponent(token)}`);
+  const params = new URLSearchParams({ token, client_app: 'zhipath-web' });
+  const eventSource = new EventSource(`/api/v1/events?${params.toString()}`);
 
   eventSource.onopen = () => {
     reconnectCount = 0;

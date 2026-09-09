@@ -3,7 +3,7 @@ import { addLearningPathSkill } from '../api/user';
 import '../styles/hand-draw.css';
 
 interface AddCourseModalProps {
-  planId: number;
+  planId: number | string;
   onClose: () => void;
   onAdded: () => void;
 }

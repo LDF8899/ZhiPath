@@ -77,6 +77,7 @@ export class SkillSnapshotService {
 
   async saveSnapshot(input: {
     userId: number;
+    tenantId?: number;
     branchId: number;
     commitId: number;
     skills: any[];
@@ -87,6 +88,7 @@ export class SkillSnapshotService {
   }): Promise<SkillSnapshotV3> {
     const skills = this.normalizeSkills(input.skills);
     const previousRadar = (input.previous?.radarJson || []) as RadarDimension[];
+    const tenantId = input.tenantId ?? 1;
     const context = await this.assessmentContext.resolve(input.userId);
     const radarConfig: RadarConfig[] = context?.radarDimensions?.length
       ? context.radarDimensions
@@ -103,6 +105,7 @@ export class SkillSnapshotService {
 
     return this.snapshotRepo.save({
       userId: input.userId,
+      tenantId,
       branchId: input.branchId,
       commitId: input.commitId,
       skillsJson: skills,
@@ -120,8 +123,8 @@ export class SkillSnapshotService {
     });
   }
 
-  async getLatestSnapshot(userId: number, branchId?: number): Promise<SkillSnapshotV3 | null> {
-    const where: any = { userId, status: 1 };
+  async getLatestSnapshot(userId: number, branchId?: number, tenantId = 1): Promise<SkillSnapshotV3 | null> {
+    const where: any = { userId, tenantId, status: 1 };
     if (branchId) where.branchId = branchId;
     return this.snapshotRepo.findOne({
       where,
@@ -129,8 +132,8 @@ export class SkillSnapshotService {
     });
   }
 
-  async listSnapshots(userId: number, branchId?: number, limit = 30): Promise<SkillSnapshotV3[]> {
-    const where: any = { userId, status: 1 };
+  async listSnapshots(userId: number, branchId?: number, limit = 30, tenantId = 1): Promise<SkillSnapshotV3[]> {
+    const where: any = { userId, tenantId, status: 1 };
     if (branchId) where.branchId = branchId;
     return this.snapshotRepo.find({
       where,
@@ -139,12 +142,12 @@ export class SkillSnapshotService {
     });
   }
 
-  async getSnapshot(userId: number, snapshotId: number): Promise<SkillSnapshotV3 | null> {
-    return this.snapshotRepo.findOne({ where: { id: snapshotId, userId, status: 1 } });
+  async getSnapshot(userId: number, snapshotId: number, tenantId = 1): Promise<SkillSnapshotV3 | null> {
+    return this.snapshotRepo.findOne({ where: { id: snapshotId, userId, tenantId, status: 1 } });
   }
 
-  async getSnapshotByCommit(userId: number, commitId: number): Promise<SkillSnapshotV3 | null> {
-    return this.snapshotRepo.findOne({ where: { commitId, userId, status: 1 } });
+  async getSnapshotByCommit(userId: number, commitId: number, tenantId = 1): Promise<SkillSnapshotV3 | null> {
+    return this.snapshotRepo.findOne({ where: { commitId, userId, tenantId, status: 1 } });
   }
 
   calculateDelta(before: SkillSnapshotV3 | null | undefined, after: SkillSnapshotV3, matchDelta = 0): CommitDelta {

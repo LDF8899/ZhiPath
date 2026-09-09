@@ -5,6 +5,9 @@ import { BaseEntity } from '../common/base.entity';
 @Index(['userId', 'attemptId'])
 @Index(['resultId'])
 export class EvaluationDimensionScore extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

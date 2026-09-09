@@ -5,6 +5,9 @@ import { BaseEntity } from '../common/base.entity';
 @Entity('question_generation_snapshots')
 @Index('uq_question_generation_snapshot_task', ['taskId'], { unique: true })
 export class QuestionGenerationSnapshot extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id' })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'task_id' })
   taskId: number;
 

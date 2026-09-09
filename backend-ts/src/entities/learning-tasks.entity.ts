@@ -7,6 +7,9 @@ import { BaseEntity } from '../common/base.entity';
  */
 @Entity('learning_tasks_v3')
 export class LearningTask extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

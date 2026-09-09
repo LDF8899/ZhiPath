@@ -34,13 +34,14 @@ export class EvidenceController {
     @Query('explain') explain?: string,
   ) {
     const queryText = query || q || '';
+    const tenantId = Number(user.tenantId) || 1;
     const items = await this.evidenceRag.search(user.sub, queryText, {
       skill,
       sourceType,
       jobTargetId: jobTargetId ? Number(jobTargetId) : undefined,
       limit: limit ? Number(limit) : 5,
       explain: explain === '1' || explain === 'true',
-    });
+    }, tenantId);
     return success({
       query: queryText,
       total: items.length,
@@ -51,23 +52,24 @@ export class EvidenceController {
   /** RAG 可视化图谱快照（供知识库 3D 数据引擎使用） */
   @Get('evidence/graph')
   async graph(@CurrentUser() user: any, @Query('limit') limit?: string) {
-    const result = await this.evidenceRag.getGraphSnapshot(user.sub, limit ? Number(limit) : 120);
+    const result = await this.evidenceRag.getGraphSnapshot(user.sub, limit ? Number(limit) : 120, Number(user.tenantId) || 1);
     return success(result);
   }
 
   /** 手动重建证据索引（补历史项目 / Chroma 恢复） */
   @Post('evidence/reindex')
   async reindex(@CurrentUser() user: any) {
-    const student = await this.studentRepo.findOne({ where: { userId: user.sub, status: 1 } });
+    const tenantId = Number(user.tenantId) || 1;
+    const student = await this.studentRepo.findOne({ where: { userId: user.sub, tenantId, status: 1 } });
     const projects = (student?.projects || []) as Array<Record<string, any>>;
-    const count = await this.evidenceRag.reindexFromProjects(user.sub, projects);
+    const count = await this.evidenceRag.reindexFromProjects(user.sub, projects, tenantId);
     return success({ reindexed: count }, '重建完成');
   }
 
   /** 证据索引状态汇总（Projects 页展示 已索引/待索引/失败） */
   @Get('evidence/summary')
   async summary(@CurrentUser() user: any) {
-    const result = await this.evidenceRag.getSummary(user.sub);
+    const result = await this.evidenceRag.getSummary(user.sub, Number(user.tenantId) || 1);
     return success(result);
   }
 }

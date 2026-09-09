@@ -14,6 +14,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import {
+  experienceApi,
   matchApi,
   officeApi,
   workbenchApi,
@@ -67,6 +68,8 @@ export default function Today() {
   const metricRef = useStagger<HTMLDivElement>();
 
   const dashboard = useAsync<DashboardData>(() => workbenchApi.dashboard(), [tick]);
+  // 平台规范首页读模型：作为迁移期间的事实指标来源，避免继续扩展 dashboard 旧契约。
+  const experience = useAsync<any>(() => experienceApi.home(), [tick]);
   const actions = useAsync<TodayActionsResult>(() => workbenchApi.todayActions(), [tick]);
   const todayTasksData = useAsync<any>(() => workbenchApi.todayTasks(), [tick]);
   const bestMatch = useAsync<any>(() => matchApi.best(), [tick]);
@@ -93,6 +96,7 @@ export default function Today() {
 
   const data = dashboard.data;
   const plan: LearningPlan | null = data?.learning_path ?? null;
+  const canonicalStats = experience.data?.sections?.dashboard;
   const stats = data?.stats;
   const hasPlan = Boolean(plan?.pathData?.phases?.length);
 
@@ -389,16 +393,21 @@ export default function Today() {
             <div className="col" style={{ gap: 16 }}>
               {/* 路径进度 */}
               <Card>
-                <CardHead
-                  icon={<Target size={15} />}
-                  title={plan?.goalTitle || plan?.planName || '当前训练路径'}
-                  extra={
-                    <Link to="/path" className="btn btn--quiet btn--sm">
-                      查看完整路径
-                      <ArrowRight size={13} />
-                    </Link>
-                  }
-                />
+                  <CardHead
+                    icon={<Target size={15} />}
+                    title={plan?.goalTitle || plan?.planName || '当前训练路径'}
+                    extra={
+                      <span className="row" style={{ gap: 8 }}>
+                        {canonicalStats?.activePaths !== undefined && (
+                          <span className="tiny faint">规范路径 {canonicalStats.activePaths}</span>
+                        )}
+                        <Link to="/path" className="btn btn--quiet btn--sm">
+                          查看完整路径
+                          <ArrowRight size={13} />
+                        </Link>
+                      </span>
+                    }
+                  />
                 <CardBody className="col" style={{ gap: 14 }}>
                   <div className="row-between">
                     <span className="small muted">

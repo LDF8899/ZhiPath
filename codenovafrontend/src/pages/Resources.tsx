@@ -55,10 +55,12 @@ function metaFor(resource: GeneratedResource) {
 function timeLabel(resource: GeneratedResource) {
   const raw = resource.createTime || resource.createdAt;
   if (!raw) return '';
-  const value = Number(raw);
-  if (!Number.isFinite(value)) return '';
-  // 后端可能给秒级或毫秒级时间戳
-  const ms = value > 1e12 ? value : value * 1000;
+  const numeric = Number(raw);
+  // 规范 v1 资源使用 ISO 时间，旧接口可能返回秒级或毫秒级时间戳。
+  const ms = Number.isFinite(numeric)
+    ? (numeric > 1e12 ? numeric : numeric * 1000)
+    : Date.parse(String(raw));
+  if (!Number.isFinite(ms)) return '';
   return new Date(ms).toLocaleString('zh-CN', {
     month: 'numeric',
     day: 'numeric',
@@ -121,7 +123,7 @@ export default function Resources() {
   const sessionFilter = searchParams.get('sessionId') || '';
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
-  const [openId, setOpenId] = useState<number | null>(null);
+  const [openId, setOpenId] = useState<number | string | null>(null);
   const [detail, setDetail] = useState<GeneratedResource | null>(null);
   const resources = useAsync<GeneratedResource[]>(
     () => resourceApi.list({ limit: 100, chatSessionId: sessionFilter || undefined, search: search || undefined }),

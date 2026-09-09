@@ -21,9 +21,18 @@ export class UserLlmContextInterceptor implements NestInterceptor {
     const userId = Number(request.user?.sub);
     if (!Number.isSafeInteger(userId) || userId <= 0) return next.handle();
 
-    return from(this.userLlmService.getForCall(userId).catch(() => undefined)).pipe(
+    return from(this.userLlmService.getForCall(userId, Number(request.user?.tenantId) || 1).catch(() => undefined)).pipe(
       mergeMap((config) => new Observable((subscriber) => (
-        this.llmService.withUser(config, () => next.handle().subscribe(subscriber))
+        this.llmService.withUser(
+          config,
+          () => next.handle().subscribe(subscriber),
+          {
+            tenantId: Number(request.user?.tenantId),
+            userId,
+            clientApp: request.requestContext?.clientApp || 'unknown',
+            requestId: request.requestContext?.requestId || 'unknown',
+          },
+        )
       ))),
     );
   }

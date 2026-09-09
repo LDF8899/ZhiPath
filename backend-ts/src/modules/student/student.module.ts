@@ -11,10 +11,11 @@ import { SkillModule } from '../skill/skill.module';
 import { PlannerModule } from '../planner/planner.module';
 import { GitLearningModule } from '../git-learning/git-learning.module';
 import { LearningDomainModule } from '../../domains/learning-domain.module';
+import { StudentV1Controller } from './student-v1.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Student, UserSkill, LearningPlan, JobPosition]), SkillModule, PlannerModule, GitLearningModule, LearningDomainModule],
-  controllers: [StudentController],
+  controllers: [StudentController, StudentV1Controller],
   providers: [StudentService, ProfileService],
   exports: [StudentService],
 })

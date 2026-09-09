@@ -29,6 +29,7 @@ export class AgentTaskService {
     description?: string,
     outputType?: string,
     targetEntity?: Record<string, any> | null,
+    tenantId = 1,
   ): Promise<AgentTask> {
     const now = Date.now();
 
@@ -36,11 +37,12 @@ export class AgentTaskService {
     const maxOrder = await this.taskRepo
       .createQueryBuilder('t')
       .select('MAX(t.sort_order)', 'max')
-      .where('t.user_id = :userId', { userId })
+      .where('t.user_id = :userId AND t.tenant_id = :tenantId', { userId, tenantId })
       .getRawOne();
 
     return this.taskRepo.save({
       userId,
+      tenantId,
       agentType,
       title,
       description: description || '',
@@ -81,8 +83,9 @@ export class AgentTaskService {
   async getTasks(
     userId: number,
     status?: AgentTask['taskStatus'],
+    tenantId = 1,
   ): Promise<AgentTask[]> {
-    const where: any = { userId, status: 1 };
+    const where: any = { userId, tenantId, status: 1 };
     if (status) where.taskStatus = status;
 
     return this.taskRepo.find({
@@ -94,18 +97,19 @@ export class AgentTaskService {
   /**
    * 获取任务详情
    */
-  async getTask(taskId: number, userId: number): Promise<AgentTask | null> {
-    return this.taskRepo.findOne({ where: { id: taskId, userId, status: 1 } });
+  async getTask(taskId: number, userId: number, tenantId = 1): Promise<AgentTask | null> {
+    return this.taskRepo.findOne({ where: { id: taskId, userId, tenantId, status: 1 } });
   }
 
   async hasRunningTask(
     userId: number,
     agentType: AgentTask['agentType'],
     excludeTaskId?: number,
+    tenantId = 1,
   ): Promise<boolean> {
     const qb = this.taskRepo
       .createQueryBuilder('t')
-      .where('t.user_id = :userId', { userId })
+      .where('t.user_id = :userId AND t.tenant_id = :tenantId', { userId, tenantId })
       .andWhere('t.agent_type = :agentType', { agentType })
       .andWhere('t.status = :status', { status: 1 })
       .andWhere('t.task_status = :taskStatus', { taskStatus: 'running' });
@@ -125,8 +129,9 @@ export class AgentTaskService {
     newStatus: AgentTask['taskStatus'],
     result?: Record<string, any>,
     errorMessage?: string,
+    tenantId = 1,
   ): Promise<AgentTask | null> {
-    const task = await this.taskRepo.findOne({ where: { id: taskId, status: 1 } });
+    const task = await this.taskRepo.findOne({ where: { id: taskId, tenantId, status: 1 } });
     if (!task) return null;
 
     const now = Date.now();
@@ -156,7 +161,7 @@ export class AgentTaskService {
     }
 
     await this.taskRepo.update(taskId, update);
-    return this.taskRepo.findOne({ where: { id: taskId } });
+    return this.taskRepo.findOne({ where: { id: taskId, tenantId } });
   }
 
   /**
@@ -169,40 +174,40 @@ export class AgentTaskService {
   /**
    * 标记紧急
    */
-  async markUrgent(taskId: number, userId: number): Promise<AgentTask | null> {
-    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, status: 1 } });
+  async markUrgent(taskId: number, userId: number, tenantId = 1): Promise<AgentTask | null> {
+    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, tenantId, status: 1 } });
     if (!task) return null;
 
     await this.taskRepo.update(taskId, { isUrgent: task.isUrgent ? 0 : 1, updateTime: Date.now() });
-    return this.taskRepo.findOne({ where: { id: taskId } });
+    return this.taskRepo.findOne({ where: { id: taskId, tenantId } });
   }
 
   /**
    * 跳过任务
    */
-  async skipTask(taskId: number, userId: number): Promise<AgentTask | null> {
-    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, status: 1 } });
+  async skipTask(taskId: number, userId: number, tenantId = 1): Promise<AgentTask | null> {
+    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, tenantId, status: 1 } });
     if (!task || task.taskStatus !== 'pending') return null;
 
     // 将排序号设为最大（移到队尾）
     const maxOrder = await this.taskRepo
       .createQueryBuilder('t')
       .select('MAX(t.sort_order)', 'max')
-      .where('t.user_id = :userId', { userId })
+      .where('t.user_id = :userId AND t.tenant_id = :tenantId', { userId, tenantId })
       .getRawOne();
 
     await this.taskRepo.update(taskId, { sortOrder: (maxOrder?.max || 0) + 1, updateTime: Date.now() });
-    return this.taskRepo.findOne({ where: { id: taskId } });
+    return this.taskRepo.findOne({ where: { id: taskId, tenantId } });
   }
 
   /**
    * 批量重排任务顺序
    */
-  async reorderTasks(userId: number, taskIds: number[]): Promise<void> {
+  async reorderTasks(userId: number, taskIds: number[], tenantId = 1): Promise<void> {
     const now = Date.now();
     for (let i = 0; i < taskIds.length; i++) {
       await this.taskRepo.update(
-        { id: taskIds[i], userId, status: 1 },
+        { id: taskIds[i], userId, tenantId, status: 1 },
         { sortOrder: i, updateTime: now },
       );
     }
@@ -211,15 +216,15 @@ export class AgentTaskService {
   /**
    * 取消任务
    */
-  async cancelTask(taskId: number, userId: number): Promise<AgentTask | null> {
-    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, status: 1 } });
+  async cancelTask(taskId: number, userId: number, tenantId = 1): Promise<AgentTask | null> {
+    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, tenantId, status: 1 } });
     if (!task || !['pending', 'running'].includes(task.taskStatus)) return null;
 
-    return this.updateStatus(taskId, 'cancelled');
+    return this.updateStatus(taskId, 'cancelled', undefined, undefined, tenantId);
   }
 
-  async retryTask(taskId: number, userId: number): Promise<AgentTask | null> {
-    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, status: 1 } });
+  async retryTask(taskId: number, userId: number, tenantId = 1): Promise<AgentTask | null> {
+    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, tenantId, status: 1 } });
     if (!task || !['failed', 'cancelled'].includes(task.taskStatus)) return null;
 
     return this.createTask(
@@ -231,14 +236,17 @@ export class AgentTaskService {
         _retryOfTaskId: task.id,
       },
       task.description || '',
+      undefined,
+      undefined,
+      tenantId,
     );
   }
 
   /**
    * 删除任务（软删除）
    */
-  async deleteTask(taskId: number, userId: number): Promise<boolean> {
-    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, status: 1 } });
+  async deleteTask(taskId: number, userId: number, tenantId = 1): Promise<boolean> {
+    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, tenantId, status: 1 } });
     if (!task) return false;
 
     await this.taskRepo.update(taskId, { status: 0, updateTime: Date.now() });
@@ -248,7 +256,7 @@ export class AgentTaskService {
   /**
    * 获取统计信息
    */
-  async getStats(userId: number): Promise<{
+  async getStats(userId: number, tenantId = 1): Promise<{
     total: number;
     pending: number;
     running: number;
@@ -256,7 +264,7 @@ export class AgentTaskService {
     failed: number;
     byAgent: Record<string, { pending: number; running: number; success: number; failed: number }>;
   }> {
-    const tasks = await this.taskRepo.find({ where: { userId, status: 1 } });
+    const tasks = await this.taskRepo.find({ where: { userId, tenantId, status: 1 } });
 
     const stats = {
       total: tasks.length,
@@ -288,9 +296,9 @@ export class AgentTaskService {
   /**
    * 获取最近完成的任务
    */
-  async getRecentCompleted(userId: number, limit: number = 10): Promise<AgentTask[]> {
+  async getRecentCompleted(userId: number, limit: number = 10, tenantId = 1): Promise<AgentTask[]> {
     return this.taskRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { completedAt: 'DESC' },
       take: limit,
     });
@@ -316,17 +324,19 @@ export class AgentTaskService {
       groupId?: string;
       externalId?: string;
     },
+    tenantId = 1,
   ): Promise<AgentTask> {
     const now = Date.now();
 
     const maxOrder = await this.taskRepo
       .createQueryBuilder('t')
       .select('MAX(t.sort_order)', 'max')
-      .where('t.user_id = :userId', { userId })
+      .where('t.user_id = :userId AND t.tenant_id = :tenantId', { userId, tenantId })
       .getRawOne();
 
     return this.taskRepo.save({
       userId,
+      tenantId,
       agentType,
       title,
       description: options?.description || '',
@@ -362,6 +372,7 @@ export class AgentTaskService {
       externalId?: string;
     }>,
     groupId?: string,
+    tenantId = 1,
   ): Promise<AgentTask[]> {
     const effectiveGroupId = groupId || this.generateGroupId();
     const now = Date.now();
@@ -370,13 +381,14 @@ export class AgentTaskService {
     const maxOrder = await this.taskRepo
       .createQueryBuilder('t')
       .select('MAX(t.sort_order)', 'max')
-      .where('t.user_id = :userId', { userId })
+      .where('t.user_id = :userId AND t.tenant_id = :tenantId', { userId, tenantId })
       .getRawOne();
 
     let nextOrder = (maxOrder?.max || 0) + 1;
 
     const entities: Partial<AgentTask>[] = tasks.map((t) => ({
       userId,
+      tenantId,
       agentType: t.agentType,
       title: t.title,
       description: t.description || '',
@@ -403,8 +415,8 @@ export class AgentTaskService {
   /**
    * 按任务组查询所有任务
    */
-  async getTasksByGroup(groupId: string, userId?: number): Promise<AgentTask[]> {
-    const where: any = { groupId, status: 1 };
+  async getTasksByGroup(groupId: string, userId?: number, tenantId = 1): Promise<AgentTask[]> {
+    const where: any = { groupId, tenantId, status: 1 };
     if (userId !== undefined) where.userId = userId;
 
     return this.taskRepo.find({

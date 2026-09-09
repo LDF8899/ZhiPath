@@ -9,6 +9,7 @@ import { MatchAgentService } from '../../services/match-agent.service';
 import { MatchController } from './match.controller';
 import { SkillModule } from '../skill/skill.module';
 import { EventsModule } from '../events/events.module';
+import { MatchV1Controller } from './match-v1.controller';
 
 /**
  * MatchAgent 模块 — 匹配度计算
@@ -19,7 +20,7 @@ import { EventsModule } from '../events/events.module';
     SkillModule,
     EventsModule,
   ],
-  controllers: [MatchController],
+  controllers: [MatchController, MatchV1Controller],
   providers: [MatchAgentService],
   exports: [MatchAgentService],
 })

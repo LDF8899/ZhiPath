@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './stores/auth'
 import UserLayout from './layouts/UserLayout'
@@ -48,6 +49,7 @@ import AdminEmployment from './pages/admin/AdminEmployment'
 
 // Global components
 import AIFloatingChat from './components/AIFloatingChat'
+import { getExperienceBootstrap } from './api/user'
 
 function ProtectedRoute({ children, role, skipOnboardingCheck }: { children: React.ReactNode; role?: 'admin' | 'student'; skipOnboardingCheck?: boolean }) {
   const { isAuthenticated, user } = useAuthStore()
@@ -64,6 +66,36 @@ function ProtectedRoute({ children, role, skipOnboardingCheck }: { children: Rea
 
 export default function App() {
   const { isAuthenticated, user } = useAuthStore()
+  const [clientMismatch, setClientMismatch] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      sessionStorage.removeItem('zhpath_experience');
+      return;
+    }
+    getExperienceBootstrap()
+      .then((response) => {
+        sessionStorage.setItem('zhpath_experience', JSON.stringify(response))
+        const key = response?.client?.key
+        setClientMismatch(key && key !== 'zhipath-web' ? key : null)
+      })
+      .catch(() => {
+        sessionStorage.removeItem('zhpath_experience')
+        setClientMismatch(null)
+      });
+  }, [isAuthenticated])
+
+  if (clientMismatch) {
+    return (
+      <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, fontFamily: 'system-ui' }}>
+        <section style={{ maxWidth: 520, padding: 28, border: '1px solid #f0b8b8', borderRadius: 16, background: '#fff8f8' }}>
+          <h1 style={{ marginTop: 0 }}>智途客户端配置异常</h1>
+          <p>当前端口返回的是 <code>{clientMismatch}</code> 配置，而不是 <code>zhipath-web</code>。请打开智途端口 <code>5173</code>，或检查 Vite 代理配置。</p>
+          <button onClick={() => window.location.reload()}>重新检查</button>
+        </section>
+      </main>
+    )
+  }
 
   return (
     <>

@@ -48,6 +48,7 @@ export class TaskSchedulerService {
   async getTodayTasks(
     userId: number,
     planId?: number,
+    tenantId = 1,
   ): Promise<{
     planId: number;
     planName: string;
@@ -62,11 +63,11 @@ export class TaskSchedulerService {
     // 1. 获取参与排期的计划。未指定 planId 时聚合全部活跃计划。
     let plans: LearningPlan[] = [];
     if (planId) {
-      const plan = await this.planRepo.findOne({ where: { id: planId, userId, status: 1 } });
+      const plan = await this.planRepo.findOne({ where: { id: planId, userId, tenantId, status: 1 } });
       if (plan) plans = [plan];
     } else {
       plans = await this.planRepo.find({
-        where: { userId, status: 1, planStatus: 'active', scheduleEnabled: 1 },
+        where: { userId, tenantId, status: 1, planStatus: 'active', scheduleEnabled: 1 },
         order: { planType: 'ASC', createTime: 'DESC' },
       });
     }
@@ -85,12 +86,12 @@ export class TaskSchedulerService {
 
     const planIds = plans.map((plan) => plan.id);
     const existingTasks = await this.taskRepo.find({
-      where: { userId, planId: In(planIds), planDate: today, isActive: 1, status: 1 },
+      where: { userId, tenantId, planId: In(planIds), planDate: today, isActive: 1, status: 1 },
       order: { taskType: 'ASC', sortOrder: 'ASC', priority: 'DESC' },
     });
     const existingPlanIds = new Set(existingTasks.map((task) => Number(task.planId)));
 
-    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } });
     const mainPlan = plans.find((plan) => plan.planType === 'main');
     const sidePlans = plans.filter((plan) => plan.planType === 'side');
     const totalMinutes = Number(student?.dailyHours || mainPlan?.dailyHours || 2) * 60;
@@ -106,7 +107,7 @@ export class TaskSchedulerService {
       const budget = planId
         ? Number(plan.dailyHours || 2) * 60
         : plan.planType === 'main' ? mainBudget : sideBudget;
-      generated.push(...await this.generateTodayTasks(userId, plan, today, budget));
+      generated.push(...await this.generateTodayTasks(userId, plan, today, budget, tenantId));
     }
     return this.buildTaskResult(plans, [...existingTasks, ...generated]);
   }
@@ -122,8 +123,9 @@ export class TaskSchedulerService {
     taskId: number,
     newStatus: LearningTask['taskStatus'],
     userId: number,
+    tenantId = 1,
   ): Promise<{ success: boolean; task: LearningTask | null; error?: string }> {
-    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, isActive: 1, status: 1 } });
+    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, tenantId, isActive: 1, status: 1 } });
     if (!task) return { success: false, task: null, error: '任务不存在' };
 
     // 校验状态转换合法性
@@ -157,14 +159,14 @@ export class TaskSchedulerService {
 
       // 普通打卡只形成计划分支记录；能力变化必须来自测评、作品等证据。
       if (newStatus === 'done') {
-        const branch = await this.branchService.ensurePlanBranch(userId, task.planId);
+        const branch = await this.branchService.ensurePlanBranch(userId, task.planId, tenantId);
         await this.learningCommitService.commitSkill(userId, branch.id, {
           type: 'task_done',
           skillName: task.skillName,
           delta: 0,
           message: `task done: ${task.skillName}`,
           payload: { taskId: task.id, planId: task.planId },
-        });
+        }, tenantId);
       }
     }
 
@@ -176,8 +178,8 @@ export class TaskSchedulerService {
   /**
    * 检测学习速度并调整后续日程
    */
-  async adjustForSpeed(userId: number, planId: number): Promise<{ adjusted: boolean; changes: string[] }> {
-    const plan = await this.planRepo.findOne({ where: { id: planId, userId, status: 1 } });
+  async adjustForSpeed(userId: number, planId: number, tenantId = 1): Promise<{ adjusted: boolean; changes: string[] }> {
+    const plan = await this.planRepo.findOne({ where: { id: planId, userId, tenantId, status: 1 } });
     if (!plan) return { adjusted: false, changes: [] };
 
     const changes: string[] = [];
@@ -186,7 +188,7 @@ export class TaskSchedulerService {
     // 获取最近 7 天的任务
     const sevenDaysAgo = new Date(now - 7 * 86400000).toISOString().slice(0, 10);
     const recentTasks = await this.taskRepo.find({
-      where: { userId, planId, status: 1, isActive: 1 },
+      where: { userId, tenantId, planId, status: 1, isActive: 1 },
       order: { planDate: 'DESC' },
     });
 
@@ -243,16 +245,20 @@ export class TaskSchedulerService {
     plan: LearningPlan,
     today: string,
     availableMinutes: number,
+    tenantId = 1,
   ): Promise<LearningTask[]> {
     const now = Date.now();
     const pathData = plan.pathData || {};
-    const phases = pathData.phases || [];
+    const phases = Array.isArray(pathData.phases) ? pathData.phases : [];
     const currentPhase = plan.currentPhase || 0;
 
     // 获取用户已掌握技能
-    const userSkills = await this.skillService.getEffectiveSkills(userId);
+    const userSkills = await this.skillService.getEffectiveSkills(userId, tenantId);
     const masteredSkills = new Set(
-      userSkills.filter((s) => s.masteryPct >= 80).map((s) => s.name.toLowerCase()),
+      userSkills
+        .filter((skill) => skill?.masteryPct >= 80 && typeof skill?.name === 'string')
+        .map((skill) => skill.name.trim().toLowerCase())
+        .filter(Boolean),
     );
 
     const tasks: Partial<LearningTask>[] = [];
@@ -262,11 +268,16 @@ export class TaskSchedulerService {
     // 遍历当前阶段和后续阶段
     for (let phaseIdx = currentPhase; phaseIdx < phases.length; phaseIdx++) {
       const phase = phases[phaseIdx];
-      const phaseSkills = phase.skills || [];
+      const phaseSkills = Array.isArray(phase?.skills) ? phase.skills : [];
 
-      for (const skill of phaseSkills) {
+      for (const rawSkill of phaseSkills) {
+        // 历史 path_data 同时存在 string 与 object 两种技能形状；无名称的脏项
+        // 不能让整份今日计划生成失败。
+        const skill = typeof rawSkill === 'string' ? { name: rawSkill } : rawSkill;
+        const skillName = typeof skill?.name === 'string' ? skill.name.trim() : '';
+        if (!skillName) continue;
         // 跳过已掌握的技能
-        if (masteredSkills.has(skill.name.toLowerCase())) continue;
+        if (masteredSkills.has(skillName.toLowerCase())) continue;
         // 跳过已完成的任务
         if (skill.status === 'done' || skill.status === 'skipped') continue;
 
@@ -274,8 +285,9 @@ export class TaskSchedulerService {
         if (usedMinutes + estimatedMin <= availableMinutes || usedMinutes === 0) {
           tasks.push({
             userId,
+            tenantId,
             planId: plan.id,
-            skillName: skill.name,
+            skillName,
             taskType: plan.planType,
             taskStatus: 'pending',
             estimatedMin,

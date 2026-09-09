@@ -15,7 +15,7 @@ export class NotificationController {
   /** 获取未读通知数 */
   @Get('notifications/unread-count')
   async getUnreadCount(@CurrentUser() user: any) {
-    const count = await this.notificationService.getUnreadCount(user.sub);
+    const count = await this.notificationService.getUnreadCount(user.sub, Number(user.tenantId || 1));
     return success({ count });
   }
 
@@ -25,6 +25,7 @@ export class NotificationController {
     const notifications = await this.notificationService.getUnread(
       user.sub,
       limit ? parseInt(limit, 10) : 20,
+      Number(user.tenantId || 1),
     );
     return success(notifications);
   }
@@ -40,6 +41,7 @@ export class NotificationController {
       user.sub,
       page ? parseInt(page, 10) : 1,
       pageSize ? parseInt(pageSize, 10) : 20,
+      Number(user.tenantId || 1),
     );
     return success(result);
   }
@@ -47,21 +49,21 @@ export class NotificationController {
   /** 标记单条通知为已读 */
   @Post('notifications/:id/read')
   async markAsRead(@Param('id') id: string, @CurrentUser() user: any) {
-    const result = await this.notificationService.markAsRead(parseInt(id, 10), user.sub);
+    const result = await this.notificationService.markAsRead(parseInt(id, 10), user.sub, Number(user.tenantId || 1));
     return success({ success: result });
   }
 
   /** 标记所有通知为已读 */
   @Post('notifications/read-all')
   async markAllAsRead(@CurrentUser() user: any) {
-    const count = await this.notificationService.markAllAsRead(user.sub);
+    const count = await this.notificationService.markAllAsRead(user.sub, Number(user.tenantId || 1));
     return success({ marked: count });
   }
 
   /** 删除通知 */
   @Post('notifications/:id/delete')
   async delete(@Param('id') id: string, @CurrentUser() user: any) {
-    const result = await this.notificationService.delete(parseInt(id, 10), user.sub);
+    const result = await this.notificationService.delete(parseInt(id, 10), user.sub, Number(user.tenantId || 1));
     return success({ success: result });
   }
 }

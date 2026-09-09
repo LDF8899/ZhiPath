@@ -1,11 +1,13 @@
 import { create, type StateCreator } from 'zustand';
 import type { User } from '../types';
+import { zhipathTokenStore } from '../api/platform';
 
 interface AuthState {
   token: string | null;
+  refreshToken: string | null;
   user: User | null;
   isAuthenticated: boolean;
-  setAuth: (token: string, user: User) => void;
+  setAuth: (token: string, user: User, refreshToken?: string | null) => void;
   logout: () => void;
   updateUser: (user: Partial<User>) => void;
 }
@@ -31,7 +33,8 @@ const _storedUser = (() => {
     return null;
   }
 })();
-const _storedToken = STORAGE.getItem('zhpath_token');
+const _storedToken = zhipathTokenStore.getAccessToken();
+const _storedRefreshToken = zhipathTokenStore.getRefreshToken();
 const _validAuth = !!_storedToken && !!_storedUser;
 
 // 如果 token 存在但 user 无效，清除残留数据
@@ -40,32 +43,38 @@ if (_storedToken && !_validAuth) {
   STORAGE.removeItem('zhpath_user');
 }
 
-const createAuthState: StateCreator<AuthState> = (set) => {
+const createAuthState: StateCreator<AuthState> = (set, get) => {
   const initialToken = _validAuth ? _storedToken : null;
 
   return {
     token: initialToken,
+    refreshToken: _validAuth ? _storedRefreshToken : null,
     user: _storedUser,
     isAuthenticated: _validAuth,
 
-    setAuth: (token, user) => {
+    setAuth: (token, user, refreshToken) => {
       if (!isValidUser(user)) {
         console.error('[Auth] setAuth 收到无效 user 对象:', user);
         return;
       }
-      STORAGE.setItem('zhpath_token', token);
+      zhipathTokenStore.setTokens(token, refreshToken);
       STORAGE.setItem('zhpath_user', JSON.stringify(user));
-      set({ token, user, isAuthenticated: true });
+      set({
+        token,
+        refreshToken: refreshToken || get().refreshToken,
+        user,
+        isAuthenticated: true,
+      });
     },
 
     logout: () => {
-      STORAGE.removeItem('zhpath_token');
+      zhipathTokenStore.clear();
       STORAGE.removeItem('zhpath_user');
       // 清理聊天与资源客户端缓存：重登后强制从后端重建（后端为准），
       // 避免跨用户残留 / 把 sessionStorage、localStorage 当成数据源。
       try { STORAGE.removeItem('zhpath_chat'); } catch {}
       try { localStorage.removeItem('zhpath_resources'); } catch {}
-      set({ token: null, user: null, isAuthenticated: false });
+      set({ token: null, refreshToken: null, user: null, isAuthenticated: false });
     },
 
     updateUser: (partial) => {

@@ -27,8 +27,8 @@ export class RemediationService {
   ) {}
 
   /** 读取用户弱项（掌握度 < threshold 的技能）。 */
-  async weakPoints(userId: number) {
-    const skills = await this.skillService.getEffectiveSkills(userId);
+  async weakPoints(userId: number, tenantId = 1) {
+    const skills = await this.skillService.getEffectiveSkills(userId, tenantId);
     return skills
       .filter((s) => Number(s.masteryPct) < WEAK_THRESHOLD)
       .sort((a, b) => Number(a.masteryPct) - Number(b.masteryPct))
@@ -52,24 +52,25 @@ export class RemediationService {
     };
   }
 
-  async prepare(userId: number, input: Record<string, any> = {}) {
+  async prepare(userId: number, input: Record<string, any> = {}, tenantId = 1) {
     const explicitTopics = Array.isArray(input.topics) && input.topics.length
       ? input.topics.map((t: any) => ({ label: String(t?.label ?? t ?? '').trim() })).filter((t) => t.label)
       : [];
-    const weakPoints = explicitTopics.length ? explicitTopics : await this.weakPoints(userId);
+    const weakPoints = explicitTopics.length ? explicitTopics : await this.weakPoints(userId, tenantId);
     const config = this.buildConfig(weakPoints, input);
     return { weakPoints, config };
   }
 
   /** 直接创建并启动一个补弱出题任务，并记录"补强前"掌握度（用于前后对比画像归档）。 */
-  async generate(userId: number, input: Record<string, any> = {}) {
-    const { weakPoints, config } = await this.prepare(userId, input);
-    const task = await this.questionGeneration.createTask(userId, config);
-    await this.questionGeneration.startTask(userId, task.taskId);
+  async generate(userId: number, input: Record<string, any> = {}, tenantId = 1) {
+    const { weakPoints, config } = await this.prepare(userId, input, tenantId);
+    const task = await this.questionGeneration.createTask(userId, config, tenantId);
+    await this.questionGeneration.startTask(userId, task.taskId, tenantId);
     // 记录本次补强的"补强前"掌握度
-    const beforeMap = (await this.weakPoints(userId)).reduce((map: Record<string, number>, w) => { map[w.label] = w.masteryPct; return map; }, {});
+    const beforeMap = (await this.weakPoints(userId, tenantId)).reduce((map: Record<string, number>, w) => { map[w.label] = w.masteryPct; return map; }, {});
     const run = await this.runRepo.save({
       userId,
+      tenantId,
       topics: weakPoints.map((t) => ({ label: t.label, beforeMastery: Number(beforeMap[t.label] ?? 0) })),
       taskId: task.taskId,
       runStatus: 'pending',
@@ -81,9 +82,9 @@ export class RemediationService {
   }
 
   /** 补强历史：每次补强的知识点 + 补强前/当前掌握度 + 增量（用于画像卡片）。 */
-  async history(userId: number, limit = 10) {
-    const runs = await this.runRepo.find({ where: { userId, status: 1 }, order: { createTime: 'DESC' }, take: Math.min(30, Math.max(1, limit)) });
-    const current = await this.skillService.getEffectiveSkills(userId);
+  async history(userId: number, limit = 10, tenantId = 1) {
+    const runs = await this.runRepo.find({ where: { userId, tenantId, status: 1 }, order: { createTime: 'DESC' }, take: Math.min(30, Math.max(1, limit)) });
+    const current = await this.skillService.getEffectiveSkills(userId, tenantId);
     const currentMap: Record<string, number> = current.reduce((map: Record<string, number>, s) => { map[s.name] = Number(s.masteryPct); return map; }, {});
     return runs.map((run) => ({
       id: run.id,

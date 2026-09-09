@@ -184,6 +184,8 @@ export interface LearningDomain {
 /** 学习路径 */
 export interface LearningPath {
   id: number;
+  /** 规范 v1 路径 UUID；迁移期用于新写接口。 */
+  canonicalId?: string;
   userId: number;
   planName: string;
   planType: 'main' | 'side';
@@ -251,6 +253,9 @@ export interface SkillNode {
 /** 考试记录 */
 export interface ExamRecord {
   id: number;
+  /** 规范 assessment_attempts.public_id；迁移期用于开始/提交时避免把数字历史 ID 当主键。 */
+  canonicalAttemptId?: string;
+  definitionId?: string;
   userId: number;
   examType: number;
   skillName: string;
@@ -360,8 +365,8 @@ export interface ResourceItem {
 }
 
 export interface GeneratedResource {
-  id: number;
-  userId: number;
+  id: number | string;
+  userId?: number;
   resourceType: string;
   title: string;
   skillName?: string | null;

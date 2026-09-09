@@ -40,9 +40,9 @@ export class PlannerAgentService {
    * §5.2 计划创建后，异步提交资源生成任务到队列。
    * 队列不可用（Redis 故障）时不阻塞、不抛错，仅告警。
    */
-  private async enqueuePathResources(userId: number, pathData: Record<string, any>): Promise<void> {
+  private async enqueuePathResources(userId: number, pathData: Record<string, any>, tenantId = 1): Promise<void> {
     try {
-      await this.queueService.addResourceTask(userId, 'path_resources', { pathData });
+      await this.queueService.addResourceTask(userId, 'path_resources', { pathData }, { tenantId });
     } catch (e: any) {
       console.warn('[PlannerAgent] enqueue path_resources failed (resources will lazy-generate):', e.message);
     }
@@ -63,11 +63,12 @@ export class PlannerAgentService {
     customSkills?: string[],
     customPlanName?: string,
     requestedPlanType?: 'main' | 'side',
+    tenantId = 1,
   ): Promise<{ plan: LearningPlan; tasks: LearningTask[]; gapSkills: string[] }> {
     const now = Date.now();
 
     // 1. 获取学生信息
-    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } as any });
     if (!student) throw new Error('用户未完成 Onboarding');
 
     const effectiveDailyHours = dailyHours || student.dailyHours || 2;
@@ -104,7 +105,7 @@ export class PlannerAgentService {
     }
 
     // 3. 获取用户已掌握技能
-    const userSkills = await this.skillService.getEffectiveSkills(userId);
+    const userSkills = await this.skillService.getEffectiveSkills(userId, tenantId);
     const masteredSkills = new Set(
       userSkills.filter((s) => s.masteryPct >= 80).map((s) => s.name.toLowerCase()),
     );
@@ -162,6 +163,7 @@ export class PlannerAgentService {
     // 9. 写入 learning_plans_v3
     const plan = await this.planRepo.save({
       userId,
+      tenantId,
       planName: customPlanName || `${jobTitle || direction}学习计划`,
       planType,
       targetJobId: planType === 'main' ? effectiveJobId : null,
@@ -185,8 +187,8 @@ export class PlannerAgentService {
       await this.planRepo.createQueryBuilder()
         .update(LearningPlan)
         .set({ planStatus: 'archived', scheduleEnabled: 0, updateTime: now })
-        .where('user_id = :userId AND plan_type = :planType AND plan_status = :status AND id <> :id', {
-          userId,
+        .where('tenant_id = :tenantId AND user_id = :userId AND plan_type = :planType AND plan_status = :status AND id <> :id', {
+          tenantId, userId,
           planType: 'main',
           status: 'active',
           id: plan.id,
@@ -194,13 +196,13 @@ export class PlannerAgentService {
         .execute();
     }
 
-    await this.branchService.ensurePlanBranch(userId, plan);
+    await this.branchService.ensurePlanBranch(userId, plan, tenantId);
 
     // 10. 生成第一天的学习任务
-    const tasks = await this.generateDailyTasks(plan.id, userId, phases, mainMinutesPerDay, now, planType);
+    const tasks = await this.generateDailyTasks(plan.id, userId, phases, mainMinutesPerDay, now, planType, tenantId);
 
     // 11. §5.2 异步提交资源生成任务（讲义/题目/编程题）
-    await this.enqueuePathResources(userId, pathData);
+    await this.enqueuePathResources(userId, pathData, tenantId);
 
     return { plan, tasks, gapSkills };
   }
@@ -214,9 +216,10 @@ export class PlannerAgentService {
     goalTitle: string,
     dailyHours: number,
     planType: 'main' | 'side',
+    tenantId = 1,
   ): Promise<{ plan: LearningPlan; tasks: LearningTask[]; gapSkills: string[] }> {
     const now = Date.now();
-    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } as any });
     if (!student) throw new Error('用户未完成 Onboarding');
 
     const effectiveDailyHours = Math.max(0.5, Math.min(8, Number(dailyHours || student.dailyHours || 2)));
@@ -251,6 +254,7 @@ export class PlannerAgentService {
 
     const plan = await this.planRepo.save({
       userId,
+      tenantId,
       planName: goalTitle,
       planType,
       targetJobId: null,
@@ -274,8 +278,8 @@ export class PlannerAgentService {
       await this.planRepo.createQueryBuilder()
         .update(LearningPlan)
         .set({ planStatus: 'archived', scheduleEnabled: 0, updateTime: now })
-        .where('user_id = :userId AND plan_type = :planType AND plan_status = :status AND id <> :id', {
-          userId,
+        .where('tenant_id = :tenantId AND user_id = :userId AND plan_type = :planType AND plan_status = :status AND id <> :id', {
+          tenantId, userId,
           planType: 'main',
           status: 'active',
           id: plan.id,
@@ -283,9 +287,9 @@ export class PlannerAgentService {
         .execute();
     }
 
-    await this.branchService.ensurePlanBranch(userId, plan);
-    const tasks = await this.generateDailyTasks(plan.id, userId, phases, availableMinutesPerDay, now, planType);
-    await this.enqueuePathResources(userId, pathData);
+    await this.branchService.ensurePlanBranch(userId, plan, tenantId);
+    const tasks = await this.generateDailyTasks(plan.id, userId, phases, availableMinutesPerDay, now, planType, tenantId);
+    await this.enqueuePathResources(userId, pathData, tenantId);
     const gapSkills = phases.flatMap((phase) => phase.skills.map((ability) => ability.name));
     return { plan, tasks, gapSkills };
   }
@@ -459,6 +463,7 @@ export class PlannerAgentService {
     mainMinutesPerDay: number,
     now: number,
     taskType: 'main' | 'side',
+    tenantId = 1,
   ): Promise<LearningTask[]> {
     if (phases.length === 0) return [];
 
@@ -472,6 +477,7 @@ export class PlannerAgentService {
 
       tasks.push({
         userId,
+        tenantId,
         planId,
         skillName: sk.name,
         taskType,

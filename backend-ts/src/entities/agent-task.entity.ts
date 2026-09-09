@@ -7,6 +7,9 @@ import { BaseEntity } from '../common/base.entity';
  */
 @Entity('agent_tasks_v3')
 export class AgentTask extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id' })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

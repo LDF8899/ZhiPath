@@ -49,13 +49,13 @@ export class NewsEnhancedService {
   /**
    * 个性化推荐（根据用户方向）
    */
-  async recommend(userId: number, limit: number = 10): Promise<News[]> {
+  async recommend(userId: number, limit: number = 10, tenantId = 1): Promise<News[]> {
     // 获取用户方向
-    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } as any });
     const direction = student?.interests?.[0] || '';
 
     // 根据方向筛选资讯
-    const where: any = { status: 1 };
+    const where: any = [{ status: 1, tenantId: null }, { status: 1, tenantId }];
     if (direction) {
       // 优先推荐与用户方向相关的资讯
       const items = await this.newsRepo.find({

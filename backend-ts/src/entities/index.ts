@@ -59,3 +59,16 @@ export { EvaluationEvidence } from './evaluation-evidence.entity';
 export { EvaluationResult } from './evaluation-result.entity';
 export { EvaluationDimensionScore } from './evaluation-dimension-score.entity';
 export { EvaluationImpact } from './evaluation-impact.entity';
+
+// 多前端平台控制面
+export { ClientApp } from './client-app.entity';
+export { ClientFeature } from './client-feature.entity';
+export { Tenant } from './tenant.entity';
+export { TenantMembership } from './tenant-membership.entity';
+export { PlatformRole } from './platform-role.entity';
+export { PlatformPermission } from './platform-permission.entity';
+export { RolePermission } from './role-permission.entity';
+export { UserClientPreference } from './user-client-preference.entity';
+export { RefreshToken } from './refresh-token.entity';
+export { QuestionBankImport } from './question-bank-import.entity';
+export { QuestionBankImportCandidate } from './question-bank-import-candidate.entity';

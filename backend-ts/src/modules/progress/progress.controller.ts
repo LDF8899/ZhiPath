@@ -94,8 +94,9 @@ export class ProgressController {
   async markReadComplete(
     @CurrentUser('sub') userId: number,
     @Body() body: { skill: string; path_id?: number },
+    tenantId = 1,
   ) {
-    const path = await this.getActivePath(userId, body.path_id);
+    const path = await this.getActivePath(userId, body.path_id, tenantId);
     if (!path) return success(null, '暂无学习路径');
     const context = this.assessmentContext.fromPlan(path);
 
@@ -103,7 +104,7 @@ export class ProgressController {
     await this.pathRepo.save(path);
 
     // §17 热层：记录当前技能 + 阅读位置（讲义读完=100%）
-    await this.progressStore.setCurrentSkill(userId, body.skill, 100);
+    await this.progressStore.setCurrentSkill(userId, body.skill, 100, tenantId);
 
     // 联动更新技能掌握度：+30%
     const delta = ProgressController.MASTERY_WEIGHTS.lecture;
@@ -121,6 +122,7 @@ export class ProgressController {
     const masteryPct = this.checklistMastery(path, body.skill);
     const evaluation = await this.evaluationService.record({
       userId,
+      tenantId,
       attemptType: 'progress_read',
       sourceType: 'progress_commit',
       sourceId: git.commit.id,
@@ -159,10 +161,12 @@ export class ProgressController {
   async restore(
     @CurrentUser('sub') userId: number,
     @Query('planId') planId?: string,
+    tenantId = 1,
   ) {
     const result = await this.progressStore.restoreProgress(
       userId,
       planId ? Number(planId) : undefined,
+      tenantId,
     );
     return success(result);
   }
@@ -172,9 +176,10 @@ export class ProgressController {
   async heartbeat(
     @CurrentUser('sub') userId: number,
     @Body() body: { deltaMs?: number; skill?: string; lecturePosition?: number },
+    tenantId = 1,
   ) {
-    if (body.deltaMs) await this.progressStore.addStudyTime(userId, body.deltaMs);
-    if (body.skill) await this.progressStore.setCurrentSkill(userId, body.skill, body.lecturePosition || 0);
+    if (body.deltaMs) await this.progressStore.addStudyTime(userId, body.deltaMs, tenantId);
+    if (body.skill) await this.progressStore.setCurrentSkill(userId, body.skill, body.lecturePosition || 0, tenantId);
     return success({ ok: true });
   }
 
@@ -183,8 +188,9 @@ export class ProgressController {
   async markQuizComplete(
     @CurrentUser('sub') userId: number,
     @Body() body: { skill: string; total: number; correct: number; path_id?: number },
+    tenantId = 1,
   ) {
-    const path = await this.getActivePath(userId, body.path_id);
+    const path = await this.getActivePath(userId, body.path_id, tenantId);
     if (!path) return success(null, '暂无学习路径');
     const context = this.assessmentContext.fromPlan(path);
 
@@ -227,6 +233,7 @@ export class ProgressController {
     try {
       examRecord = await this.examRepo.save({
         userId,
+        tenantId,
         examType: 1,  // 技能考试
         skillName: body.skill,
         score,
@@ -256,6 +263,7 @@ export class ProgressController {
     }
     const evaluation = await this.evaluationService.record({
       userId,
+      tenantId,
       attemptType: 'progress_quiz',
       sourceType: 'exam_record',
       sourceId: examRecord?.id || git?.commit?.id,
@@ -307,8 +315,9 @@ export class ProgressController {
   async markCodeComplete(
     @CurrentUser('sub') userId: number,
     @Body() body: { skill: string; path_id?: number },
+    tenantId = 1,
   ) {
-    const path = await this.getActivePath(userId, body.path_id);
+    const path = await this.getActivePath(userId, body.path_id, tenantId);
     if (!path) return success(null, '暂无学习路径');
     const context = this.assessmentContext.fromPlan(path);
 
@@ -329,6 +338,7 @@ export class ProgressController {
     const masteryPct = this.checklistMastery(path, body.skill);
     const evaluation = await this.evaluationService.record({
       userId,
+      tenantId,
       attemptType: 'progress_code',
       sourceType: 'progress_commit',
       sourceId: git.commit.id,
@@ -367,8 +377,9 @@ export class ProgressController {
   async markSkillComplete(
     @CurrentUser('sub') userId: number,
     @Body() body: { skill: string; path_id?: number },
+    tenantId = 1,
   ) {
-    const path = await this.getActivePath(userId, body.path_id);
+    const path = await this.getActivePath(userId, body.path_id, tenantId);
     if (!path) return success(null, '暂无学习路径');
     const context = this.assessmentContext.fromPlan(path);
 
@@ -390,9 +401,10 @@ export class ProgressController {
     await this.notificationService.notifyProgress(userId, body.skill, 100);
 
     // §17 热层：归档今日进度到 MongoDB 温层（技能完成是会话里程碑）
-    await this.progressStore.archiveToWarm(userId, path.id);
+    await this.progressStore.archiveToWarm(userId, path.id, tenantId);
     const evaluation = await this.evaluationService.record({
       userId,
+      tenantId,
       attemptType: 'skill_complete',
       sourceType: 'progress_commit',
       sourceId: git.commit.id,
@@ -431,12 +443,13 @@ export class ProgressController {
   async getMasteryBreakdown(
     @CurrentUser('sub') userId: number,
     @Param('skill') skill: string,
+    tenantId = 1,
   ) {
-    const skills = await this.skillService.getEffectiveSkills(userId);
+    const skills = await this.skillService.getEffectiveSkills(userId, tenantId);
     const current = skills.find(s => s.name === decodeURIComponent(skill));
 
     // 从学习路径中获取完成状态
-    const path = await this.getActivePath(userId);
+    const path = await this.getActivePath(userId, undefined, tenantId);
     const context = path ? this.assessmentContext.fromPlan(path) : null;
     let skillNode: any = null;
     if (path?.pathData?.phases) {
@@ -482,9 +495,9 @@ export class ProgressController {
 
   /** GET /api/user/progress/summary — 进度汇总 */
   @Get('summary')
-  async getProgressSummary(@CurrentUser('sub') userId: number) {
+  async getProgressSummary(@CurrentUser('sub') userId: number, tenantId = 1) {
     const paths = await this.pathRepo.find({
-      where: { userId: userId, status: 1 },
+      where: { userId: userId, tenantId, status: 1 },
       order: { createTime: 'DESC' },
       take: 5,
     });
@@ -525,12 +538,12 @@ export class ProgressController {
 
   // ── 内部方法 ──
 
-  private async getActivePath(userId: number, pathId?: number): Promise<LearningPlan | null> {
+  private async getActivePath(userId: number, pathId?: number, tenantId = 1): Promise<LearningPlan | null> {
     if (pathId) {
-      return this.pathRepo.findOne({ where: { id: pathId, status: 1 } });
+      return this.pathRepo.findOne({ where: { id: pathId, userId, tenantId, status: 1 } });
     }
     const paths = await this.pathRepo.find({
-      where: { userId: userId, status: 1 },
+      where: { userId: userId, tenantId, status: 1 },
       order: { createTime: 'DESC' },
       take: 1,
     });

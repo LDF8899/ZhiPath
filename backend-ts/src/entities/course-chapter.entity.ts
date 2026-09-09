@@ -5,6 +5,9 @@ export class CourseChapter {
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id: number;
 
+  @Column({ name: 'tenant_id', type: 'bigint', default: 1 })
+  tenantId: number;
+
   @Column({ name: 'user_id', type: 'bigint' })
   userId: number;
 

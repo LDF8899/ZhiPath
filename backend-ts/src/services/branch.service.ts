@@ -23,27 +23,28 @@ export class BranchService {
     private readonly eventsService: EventsService,
   ) {}
 
-  async listBranches(userId: number): Promise<LearningBranch[]> {
-    await this.learningCommitService.ensureMainBranch(userId);
+  async listBranches(userId: number, tenantId = 1): Promise<LearningBranch[]> {
+    await this.learningCommitService.ensureMainBranch(userId, tenantId);
     return this.branchRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { branchType: 'ASC', createTime: 'ASC' },
     });
   }
 
-  async createBranch(userId: number, input: { branchName?: string; branchType?: LearningBranchType; sourceBranchId?: number; planId?: number }) {
+  async createBranch(userId: number, input: { branchName?: string; branchType?: LearningBranchType; sourceBranchId?: number; planId?: number }, tenantId = 1) {
     if (input.planId) {
-      const plan = await this.planRepo.findOne({ where: { id: input.planId, userId, status: 1 } });
+      const plan = await this.planRepo.findOne({ where: { id: input.planId, userId, tenantId, status: 1 } });
       if (!plan) throw new NotFoundException('plan not found');
-      const existing = await this.branchRepo.findOne({ where: { userId, planId: plan.id, status: 1 } });
+      const existing = await this.branchRepo.findOne({ where: { userId, tenantId, planId: plan.id, status: 1 } });
       if (existing) return existing;
     }
     const source = input.sourceBranchId
-      ? await this.getBranch(userId, input.sourceBranchId)
-      : await this.learningCommitService.ensureMainBranch(userId);
+      ? await this.getBranch(userId, input.sourceBranchId, tenantId)
+      : await this.learningCommitService.ensureMainBranch(userId, tenantId);
     const now = Date.now();
     const branch = await this.branchRepo.save({
       userId,
+      tenantId,
       branchName: input.branchName || `${input.branchType || 'side'}-${now}`,
       branchType: input.planId ? 'plan' : input.branchType || 'side',
       planId: input.planId || null,
@@ -58,29 +59,29 @@ export class BranchService {
     return branch;
   }
 
-  async ensurePlanBranch(userId: number, planOrId: LearningPlan | number): Promise<LearningBranch> {
+  async ensurePlanBranch(userId: number, planOrId: LearningPlan | number, tenantId = 1): Promise<LearningBranch> {
     const plan = typeof planOrId === 'number'
-      ? await this.planRepo.findOne({ where: { id: planOrId, userId, status: 1 } })
+      ? await this.planRepo.findOne({ where: { id: planOrId, userId, tenantId, status: 1 } })
       : planOrId;
     if (!plan || Number(plan.userId) !== Number(userId)) throw new NotFoundException('plan not found');
-    const existing = await this.branchRepo.findOne({ where: { userId, planId: plan.id, status: 1 } });
+    const existing = await this.branchRepo.findOne({ where: { userId, tenantId, planId: plan.id, status: 1 } });
     if (existing) return existing;
     return this.createBranch(userId, {
       planId: plan.id,
       branchType: 'plan',
       branchName: `plan/${plan.id}-${plan.planName}`.slice(0, 120),
-    });
+    }, tenantId);
   }
 
-  async getPlanBranch(userId: number, planId: number): Promise<LearningBranch> {
-    return this.ensurePlanBranch(userId, planId);
+  async getPlanBranch(userId: number, planId: number, tenantId = 1): Promise<LearningBranch> {
+    return this.ensurePlanBranch(userId, planId, tenantId);
   }
 
-  async compareBranches(userId: number, sourceId: number, targetId: number) {
-    const source = await this.getBranch(userId, sourceId);
-    const target = await this.getBranch(userId, targetId);
-    const sourceSnapshot = source.headCommitId ? await this.snapshotService.getSnapshotByCommit(userId, source.headCommitId) : null;
-    const targetSnapshot = target.headCommitId ? await this.snapshotService.getSnapshotByCommit(userId, target.headCommitId) : null;
+  async compareBranches(userId: number, sourceId: number, targetId: number, tenantId = 1) {
+    const source = await this.getBranch(userId, sourceId, tenantId);
+    const target = await this.getBranch(userId, targetId, tenantId);
+    const sourceSnapshot = source.headCommitId ? await this.snapshotService.getSnapshotByCommit(userId, source.headCommitId, tenantId) : null;
+    const targetSnapshot = target.headCommitId ? await this.snapshotService.getSnapshotByCommit(userId, target.headCommitId, tenantId) : null;
     if (!sourceSnapshot || !targetSnapshot) {
       return { source, target, sourceSnapshot, targetSnapshot, delta: null };
     }
@@ -93,17 +94,17 @@ export class BranchService {
     };
   }
 
-  async mergeBranch(userId: number, sourceId: number, targetId?: number) {
-    const source = await this.getBranch(userId, sourceId);
-    const target = targetId ? await this.getBranch(userId, targetId) : await this.learningCommitService.ensureMainBranch(userId);
+  async mergeBranch(userId: number, sourceId: number, targetId?: number, tenantId = 1) {
+    const source = await this.getBranch(userId, sourceId, tenantId);
+    const target = targetId ? await this.getBranch(userId, targetId, tenantId) : await this.learningCommitService.ensureMainBranch(userId, tenantId);
     if (source.id === target.id) throw new Error('source and target branch must be different');
     if (target.branchType !== 'main') throw new Error('verified ability can only merge into the ability main branch');
-    const sourceHead = source.headCommitId ? await this.snapshotService.getSnapshotByCommit(userId, source.headCommitId) : null;
+    const sourceHead = source.headCommitId ? await this.snapshotService.getSnapshotByCommit(userId, source.headCommitId, tenantId) : null;
     if (!sourceHead) throw new NotFoundException('source snapshot not found');
-    const base = source.baseCommitId ? await this.snapshotService.getSnapshotByCommit(userId, source.baseCommitId) : null;
-    const targetHead = target.headCommitId ? await this.snapshotService.getSnapshotByCommit(userId, target.headCommitId) : null;
+    const base = source.baseCommitId ? await this.snapshotService.getSnapshotByCommit(userId, source.baseCommitId, tenantId) : null;
+    const targetHead = target.headCommitId ? await this.snapshotService.getSnapshotByCommit(userId, target.headCommitId, tenantId) : null;
 
-    await this.applySnapshotGain(userId, base, sourceHead);
+    await this.applySnapshotGain(userId, base, sourceHead, tenantId);
 
     const result = await this.learningCommitService.createCommitFromCurrentSkills({
       userId,
@@ -112,6 +113,7 @@ export class BranchService {
       message: `merge ${source.branchName} into ${target.branchName}`,
       mergeSourceCommitId: source.headCommitId,
       payload: { sourceBranchId: source.id, targetBranchId: target.id, sourceHeadCommitId: source.headCommitId },
+      tenantId,
     });
 
     source.mergedAt = Date.now();
@@ -120,31 +122,32 @@ export class BranchService {
     return result;
   }
 
-  async rollback(userId: number, commitId: number) {
-    const commit = await this.learningCommitService.getCommit(userId, commitId);
-    const branch = await this.getBranch(userId, commit.branchId);
-    const snapshot = await this.snapshotService.getSnapshotByCommit(userId, commit.id);
+  async rollback(userId: number, commitId: number, tenantId = 1) {
+    const commit = await this.learningCommitService.getCommit(userId, commitId, tenantId);
+    const branch = await this.getBranch(userId, commit.branchId, tenantId);
+    const snapshot = await this.snapshotService.getSnapshotByCommit(userId, commit.id, tenantId);
     if (!snapshot) throw new NotFoundException('snapshot not found');
     branch.headCommitId = commit.id;
     branch.updateTime = Date.now();
     await this.branchRepo.save(branch);
-    this.eventsService.emit(userId, { type: 'branch_updated', data: { branch } });
+    if (tenantId === 1) this.eventsService.emit(userId, { type: 'branch_updated', data: { branch } });
+    else this.eventsService.emit(userId, { type: 'branch_updated', data: { branch } }, tenantId);
     return { branch, commit, snapshot, nonDestructive: true };
   }
 
-  async getCommitDetail(userId: number, commitId: number) {
-    const commit = await this.learningCommitService.getCommit(userId, commitId);
-    const snapshot = commit.snapshotId ? await this.snapshotService.getSnapshot(userId, commit.snapshotId) : null;
+  async getCommitDetail(userId: number, commitId: number, tenantId = 1) {
+    const commit = await this.learningCommitService.getCommit(userId, commitId, tenantId);
+    const snapshot = commit.snapshotId ? await this.snapshotService.getSnapshot(userId, commit.snapshotId, tenantId) : null;
     return { commit, snapshot };
   }
 
-  private async getBranch(userId: number, branchId: number): Promise<LearningBranch> {
-    const branch = await this.branchRepo.findOne({ where: { id: branchId, userId, status: 1 } });
+  private async getBranch(userId: number, branchId: number, tenantId = 1): Promise<LearningBranch> {
+    const branch = await this.branchRepo.findOne({ where: { id: branchId, userId, tenantId, status: 1 } });
     if (!branch) throw new NotFoundException('branch not found');
     return branch;
   }
 
-  private async applySnapshotGain(userId: number, base: SkillSnapshotV3 | null, source: SkillSnapshotV3) {
+  private async applySnapshotGain(userId: number, base: SkillSnapshotV3 | null, source: SkillSnapshotV3, tenantId = 1) {
     const baseSkills = new Map<string, SkillDimension>();
     for (const skill of ((base?.skillsJson || []) as SkillDimension[])) {
       baseSkills.set(skill.name.toLowerCase(), skill);
@@ -153,11 +156,11 @@ export class BranchService {
       const before = baseSkills.get(skill.name.toLowerCase());
       const gain = Math.max(0, Number(skill.mastery || 0) - Number(before?.mastery || 0));
       if (gain <= 0) continue;
-      const existing = await this.skillService.getSkill(userId, skill.name);
+      const existing = await this.skillService.getSkill(userId, skill.name, tenantId);
       if (!existing) {
-        await this.skillService.addSkill(userId, skill.name, this.normalizeSource(skill.source), Number(skill.trustWeight || 0.7), gain);
+        await this.skillService.addSkill(userId, skill.name, this.normalizeSource(skill.source), Number(skill.trustWeight || 0.7), gain, tenantId);
       } else {
-        await this.skillService.updateMastery(userId, skill.name, gain);
+        await this.skillService.updateMastery(userId, skill.name, gain, tenantId);
       }
     }
   }

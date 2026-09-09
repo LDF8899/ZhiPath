@@ -129,7 +129,7 @@ export default function LearningPaths() {
     if (!selectedPlan) return;
     setActionBusy(true);
     try {
-      await setLearningPathStatus(selectedPlan.id, planStatus);
+      await setLearningPathStatus(selectedPlan.canonicalId || selectedPlan.id, planStatus);
       setNotice(`计划已${planStatus === 'active' ? '恢复' : planStatus === 'paused' ? '暂停' : '归档'}`);
       await fetchPaths(true);
     } catch (err: any) {
@@ -332,7 +332,7 @@ export default function LearningPaths() {
       </div>
 
       {showAddCourse && selectedPlan?.planType === 'side' && (
-        <AddCourseModal planId={selectedPlan.id} onClose={() => setShowAddCourse(false)} onAdded={async () => { setShowAddCourse(false); await fetchPaths(true); }} />
+        <AddCourseModal planId={selectedPlan.canonicalId || selectedPlan.id} onClose={() => setShowAddCourse(false)} onAdded={async () => { setShowAddCourse(false); await fetchPaths(true); }} />
       )}
     </div>
   );

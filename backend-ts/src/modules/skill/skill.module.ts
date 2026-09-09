@@ -8,6 +8,7 @@ import { Resume } from '../../entities/resume.entity';
 import { JobPosition } from '../../entities/job.entity';
 import { SkillService } from '../../services/skill.service';
 import { SkillController } from './skill.controller';
+import { SkillV1Controller } from './skill-v1.controller';
 import { EvidenceModule } from '../evidence/evidence.module';
 
 /**
@@ -15,7 +16,7 @@ import { EvidenceModule } from '../evidence/evidence.module';
  */
 @Module({
   imports: [TypeOrmModule.forFeature([UserSkill, Student, LearningCommit, EvaluationResult, Resume, JobPosition]), EvidenceModule],
-  controllers: [SkillController],
+  controllers: [SkillController, SkillV1Controller],
   providers: [SkillService],
   exports: [SkillService],
 })

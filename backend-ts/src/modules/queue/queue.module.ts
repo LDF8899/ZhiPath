@@ -10,6 +10,12 @@ import { GeneratedResourceService } from '../../services/generated-resource.serv
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { AgentsModule } from '../agents/agents.module';
 import { EventsModule } from '../events/events.module';
+import { OutboxJobDispatcherService } from './outbox-job-dispatcher.service';
+import { PlatformJobTrackerService } from './platform-job-tracker.service';
+import { OutboxRealtimePublisherService } from './outbox-realtime-publisher.service';
+import { UserLlmModule } from '../user-llm/user-llm.module';
+import { MultimodalModule } from '../multimodal/multimodal.module';
+import { QuestionGenerationModule } from '../question-generation/question-generation.module';
 
 /**
  * BullMQ 异步任务模块
@@ -39,8 +45,19 @@ import { EventsModule } from '../events/events.module';
     KnowledgeModule,
     AgentsModule,
     EventsModule,
+    UserLlmModule,
+    MultimodalModule,
+    QuestionGenerationModule,
   ],
-  providers: [AgentProcessor, ResourceProcessor, QueueService, GeneratedResourceService],
-  exports: [QueueService],
+  providers: [
+    AgentProcessor,
+    ResourceProcessor,
+    QueueService,
+    GeneratedResourceService,
+    OutboxJobDispatcherService,
+    OutboxRealtimePublisherService,
+    PlatformJobTrackerService,
+  ],
+  exports: [QueueService, PlatformJobTrackerService],
 })
 export class QueueModule {}

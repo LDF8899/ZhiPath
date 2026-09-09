@@ -66,7 +66,7 @@ export class AgentOfficeController {
   /** 获取统计信息 */
   @Get('stats')
   async getStats(@CurrentUser() user: any) {
-    const stats = await this.taskService.getStats(user.sub);
+    const stats = await this.taskService.getStats(user.sub, Number(user.tenantId) || 1);
     return success(stats);
   }
 
@@ -81,15 +81,15 @@ export class AgentOfficeController {
   /** 获取所有员工配置 */
   @Get('profiles')
   async getProfiles(@CurrentUser() user: any) {
-    const tasks = await this.taskService.getTasks(user.sub);
+    const tasks = await this.taskService.getTasks(user.sub, undefined, Number(user.tenantId) || 1);
     const activeAgentTypes = [...new Set(
       tasks
         .filter((task) => ['pending', 'running'].includes(task.taskStatus))
         .map((task) => task.agentType),
     )];
-    await this.profileService.releaseInactiveStations(user.sub, activeAgentTypes).catch(() => {});
+    await this.profileService.releaseInactiveStations(user.sub, activeAgentTypes, user.tenantId).catch(() => {});
 
-    const profiles = await this.profileService.getProfiles(user.sub);
+    const profiles = await this.profileService.getProfiles(user.sub, user.tenantId);
     return success(profiles);
   }
 
@@ -113,6 +113,7 @@ export class AgentOfficeController {
       body.color || '#f9d27c',
       body.nickname.trim(),
       body.displayRole || AGENT_TYPE_MAP[body.agentType].defaultRole,
+      user.tenantId,
     );
     return success(profile);
   }
@@ -124,10 +125,10 @@ export class AgentOfficeController {
     @Param('profileId') profileId: string,
     @Body() body: { animalType?: string; color?: string; nickname?: string; displayRole?: string },
   ) {
-    const profile = await this.profileService.getProfile(user.sub, parseInt(profileId, 10));
+    const profile = await this.profileService.getProfile(user.sub, parseInt(profileId, 10), user.tenantId);
     if (!profile) return error(404, '员工不存在');
 
-    const updated = await this.profileService.updateProfile(user.sub, profile.agentType, body);
+    const updated = await this.profileService.updateProfile(user.sub, profile.agentType, body, user.tenantId);
     return success(updated);
   }
 
@@ -137,19 +138,19 @@ export class AgentOfficeController {
     @CurrentUser() user: any,
     @Param('profileId') profileId: string,
   ) {
-    const profile = await this.profileService.getProfile(user.sub, parseInt(profileId, 10));
+    const profile = await this.profileService.getProfile(user.sub, parseInt(profileId, 10), user.tenantId);
     if (!profile) return error(404, '员工不存在');
 
     // 取消该员工的待处理任务
-    const tasks = await this.taskService.getTasks(user.sub);
+    const tasks = await this.taskService.getTasks(user.sub, undefined, Number(user.tenantId) || 1);
     for (const task of tasks) {
       if (task.agentType === profile.agentType && task.taskStatus === 'pending') {
-        await this.taskService.cancelTask(task.id, user.sub).catch(() => {});
+        await this.taskService.cancelTask(task.id, user.sub, Number(user.tenantId) || 1).catch(() => {});
       }
     }
 
     // 软删除
-    await this.profileService.softDelete(user.sub, profile.id);
+    await this.profileService.softDelete(user.sub, profile.id, user.tenantId);
 
     return success({ message: `${profile.nickname} 已离职` });
   }
@@ -161,10 +162,10 @@ export class AgentOfficeController {
     @Param('profileId') profileId: string,
     @Body() body: { stationId: number | null },
   ) {
-    const profile = await this.profileService.getProfile(user.sub, parseInt(profileId, 10));
+    const profile = await this.profileService.getProfile(user.sub, parseInt(profileId, 10), user.tenantId);
     if (!profile) return error(404, '员工不存在');
 
-    const updated = await this.profileService.assignStation(user.sub, profile.agentType, body.stationId);
+    const updated = await this.profileService.assignStation(user.sub, profile.agentType, body.stationId, user.tenantId);
     return success(updated);
   }
 
@@ -181,7 +182,7 @@ export class AgentOfficeController {
       return error(400, '请输入指令');
     }
 
-    const profile = await this.profileService.getProfile(user.sub, parseInt(profileId, 10));
+    const profile = await this.profileService.getProfile(user.sub, parseInt(profileId, 10), user.tenantId);
     if (!profile) return error(404, '员工不存在');
     if (profile.agentStatus === 'busy') {
       return error(409, `${profile.nickname} 正在忙碌中，请稍后再试`);
@@ -194,14 +195,17 @@ export class AgentOfficeController {
       body.prompt.trim().slice(0, 100),
       { ...body.params, directPrompt: body.prompt.trim() },
       `${profile.nickname} 直接执行`,
+      undefined,
+      undefined,
+      Number(user.tenantId) || 1,
     );
 
     // 更新状态
     await this.syncGeneratedResource(user.sub, task, undefined, 'direct pending');
-    await this.profileService.updateStatus(user.sub, profile.agentType as any, 'busy').catch(() => {});
+    await this.profileService.updateStatus(user.sub, profile.agentType as any, 'busy', {}, Number(user.tenantId) || 1).catch(() => {});
 
     // 异步执行
-    this.executeDirectTask(task.id, user.sub, profile.agentType, body.prompt.trim(), body.params || {}).catch((e) =>
+    this.executeDirectTask(task.id, user.sub, profile.agentType, body.prompt.trim(), body.params || {}, Number(user.tenantId) || 1).catch((e) =>
       console.error('[AgentOffice] Direct task failed:', e.message),
     );
 
@@ -213,14 +217,14 @@ export class AgentOfficeController {
   /** 获取任务队列 */
   @Get('tasks')
   async getTasks(@CurrentUser() user: any, @Query('status') status?: string) {
-    const tasks = await this.taskService.getTasks(user.sub, status as any);
+    const tasks = await this.taskService.getTasks(user.sub, status as any, Number(user.tenantId) || 1);
     return success(tasks);
   }
 
   /** 获取任务详情 */
   @Get('tasks/:taskId')
   async getTask(@Param('taskId') taskId: string, @CurrentUser() user: any) {
-    const task = await this.taskService.getTask(parseInt(taskId, 10), user.sub);
+    const task = await this.taskService.getTask(parseInt(taskId, 10), user.sub, Number(user.tenantId) || 1);
     return success(task);
   }
 
@@ -242,12 +246,13 @@ export class AgentOfficeController {
       body.description,
       body.outputType,
       body.targetEntity || null,
+      Number(user.tenantId) || 1,
     );
 
     await this.syncGeneratedResource(user.sub, task, undefined, 'task pending');
-    await this.profileService.updateStatus(user.sub, body.agentType as any, 'busy').catch(() => {});
+    await this.profileService.updateStatus(user.sub, body.agentType as any, 'busy', {}, Number(user.tenantId) || 1).catch(() => {});
 
-    this.executeTask(task.id, user.sub, body.agentType, body.params || {}).catch((e) =>
+    this.executeTask(task.id, user.sub, body.agentType, body.params || {}, Number(user.tenantId) || 1).catch((e) =>
       console.error('[AgentOffice] Task execution failed:', e.message),
     );
 
@@ -257,14 +262,14 @@ export class AgentOfficeController {
   /** 标记紧急 */
   @Post('tasks/:taskId/urgent')
   async markUrgent(@Param('taskId') taskId: string, @CurrentUser() user: any) {
-    const task = await this.taskService.markUrgent(parseInt(taskId, 10), user.sub);
+    const task = await this.taskService.markUrgent(parseInt(taskId, 10), user.sub, Number(user.tenantId) || 1);
     return success(task);
   }
 
   /** 跳过任务 */
   @Post('tasks/:taskId/skip')
   async skipTask(@Param('taskId') taskId: string, @CurrentUser() user: any) {
-    const task = await this.taskService.skipTask(parseInt(taskId, 10), user.sub);
+    const task = await this.taskService.skipTask(parseInt(taskId, 10), user.sub, Number(user.tenantId) || 1);
     return success(task);
   }
 
@@ -274,21 +279,21 @@ export class AgentOfficeController {
     if (!Array.isArray(body.taskIds) || body.taskIds.length === 0) {
       return error(400, 'taskIds 不能为空');
     }
-    await this.taskService.reorderTasks(user.sub, body.taskIds);
+    await this.taskService.reorderTasks(user.sub, body.taskIds, Number(user.tenantId) || 1);
     return success({ message: '排序已更新' });
   }
 
   /** 取消任务 */
   @Post('tasks/:taskId/cancel')
   async cancelTask(@Param('taskId') taskId: string, @CurrentUser() user: any) {
-    const task = await this.taskService.cancelTask(parseInt(taskId, 10), user.sub);
+    const task = await this.taskService.cancelTask(parseInt(taskId, 10), user.sub, Number(user.tenantId) || 1);
     if (task) {
-      await this.generatedResources.failFromTask(user.sub, task, 'Task cancelled by user').catch((e) =>
+      await this.generatedResources.failFromTask(user.sub, task, 'Task cancelled by user', Number(user.tenantId) || 1).catch((e) =>
         console.warn('[AgentOffice] generated resource cancel upsert failed:', e.message),
       );
-      await this.releaseAgentIfNoRunningTasks(user.sub, task.agentType, task.id);
-      this.eventsService.emitAgentProgress(user.sub, task.agentType, String(task.id), -1, 'Task cancelled');
-      this.eventsService.emitAgentStatus(user.sub, task.agentType, 'idle');
+      await this.releaseAgentIfNoRunningTasks(user.sub, task.agentType, task.id, Number(user.tenantId) || 1);
+      this.eventsService.emitAgentProgress(user.sub, task.agentType, String(task.id), -1, 'Task cancelled', Number(user.tenantId) || 1);
+      this.eventsService.emitAgentStatus(user.sub, task.agentType, 'idle', undefined, Number(user.tenantId) || 1);
     }
     return success(task);
   }
@@ -296,13 +301,13 @@ export class AgentOfficeController {
   /** 重试失败/取消任务 */
   @Post('tasks/:taskId/retry')
   async retryTask(@Param('taskId') taskId: string, @CurrentUser() user: any) {
-    const task = await this.taskService.retryTask(parseInt(taskId, 10), user.sub);
+    const task = await this.taskService.retryTask(parseInt(taskId, 10), user.sub, Number(user.tenantId) || 1);
     if (!task) return error(400, '任务不可重试');
 
     await this.syncGeneratedResource(user.sub, task, undefined, 'retry pending');
-    await this.profileService.updateStatus(user.sub, task.agentType as any, 'busy').catch(() => {});
+    await this.profileService.updateStatus(user.sub, task.agentType as any, 'busy', {}, Number(user.tenantId) || 1).catch(() => {});
 
-    this.executeTask(task.id, user.sub, task.agentType, task.params || {}).catch((e) =>
+    this.executeTask(task.id, user.sub, task.agentType, task.params || {}, Number(user.tenantId) || 1).catch((e) =>
       console.error('[AgentOffice] Retry task execution failed:', e.message),
     );
 
@@ -312,14 +317,14 @@ export class AgentOfficeController {
   /** 删除任务 */
   @Post('tasks/:taskId/delete')
   async deleteTask(@Param('taskId') taskId: string, @CurrentUser() user: any) {
-    const result = await this.taskService.deleteTask(parseInt(taskId, 10), user.sub);
+    const result = await this.taskService.deleteTask(parseInt(taskId, 10), user.sub, Number(user.tenantId) || 1);
     return success({ success: result });
   }
 
   /** 获取最近完成的任务 */
   @Get('history')
   async getHistory(@CurrentUser() user: any, @Query('limit') limit?: string) {
-    const tasks = await this.taskService.getRecentCompleted(user.sub, limit ? parseInt(limit, 10) : 10);
+    const tasks = await this.taskService.getRecentCompleted(user.sub, limit ? parseInt(limit, 10) : 10, Number(user.tenantId) || 1);
     return success(tasks);
   }
 
@@ -330,125 +335,125 @@ export class AgentOfficeController {
     );
   }
 
-  private async releaseAgentIfNoRunningTasks(userId: number, agentType: string, finishedTaskId: number): Promise<void> {
+  private async releaseAgentIfNoRunningTasks(userId: number, agentType: string, finishedTaskId: number, tenantId = 1): Promise<void> {
     const stillRunning = await this.taskService
-      .hasRunningTask(userId, agentType as any, finishedTaskId)
+      .hasRunningTask(userId, agentType as any, finishedTaskId, tenantId)
       .catch(() => false);
 
     if (stillRunning) return;
 
     await this.profileService
-      .updateStatus(userId, agentType as any, 'idle', { releaseStation: true })
+      .updateStatus(userId, agentType as any, 'idle', { releaseStation: true }, tenantId)
       .catch(() => {});
   }
 
   // ── 内部方法 ──────────────────────────────────
 
   /** 执行任务（派发模式，异步） */
-  private async executeTask(taskId: number, userId: number, agentType: string, params: Record<string, any>) {
+  private async executeTask(taskId: number, userId: number, agentType: string, params: Record<string, any>, tenantId = 1) {
     try {
       // SSE：任务开始
-      this.eventsService.emitAgentStatus(userId, agentType, 'working', `开始执行任务 #${taskId}`);
-      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 0, '任务排队中');
+      this.eventsService.emitAgentStatus(userId, agentType, 'working', `开始执行任务 #${taskId}`, tenantId);
+      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 0, '任务排队中', tenantId);
 
-      await this.taskService.updateStatus(taskId, 'running');
+      await this.taskService.updateStatus(taskId, 'running', undefined, undefined, tenantId);
       await this.taskService.updateProgress(taskId, 30);
-      await this.syncGeneratedResource(userId, await this.taskService.getTask(taskId, userId), undefined, 'running');
-      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 30, 'Agent 生成中...');
+      await this.syncGeneratedResource(userId, await this.taskService.getTask(taskId, userId, tenantId), undefined, 'running');
+      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 30, 'Agent 生成中...', tenantId);
 
-      const result = await this.runAgent(agentType, params, userId);
+      const result = await this.runAgent(agentType, params, userId, tenantId);
 
       await this.taskService.updateProgress(taskId, 90);
-      await this.syncGeneratedResource(userId, await this.taskService.getTask(taskId, userId), undefined, 'saving');
-      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 90, '保存结果中');
+      await this.syncGeneratedResource(userId, await this.taskService.getTask(taskId, userId, tenantId), undefined, 'saving');
+      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 90, '保存结果中', tenantId);
 
-      const completedTask = await this.taskService.updateStatus(taskId, 'success', result);
+      const completedTask = await this.taskService.updateStatus(taskId, 'success', result, undefined, tenantId);
       await this.syncGeneratedResource(userId, completedTask, result, 'success');
-      await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId);
+      await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId, tenantId);
 
       // SSE：任务完成
-      this.eventsService.emitAgentStatus(userId, agentType, 'idle');
-      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 100, '完成');
+      this.eventsService.emitAgentStatus(userId, agentType, 'idle', undefined, tenantId);
+      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 100, '完成', tenantId);
 
       // 如果有技能相关结果，推送资源就绪事件
       const skillName = params.skillName || result?.skill;
       if (skillName) {
-        this.eventsService.emitResourceReady(userId, skillName, agentType);
+        this.eventsService.emitResourceReady(userId, skillName, agentType, tenantId);
       }
 
       // 自动持久化到知识库
-      await this.saveToKnowledgeBase(agentType, params, result).catch((e) =>
+      await this.saveToKnowledgeBase(agentType, params, result, tenantId).catch((e) =>
         console.error('[AgentOffice] saveToKnowledgeBase failed:', e.message),
       );
     } catch (e: any) {
       // SSE：任务失败
-      this.eventsService.emitAgentStatus(userId, agentType, 'error', e.message);
-      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), -1, `失败: ${e.message}`);
+      this.eventsService.emitAgentStatus(userId, agentType, 'error', e.message, tenantId);
+      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), -1, `失败: ${e.message}`, tenantId);
 
-      const failedTask = await this.taskService.updateStatus(taskId, 'failed', undefined, e.message);
+      const failedTask = await this.taskService.updateStatus(taskId, 'failed', undefined, e.message, tenantId);
       if (failedTask) {
-        await this.generatedResources.failFromTask(userId, failedTask, e.message).catch((err) =>
+        await this.generatedResources.failFromTask(userId, failedTask, e.message, tenantId).catch((err) =>
           console.warn('[AgentOffice] generated resource failure upsert failed:', err.message),
         );
       }
-      await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId);
+      await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId, tenantId);
     }
   }
 
   /** 执行直接使用任务（异步） */
-  private async executeDirectTask(taskId: number, userId: number, agentType: string, prompt: string, params: Record<string, any>) {
+  private async executeDirectTask(taskId: number, userId: number, agentType: string, prompt: string, params: Record<string, any>, tenantId = 1) {
     try {
       // SSE：任务开始
-      this.eventsService.emitAgentStatus(userId, agentType, 'working', `直接执行: ${prompt.slice(0, 50)}`);
-      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 0, '任务排队中');
+      this.eventsService.emitAgentStatus(userId, agentType, 'working', `直接执行: ${prompt.slice(0, 50)}`, tenantId);
+      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 0, '任务排队中', tenantId);
 
-      await this.taskService.updateStatus(taskId, 'running');
+      await this.taskService.updateStatus(taskId, 'running', undefined, undefined, tenantId);
       await this.taskService.updateProgress(taskId, 30);
-      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 30, 'Agent 生成中...');
+      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 30, 'Agent 生成中...', tenantId);
 
       // 直接使用模式：把 prompt 传给 agent
-      await this.syncGeneratedResource(userId, await this.taskService.getTask(taskId, userId), undefined, 'direct running');
-      const result = await this.runAgent(agentType, { ...params, directPrompt: prompt, skillName: prompt }, userId);
+      await this.syncGeneratedResource(userId, await this.taskService.getTask(taskId, userId, tenantId), undefined, 'direct running');
+      const result = await this.runAgent(agentType, { ...params, directPrompt: prompt, skillName: prompt }, userId, tenantId);
 
       await this.taskService.updateProgress(taskId, 90);
-      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 90, '保存结果中');
+      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 90, '保存结果中', tenantId);
 
-      await this.syncGeneratedResource(userId, await this.taskService.getTask(taskId, userId), undefined, 'direct saving');
-      const completedTask = await this.taskService.updateStatus(taskId, 'success', result);
+      await this.syncGeneratedResource(userId, await this.taskService.getTask(taskId, userId, tenantId), undefined, 'direct saving');
+      const completedTask = await this.taskService.updateStatus(taskId, 'success', result, undefined, tenantId);
       await this.syncGeneratedResource(userId, completedTask, result, 'direct success');
-      await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId);
+      await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId, tenantId);
 
       // SSE：任务完成
-      this.eventsService.emitAgentStatus(userId, agentType, 'idle');
-      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 100, '完成');
+      this.eventsService.emitAgentStatus(userId, agentType, 'idle', undefined, tenantId);
+      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), 100, '完成', tenantId);
 
       // 如果有技能相关结果，推送资源就绪事件
       const skillName = params.skillName || result?.skill || prompt;
       if (skillName) {
-        this.eventsService.emitResourceReady(userId, skillName, agentType);
+        this.eventsService.emitResourceReady(userId, skillName, agentType, tenantId);
       }
 
       // 自动持久化到知识库
-      await this.saveToKnowledgeBase(agentType, params, result).catch((e) =>
+      await this.saveToKnowledgeBase(agentType, params, result, tenantId).catch((e) =>
         console.error('[AgentOffice] saveToKnowledgeBase failed:', e.message),
       );
     } catch (e: any) {
       // SSE：任务失败
-      this.eventsService.emitAgentStatus(userId, agentType, 'error', e.message);
-      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), -1, `失败: ${e.message}`);
+      this.eventsService.emitAgentStatus(userId, agentType, 'error', e.message, tenantId);
+      this.eventsService.emitAgentProgress(userId, agentType, String(taskId), -1, `失败: ${e.message}`, tenantId);
 
-      const failedTask = await this.taskService.updateStatus(taskId, 'failed', undefined, e.message);
+      const failedTask = await this.taskService.updateStatus(taskId, 'failed', undefined, e.message, tenantId);
       if (failedTask) {
-        await this.generatedResources.failFromTask(userId, failedTask, e.message).catch((err) =>
+        await this.generatedResources.failFromTask(userId, failedTask, e.message, tenantId).catch((err) =>
           console.warn('[AgentOffice] generated resource failure upsert failed:', err.message),
         );
       }
-      await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId);
+      await this.releaseAgentIfNoRunningTasks(userId, agentType, taskId, tenantId);
     }
   }
 
   /** 将 Agent 任务结果持久化到 MongoDB 知识库 */
-  private async saveToKnowledgeBase(agentType: string, params: Record<string, any>, result: any): Promise<void> {
+  private async saveToKnowledgeBase(agentType: string, params: Record<string, any>, result: any, tenantId = 1): Promise<void> {
     if (!result) return;
     const skill = params.skillName || result.skill;
     if (!skill) return;
@@ -457,7 +462,7 @@ export class AgentOfficeController {
       case 'lecture':
         // 保存讲义
         if (result.content) {
-          await this.knowledgeBase.saveLecture(skill, result.content, params.level || 'beginner');
+          await this.knowledgeBase.saveLecture(skill, result.content, params.level || 'beginner', tenantId);
           console.log(`[AgentOffice→KB] Lecture saved: ${skill}`);
         }
         // 保存练习题
@@ -471,7 +476,7 @@ export class AgentOfficeController {
               explanation: ex.explanation || '',
             }));
           if (questions.length > 0) {
-            await this.knowledgeBase.saveQuiz(skill, questions, params.level || 'beginner');
+            await this.knowledgeBase.saveQuiz(skill, questions, params.level || 'beginner', tenantId);
             console.log(`[AgentOffice→KB] Quiz saved: ${skill} (${questions.length}q)`);
           }
         }
@@ -479,7 +484,7 @@ export class AgentOfficeController {
 
       case 'code':
         if (result.examples?.length) {
-          await this.knowledgeBase.saveCoding(skill, result.examples, 'beginner');
+          await this.knowledgeBase.saveCoding(skill, result.examples, 'beginner', tenantId);
           console.log(`[AgentOffice→KB] Coding saved: ${skill} (${result.examples.length} examples)`);
         }
         break;
@@ -490,14 +495,14 @@ export class AgentOfficeController {
             items: result.items,
             studyAdvice: result.studyAdvice,
             total: result.items.length,
-          }, 'beginner');
+          }, 'beginner', true, tenantId);
           console.log(`[AgentOffice→KB] Reading saved: ${skill} (${result.items.length} items)`);
         }
         break;
 
       case 'assess':
         if (result) {
-          await this.knowledgeBase.saveContent(skill, 'assess', result, 'beginner');
+          await this.knowledgeBase.saveContent(skill, 'assess', result, 'beginner', true, tenantId);
           console.log(`[AgentOffice→KB] Assess saved: ${skill}`);
         }
         break;
@@ -509,7 +514,7 @@ export class AgentOfficeController {
   }
 
   /** 统一 Agent 调度 */
-  private async runAgent(agentType: string, params: Record<string, any>, userId?: number): Promise<any> {
+  private async runAgent(agentType: string, params: Record<string, any>, userId?: number, tenantId = 1): Promise<any> {
     switch (agentType) {
       case 'lecture':
         return this.lectureAgent.generate(params.skillName || '未知技能', params.level || 'beginner', params.extra);
@@ -525,8 +530,8 @@ export class AgentOfficeController {
         let learningData = String(params.learningData || '').trim();
         if (!learningData && userId) {
           const [skillRows, student] = await Promise.all([
-            this.userSkillRepo.find({ where: { userId: Number(userId) } }),
-            this.studentRepo.findOne({ where: { userId: Number(userId) } }),
+            this.userSkillRepo.find({ where: { userId: Number(userId), tenantId } as any }),
+            this.studentRepo.findOne({ where: { userId: Number(userId), tenantId, status: 1 } as any }),
           ]);
           if (skillRows.length > 0) {
             const lines = skillRows.map((s) => {
@@ -562,13 +567,13 @@ export class AgentOfficeController {
         let userSkills = Array.isArray(params.userSkills) ? params.userSkills : [];
         let targetJob = params.targetJob || null;
         if (!userSkills.length) {
-          const rows = await this.userSkillRepo.find({ where: { userId: Number(userId || 0) } });
+          const rows = await this.userSkillRepo.find({ where: { userId: Number(userId || 0), tenantId } as any });
           userSkills = rows.map((s) => ({ name: s.skillName, mastery: Number(s.masteryPct) || 0, verified: (Number(s.trustWeight) || 0) >= 0.8 }));
         }
         if (!targetJob) {
-          const student = await this.studentRepo.findOne({ where: { userId: Number(userId || 0) } });
+          const student = await this.studentRepo.findOne({ where: { userId: Number(userId || 0), tenantId, status: 1 } as any });
           const job = student?.targetJobId
-            ? await this.jobRepo.findOne({ where: { id: student.targetJobId } })
+            ? await this.jobRepo.findOne({ where: { id: student.targetJobId, status: 1 } as any })
             : await this.jobRepo.createQueryBuilder('j').where('j.status = 1').orderBy('j.createTime', 'DESC').getOne();
           if (job) {
             targetJob = {

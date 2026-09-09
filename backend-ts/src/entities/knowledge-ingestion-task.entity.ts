@@ -13,6 +13,9 @@ export type KnowledgeIngestionStatus = 'pending' | 'cleaning' | 'inspecting' | '
 @Index(['userId', 'createTime'])
 @Index(['taskId'], { unique: true })
 export class KnowledgeIngestionTask extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'varchar', length: 64, name: 'task_id', comment: '任务唯一ID' })
   taskId: string;
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { startSession, endSession, recordSessionProgress } from '../api/user';
+import { zhipathTokenStore } from '../api/platform';
 
 const SESSION_KEY = 'zhpath_learning_session_id';
 
@@ -67,7 +68,20 @@ export function useSession(planId?: number) {
     const handler = () => {
       const id = sessionId ?? parseInt(sessionStorage.getItem(SESSION_KEY) ?? '0', 10);
       if (!id) return;
-      navigator.sendBeacon(`/api/user/sessions/${id}/end`);
+      // beforeunload 中不能等待 Promise，使用 keepalive fetch 仍携带统一
+      // 客户端身份和访问令牌，避免悄悄回到旧 /api/user 会话入口。
+      const token = zhipathTokenStore.getAccessToken();
+      if (token) {
+        void fetch(`/api/v1/sessions/${id}/end`, {
+          method: 'POST',
+          keepalive: true,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'X-Client-App': 'zhipath-web',
+            'Content-Type': 'application/json',
+          },
+        }).catch(() => undefined);
+      }
       sessionStorage.removeItem(SESSION_KEY);
     };
     window.addEventListener('beforeunload', handler);

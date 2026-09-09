@@ -7,6 +7,9 @@ export type EvaluationEvaluatorType = 'objective' | 'llm' | 'hybrid' | 'system';
 @Index(['userId', 'attemptId'])
 @Index(['userId', 'skillName'])
 export class EvaluationResult extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

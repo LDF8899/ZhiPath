@@ -6,8 +6,20 @@ import {
   CodeAgentService,
   PathAgentService,
   AssessAgentService,
+  ExamAgentService,
+  SkillGapAgentService,
+  ResumeAgentService,
+  ProfileAgentService,
+  NewsAgentService,
 } from '../../services/agents';
 import { EventsService } from '../events/events.service';
+import {
+  PlatformJobCancelledError,
+  PlatformJobTrackerService,
+} from './platform-job-tracker.service';
+import { LlmService } from '../../services/llm.service';
+import { UserLlmService } from '../user-llm/user-llm.service';
+import { QuestionGenerationService } from '../question-generation/question-generation.service';
 
 /**
  * 可重试错误：网络超时、LLM 限流 (429)、连接重置
@@ -59,7 +71,16 @@ export class AgentProcessor extends WorkerHost {
     private readonly codeAgent: CodeAgentService,
     private readonly pathAgent: PathAgentService,
     private readonly assessAgent: AssessAgentService,
+    private readonly examAgent: ExamAgentService,
+    private readonly skillGapAgent: SkillGapAgentService,
+    private readonly resumeAgent: ResumeAgentService,
+    private readonly profileAgent: ProfileAgentService,
+    private readonly newsAgent: NewsAgentService,
     private readonly events: EventsService,
+    private readonly platformJobs: PlatformJobTrackerService,
+    private readonly llmContext: LlmService,
+    private readonly userLlm: UserLlmService,
+    private readonly questionGeneration: QuestionGenerationService,
   ) {
     super();
     // 启动缓存定期清理
@@ -71,31 +92,56 @@ export class AgentProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<any> {
-    const { userId, agentType, params } = job.data;
+    const { userId, platformJobId } = job.data;
+    const [config, attribution] = await Promise.all([
+    this.userLlm.getForCall(Number(userId), Number(job.data?.tenantId || 1)).catch(() => undefined),
+      this.platformJobs.getAttribution(platformJobId),
+    ]);
+    return this.llmContext.withUser(
+      config,
+      () => this.processWithContext(job, attribution),
+      attribution,
+    );
+  }
+
+  private async processWithContext(job: Job, attribution?: any): Promise<any> {
+    const { userId, agentType, params, platformJobId, tenantId = 1 } = job.data;
     const jobId = String(job.id);
 
-    // ── 1. 占位符模式：立即推送"任务已接收" ──────────────────────
-    this.events.emitAgentStatus(userId, agentType, 'working');
-    this.events.emitAgentProgress(userId, agentType, jobId, 0, `${agentType} 任务已接收，排队等待执行`);
-    console.log(`[AgentProcessor] Received ${agentType} for user ${userId}, job ${job.id}`);
-
-    // ── 2. 参数校验（不可重试） ──────────────────────────────────
-    this.validateParams(agentType, params);
-
-    // ── 3. 缓存查询 ─────────────────────────────────────────────
-    const cacheKey = `${agentType}:${JSON.stringify(params)}`;
-    const cached = AgentProcessor.resultCache.get(cacheKey);
-    if (cached && cached.expiry > Date.now()) {
-      console.log(`[AgentProcessor] Cache hit for ${agentType}, user ${userId}`);
-      await job.updateProgress(100);
-      this.events.emitAgentProgress(userId, agentType, jobId, 100, `${agentType} 使用缓存结果`);
-      this.events.emitAgentStatus(userId, agentType, 'idle');
-      return cached.result;
+    if (!(await this.platformJobs.start(platformJobId))) {
+      return { cancelled: true };
     }
 
-    // ── 4. 带细粒度进度的执行 ───────────────────────────────────
+    // ── 1. 占位符模式：立即推送"任务已接收" ──────────────────────
+    this.events.emitAgentStatus(userId, agentType, 'working', undefined, tenantId);
+    this.events.emitAgentProgress(userId, agentType, jobId, 0, `${agentType} 任务已接收，排队等待执行`, tenantId);
+    console.log(`[AgentProcessor] Received ${agentType} for user ${userId}, job ${job.id}`);
+
     try {
-      const result = await this.executeWithProgress(job, userId, agentType, jobId, params);
+      // ── 2. 参数校验（不可重试） ────────────────────────────────
+      this.validateParams(agentType, params);
+      await this.platformJobs.assertActive(platformJobId);
+
+      // ── 3. 缓存查询 ────────────────────────────────────────────
+      const cacheKey = `${agentType}:${JSON.stringify(params)}`;
+      const cached = AgentProcessor.resultCache.get(cacheKey);
+      if (cached && cached.expiry > Date.now()) {
+        console.log(`[AgentProcessor] Cache hit for ${agentType}, user ${userId}`);
+        await this.platformJobs.assertActive(platformJobId);
+        const completed = await this.platformJobs.complete(platformJobId, cached.result);
+        if (!completed) return this.cancelled(userId, agentType, jobId, tenantId);
+        await job.updateProgress(100);
+        this.events.emitAgentProgress(userId, agentType, jobId, 100, `${agentType} 使用缓存结果`, tenantId);
+        this.events.emitAgentStatus(userId, agentType, 'idle', undefined, tenantId);
+        return cached.result;
+      }
+
+      // ── 4. 带细粒度进度的执行 ──────────────────────────────────
+      const result = await this.executeWithProgress(job, userId, agentType, jobId, params, platformJobId, Number(attribution?.tenantId || tenantId || 1));
+      await this.platformJobs.assertActive(platformJobId);
+
+      const completed = await this.platformJobs.complete(platformJobId, result);
+      if (!completed) return this.cancelled(userId, agentType, jobId, tenantId);
 
       // 写入缓存
       AgentProcessor.resultCache.set(cacheKey, {
@@ -106,12 +152,17 @@ export class AgentProcessor extends WorkerHost {
 
       // 最终状态
       await job.updateProgress(100);
-      this.events.emitAgentProgress(userId, agentType, jobId, 100, `${agentType} 任务完成`);
-      this.events.emitAgentStatus(userId, agentType, 'idle');
+      this.events.emitAgentProgress(userId, agentType, jobId, 100, `${agentType} 任务完成`, tenantId);
+      this.events.emitAgentStatus(userId, agentType, 'idle', undefined, tenantId);
       console.log(`[AgentProcessor] Completed ${agentType} for user ${userId}`);
       return result;
     } catch (e: any) {
-      return this.handleError(e, userId, agentType, jobId);
+      if (e instanceof PlatformJobCancelledError) {
+        return this.cancelled(userId, agentType, jobId, tenantId);
+      }
+      const willRetry = e instanceof RetryableError && job.attemptsMade + 1 < Number(job.opts.attempts || 1);
+      await this.platformJobs.fail(platformJobId, e, willRetry);
+      return this.handleError(e, userId, agentType, jobId, tenantId);
     }
   }
 
@@ -124,35 +175,51 @@ export class AgentProcessor extends WorkerHost {
     agentType: string,
     jobId: string,
     params: any,
+    platformJobId?: string,
+    tenantId?: number,
   ): Promise<any> {
     // 10 — 准备阶段
+    await this.platformJobs.assertActive(platformJobId);
     await job.updateProgress(10);
-    this.events.emitAgentProgress(userId, agentType, jobId, 10, `${agentType} 正在准备资源`);
+    await this.platformJobs.progress(platformJobId, 10);
+    this.events.emitAgentProgress(userId, agentType, jobId, 10, `${agentType} 正在准备资源`, tenantId);
     await this.sleep(50); // 给前端渲染时间
 
     // 30 — 参数就绪，即将调用 Agent
+    await this.platformJobs.assertActive(platformJobId);
     await job.updateProgress(30);
-    this.events.emitAgentProgress(userId, agentType, jobId, 30, `${agentType} 参数就绪，开始调用智能体`);
+    await this.platformJobs.progress(platformJobId, 30);
+    this.events.emitAgentProgress(userId, agentType, jobId, 30, `${agentType} 参数就绪，开始调用智能体`, tenantId);
     await this.sleep(50);
 
     // 60 — Agent 执行中
+    await this.platformJobs.assertActive(platformJobId);
     await job.updateProgress(60);
-    this.events.emitAgentProgress(userId, agentType, jobId, 60, `${agentType} 智能体执行中，请稍候`);
+    await this.platformJobs.progress(platformJobId, 60);
+    this.events.emitAgentProgress(userId, agentType, jobId, 60, `${agentType} 智能体执行中，请稍候`, tenantId);
 
-    const result = await this.invokeAgent(agentType, params);
+    const result = await this.invokeAgent(agentType, params, userId, tenantId);
 
     // 80 — 收尾，处理结果
+    await this.platformJobs.assertActive(platformJobId);
     await job.updateProgress(80);
-    this.events.emitAgentProgress(userId, agentType, jobId, 80, `${agentType} 正在整理结果`);
+    await this.platformJobs.progress(platformJobId, 80);
+    this.events.emitAgentProgress(userId, agentType, jobId, 80, `${agentType} 正在整理结果`, tenantId);
     await this.sleep(50);
 
     return result;
   }
 
+  private cancelled(userId: number, agentType: string, jobId: string, tenantId = 1) {
+    this.events.emitAgentProgress(userId, agentType, jobId, -1, `${agentType} 任务已取消`, tenantId);
+    this.events.emitAgentStatus(userId, agentType, 'idle', undefined, tenantId);
+    return { cancelled: true };
+  }
+
   /**
    * 调用具体 Agent，包装错误分类
    */
-  private async invokeAgent(agentType: string, params: any): Promise<any> {
+  private async invokeAgent(agentType: string, params: any, userId?: number, tenantId?: number): Promise<any> {
     try {
       switch (agentType) {
         case 'lecture':
@@ -165,6 +232,18 @@ export class AgentProcessor extends WorkerHost {
           return await this.pathAgent.generate(params.goal, params.currentLevel, params.availableTime, params.preferences);
         case 'assess':
           return await this.assessAgent.assess(params.learningData, params.goal, params.currentProgress);
+        case 'exam':
+          return await this.examAgent.generateExam({ skillName: params.skillName || '未知技能', questionCount: params.count || 5, difficulty: params.difficulty || 'mixed', questionTypes: params.questionTypes || ['choice', 'fill'] });
+        case 'skillgap':
+          return await this.skillGapAgent.analyze({ userSkills: params.userSkills || [], targetJob: params.targetJob || { title: '目标岗位', requiredSkills: [], preferredSkills: [] } } as any);
+        case 'resume':
+          return await this.resumeAgent.generate(params.profile || {}, params.targetJob || {});
+        case 'profile':
+          return await this.profileAgent.generateReport(params.learningData || { userId: params.userId, recentActivity: '' });
+        case 'news':
+          return await this.newsAgent.generateTrendAnalysis(params.topic || '前端技术趋势', params.skills || []);
+        case 'question-generation':
+          return await this.questionGeneration.executeDurable(Number(userId || 0), params, Number(tenantId || 1));
         default:
           throw new NonRetryableError(`Unknown agent type: ${agentType}`);
       }
@@ -188,7 +267,7 @@ export class AgentProcessor extends WorkerHost {
     if (!params || typeof params !== 'object') {
       throw new NonRetryableError('params must be a non-null object');
     }
-    const validTypes = ['lecture', 'reading', 'code', 'path', 'assess'];
+    const validTypes = ['lecture', 'reading', 'code', 'path', 'assess', 'exam', 'skillgap', 'resume', 'profile', 'news', 'question-generation'];
     if (!validTypes.includes(agentType)) {
       throw new NonRetryableError(`Unknown agent type: ${agentType}. Valid: ${validTypes.join(', ')}`);
     }
@@ -246,14 +325,14 @@ export class AgentProcessor extends WorkerHost {
   /**
    * 统一错误处理：推送 SSE 错误状态，根据分类决定是否向外抛出
    */
-  private handleError(e: any, userId: number, agentType: string, jobId: string): never {
+  private handleError(e: any, userId: number, agentType: string, jobId: string, tenantId = 1): never {
     const isRetryable = e instanceof RetryableError;
     const errorType = isRetryable ? 'RETRYABLE' : 'NON_RETRYABLE';
     const errorMsg = `[${errorType}] ${e.message}`;
 
     console.error(`[AgentProcessor] Failed ${agentType} for user ${userId} (${errorType}):`, e.message);
-    this.events.emitAgentProgress(userId, agentType, jobId, -1, `${agentType} 出错：${e.message}`);
-    this.events.emitAgentStatus(userId, agentType, 'error', errorMsg);
+    this.events.emitAgentProgress(userId, agentType, jobId, -1, `${agentType} 出错：${e.message}`, tenantId);
+    this.events.emitAgentStatus(userId, agentType, 'error', errorMsg, tenantId);
 
     // 可重试错误：BullMQ 会根据 job 配置自动重试
     // 不可重试错误：直接抛出，跳过重试

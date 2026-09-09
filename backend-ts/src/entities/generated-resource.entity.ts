@@ -6,6 +6,9 @@ export type GeneratedResourceSource = 'chat' | 'agent_office' | 'knowledge' | 'q
 
 @Entity('generated_resources_v3')
 export class GeneratedResource extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

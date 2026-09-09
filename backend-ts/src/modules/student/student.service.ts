@@ -33,14 +33,14 @@ export class StudentService {
   ) {}
 
   /** 根据 userId 获取学生信息 */
-  async getByUserId(userId: number): Promise<Student | null> {
-    return this.studentRepo.findOne({ where: { userId, status: 1 } });
+  async getByUserId(userId: number, tenantId = 1): Promise<Student | null> {
+    return this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } });
   }
 
   /** 获取用户画像（合并 MySQL + MongoDB） — 对齐 GET /api/user/profile */
-  async getProfile(userId: number) {
-    const student = await this.getByUserId(userId);
-    const mongoProfile = await this.profileService.getProfile(userId);
+  async getProfile(userId: number, tenantId = 1) {
+    const student = await this.getByUserId(userId, tenantId);
+    const mongoProfile = await this.profileService.getProfile(userId, tenantId);
     const gitProfile = await this.getGitProfileState(userId);
 
     return {
@@ -73,8 +73,8 @@ export class StudentService {
     };
   }
 
-  async getRadarProfile(userId: number) {
-    const gitProfile = await this.getGitProfileState(userId);
+  async getRadarProfile(userId: number, tenantId = 1) {
+    const gitProfile = await this.getGitProfileState(userId, tenantId);
     return {
       radarDimensions: gitProfile.radarDimensions,
       latestSnapshot: gitProfile.latestSnapshot,
@@ -82,8 +82,8 @@ export class StudentService {
     };
   }
 
-  async getAbilityMetrics(userId: number) {
-    const gitProfile = await this.getGitProfileState(userId);
+  async getAbilityMetrics(userId: number, tenantId = 1) {
+    const gitProfile = await this.getGitProfileState(userId, tenantId);
     return {
       abilityMetrics: gitProfile.abilityMetrics,
       latestSnapshot: gitProfile.latestSnapshot,
@@ -91,8 +91,8 @@ export class StudentService {
     };
   }
 
-  private async getGitProfileState(userId: number) {
-    const branches = await this.branchService.listBranches(userId);
+  private async getGitProfileState(userId: number, _tenantId = 1) {
+    const branches = await this.branchService.listBranches(userId, _tenantId);
     // 学习进度实际提交在 plan 分支上，而 main 分支往往停留在创建时的空快照。
     // 只认 branchType==='main' 会让雷达/能力指标永远读到 0，
     // 所以按「最近一次真实提交」选分支：优先 headCommitId 最大的 plan 分支，
@@ -103,7 +103,7 @@ export class StudentService {
     )[0] || branches.find((b) => b.branchType === 'main') || branches[0] || null;
 
     const latestSnapshot = activeBranch?.headCommitId
-      ? await this.snapshotService.getSnapshotByCommit(userId, activeBranch.headCommitId)
+      ? await this.snapshotService.getSnapshotByCommit(userId, activeBranch.headCommitId, _tenantId)
       : null;
     return {
       activeBranch,
@@ -114,37 +114,45 @@ export class StudentService {
   }
 
   /** 更新用户画像 — 对齐 PUT /api/user/profile */
-  async updateProfile(userId: number, data: Record<string, any>) {
-    const student = await this.getByUserId(userId);
+  async updateProfile(userId: number, data: Record<string, any>, tenantId = 1) {
+    const student = await this.getByUserId(userId, tenantId);
     if (!student) return null;
 
     // 更新 MySQL 字段
     const updateData: Partial<Student> = {};
-    if (data.name || data.realName) updateData.name = data.name || data.realName;
-    if (data.school) updateData.school = data.school;
-    if (data.major) updateData.major = data.major;
-    if (data.grade) updateData.grade = data.grade;
-    if (data.phone) updateData.phone = data.phone;
-    if (data.email) updateData.email = data.email;
-    if (data.skills) updateData.skills = data.skills;
-    if (data.targetJobId) updateData.targetJobId = data.targetJobId;
+    // 使用“字段是否出现”而不是 truthy 判断，允许客户端清空可选资料，
+    // 同时把旧页面长期遗漏的 dailyHours/interests 纳入统一画像写入口。
+    if (data.name !== undefined || data.realName !== undefined) updateData.name = data.name ?? data.realName ?? '';
+    if (data.school !== undefined) updateData.school = data.school ?? '';
+    if (data.major !== undefined) updateData.major = data.major ?? '';
+    if (data.grade !== undefined) updateData.grade = data.grade ?? '';
+    if (data.phone !== undefined) updateData.phone = data.phone ?? '';
+    if (data.email !== undefined) updateData.email = data.email ?? '';
+    if (data.skills !== undefined) updateData.skills = data.skills ?? [];
+    if (data.interests !== undefined) updateData.interests = data.interests ?? [];
+    if (data.dailyHours !== undefined) {
+      const dailyHours = Number(data.dailyHours);
+      if (Number.isFinite(dailyHours)) updateData.dailyHours = Math.max(0.5, Math.min(8, dailyHours));
+    }
+    if (data.targetJobId !== undefined) updateData.targetJobId = data.targetJobId ?? null;
 
     if (Object.keys(updateData).length > 0) {
       await this.studentRepo.update(student.id, updateData);
     }
 
-    return this.getProfile(userId);
+    return this.getProfile(userId, tenantId);
   }
 
   /** 提交 Onboarding — 只保存个人资料，不创建计划 */
-  async submitOnboarding(userId: number, data: Record<string, any>) {
+  async submitOnboarding(userId: number, data: Record<string, any>, tenantId = 1) {
     const now = Date.now();
-    let student = await this.getByUserId(userId);
+    let student = await this.getByUserId(userId, tenantId);
 
     // 1. 创建/更新学生记录
     if (!student) {
       student = await this.studentRepo.save({
         userId,
+        tenantId,
         name: data.name || '',
         school: data.school || '',
         major: data.major || '',
@@ -175,9 +183,9 @@ export class StudentService {
     if (data.skills?.length) {
       const levelToTrust: Record<string, number> = { '了解': 0.3, '熟悉': 0.5, '熟练': 0.7 };
       // 先删除旧的 self_report 技能
-      const oldSkills = await this.userSkillRepo.find({ where: { userId, source: 'self_report' } });
+      const oldSkills = await this.userSkillRepo.find({ where: { userId, tenantId, source: 'self_report' } });
       if (oldSkills.length) {
-        await this.userSkillRepo.delete({ userId, source: 'self_report' });
+        await this.userSkillRepo.delete({ userId, tenantId, source: 'self_report' });
       }
       // 通过 SkillService 写入
       await this.skillService.addSkills(
@@ -188,6 +196,7 @@ export class StudentService {
           trustWeight: levelToTrust[s.level] || 0.3,
           masteryPct: 0,
         })),
+        tenantId,
       );
     }
 
@@ -198,7 +207,7 @@ export class StudentService {
       grade: data.grade || '',
       direction: data.domainId || data.direction || '',
       dailyHours: data.dailyHours || 2,
-    });
+    }, tenantId);
 
     if (data.domainId && data.goalType) {
       await this.profileService.mergeProfileDelta(userId, {
@@ -209,11 +218,11 @@ export class StudentService {
           starter_path_id: data.starterPathId || '',
           daily_hours: data.dailyHours || 2,
         },
-      }, 'onboarding_learning_goal');
+      }, 'onboarding_learning_goal', tenantId);
     }
 
     if (data.skills?.length) {
-      await this.profileService.updateSkills(userId, data.skills);
+      await this.profileService.updateSkills(userId, data.skills, tenantId);
     }
 
     return { completed: true };
@@ -232,9 +241,9 @@ export class StudentService {
     goalType?: LearningGoalType;
     goalTitle?: string;
     starterPathId?: string;
-  }) {
+  }, tenantId = 1) {
     const now = Date.now();
-    const student = await this.getByUserId(userId);
+    const student = await this.getByUserId(userId, tenantId);
     if (!student) throw new Error('请先完成个人信息填写');
 
     const planType = data.planType || 'main';
@@ -263,6 +272,7 @@ export class StudentService {
         goalTitle,
         dailyHours,
         planType,
+        tenantId,
       );
     } else {
       if (planType === 'main') {
@@ -293,11 +303,12 @@ export class StudentService {
         customSkills,
         data.planName?.trim() || undefined,
         planType,
+        tenantId,
       );
     }
 
     if (data.importFromPlanId) {
-      const oldPlan = await this.planRepo.findOne({ where: { id: data.importFromPlanId, userId, status: 1 } });
+      const oldPlan = await this.planRepo.findOne({ where: { id: data.importFromPlanId, userId, tenantId, status: 1 } });
       const completed = new Set<string>();
       for (const phase of oldPlan?.pathData?.phases || []) {
         for (const skill of phase.skills || []) if (skill.status === 'done') completed.add(skill.name);
@@ -307,6 +318,7 @@ export class StudentService {
           for (const skill of phase.skills || []) if (completed.has(skill.name)) skill.status = 'done';
         }
         result.plan.updateTime = now;
+        result.plan.tenantId = tenantId;
         await this.planRepo.save(result.plan);
       }
     }
@@ -326,10 +338,11 @@ export class StudentService {
           daily_hours: dailyHours,
           estimated_date: result.plan.estimatedDate,
         },
-      }, 'main_plan_create');
+      }, 'main_plan_create', tenantId);
     }
 
-    const branch = await this.branchService.ensurePlanBranch(userId, result.plan);
+    result.plan.tenantId = tenantId;
+    const branch = await this.branchService.ensurePlanBranch(userId, result.plan, tenantId);
     return {
       id: result.plan.id,
       planName: result.plan.planName,
@@ -350,9 +363,9 @@ export class StudentService {
   }
 
   /** 获取用户所有计划 */
-  async getMyPlans(userId: number) {
+  async getMyPlans(userId: number, tenantId = 1) {
     const plans = await this.planRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { planType: 'ASC', createTime: 'DESC' },
     });
 
@@ -383,8 +396,8 @@ export class StudentService {
   }
 
   /** 获取 Onboarding 状态 */
-  async getOnboardingStatus(userId: number) {
-    const student = await this.getByUserId(userId);
+  async getOnboardingStatus(userId: number, tenantId = 1) {
+    const student = await this.getByUserId(userId, tenantId);
     return { completed: student?.onboardingCompleted === 1 };
   }
 }

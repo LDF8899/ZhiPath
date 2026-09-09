@@ -23,9 +23,10 @@ export class ChatArchiveService {
   }
 
   /** 将指定会话归档为 MD 文件 — 对齐 Python archive_chat() */
-  async archiveChat(userId: number, sessionId: string): Promise<string | null> {
+  async archiveChat(userId: number, sessionId: string, tenantId = 1): Promise<string | null> {
     try {
       const doc = await this.chatCollection.findOne({
+        tenantId,
         user_id: String(userId),
         session_id: sessionId,
       });
@@ -78,10 +79,10 @@ export class ChatArchiveService {
   }
 
   /** 获取用户最近 N 条聊天消息（跨所有会话） — 对齐 Python get_recent_messages() */
-  async getRecentMessages(userId: number, limit = 30): Promise<any[]> {
+  async getRecentMessages(userId: number, limit = 30, tenantId = 1): Promise<any[]> {
     try {
       const sessions = await this.chatCollection
-        .find({ user_id: String(userId) }, { projection: { messages: 1, session_id: 1, page_context: 1 } })
+        .find({ tenantId, user_id: String(userId) }, { projection: { messages: 1, session_id: 1, page_context: 1 } })
         .sort({ updated_at: -1 })
         .limit(5)
         .toArray();
@@ -99,6 +100,20 @@ export class ChatArchiveService {
       return allMessages.slice(-limit);
     } catch (e) {
       console.warn(`[ChatArchive] getRecentMessages failed for user ${userId}:`, e.message);
+      return [];
+    }
+  }
+
+  async listRecentSessionIds(userId: number, tenantId = 1, limit = 3): Promise<string[]> {
+    try {
+      const sessions = await this.chatCollection
+        .find({ tenantId, user_id: String(userId) }, { projection: { session_id: 1 } })
+        .sort({ updated_at: -1 })
+        .limit(Math.min(20, Math.max(1, limit)))
+        .toArray();
+      return sessions.map((session: any) => String(session.session_id || '')).filter(Boolean);
+    } catch (e: any) {
+      console.warn(`[ChatArchive] listRecentSessionIds failed for user ${userId}:`, e.message);
       return [];
     }
   }

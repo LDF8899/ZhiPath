@@ -76,7 +76,7 @@ export default function Paths() {
     if (!active) return;
     setBusy(true);
     try {
-      await planApi.setStatus(active.id, planStatus);
+      await planApi.setStatus(active.canonicalId || active.id, planStatus);
       toast.success(
         planStatus === 'active' ? '已恢复' : planStatus === 'paused' ? '已暂停' : '已归档',
         planStatus === 'archived' ? '归档后不再排今日任务，可随时恢复' : undefined,

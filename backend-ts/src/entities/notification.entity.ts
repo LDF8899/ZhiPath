@@ -2,11 +2,19 @@ import { Entity, Column } from 'typeorm';
 import { BaseEntity } from '../common/base.entity';
 
 /**
- * 通知表 v3.0 — notifications_v3
+ * 规范通知表 — notifications
  * §25 通知系统：学习提醒/进度/岗位/考试/系统
  */
-@Entity('notifications_v3')
+@Entity('notifications')
 export class Notification extends BaseEntity {
+  /** 业务租户隔离键。所有 v1 查询必须带上该字段。 */
+  @Column({ type: 'bigint', name: 'tenant_id' })
+  tenantId: number;
+
+  /** 产生通知的前端客户端；后台任务产生时允许为空。 */
+  @Column({ type: 'bigint', nullable: true, name: 'client_app_id' })
+  clientAppId: number | null;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

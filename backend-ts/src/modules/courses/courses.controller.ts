@@ -10,47 +10,47 @@ export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
   @Get(':planId/chapters')
-  async getChapters(@CurrentUser('userId') userId: number, @Param('planId') planId: string) {
-    return success(await this.coursesService.getChapters(+planId, userId));
+  async getChapters(@CurrentUser() user: any, @Param('planId') planId: string) {
+    return success(await this.coursesService.getChapters(+planId, user.sub || user.userId, Number(user.tenantId || 1)));
   }
 
   @Post(':planId/chapters/generate')
-  async generateChapters(@CurrentUser('userId') userId: number, @Param('planId') planId: string) {
-    return success(await this.coursesService.generateChapters(+planId, userId));
+  async generateChapters(@CurrentUser() user: any, @Param('planId') planId: string) {
+    return success(await this.coursesService.generateChapters(+planId, user.sub || user.userId, Number(user.tenantId || 1)));
   }
 
   @Post(':planId/chapters/parse')
-  async parseChapters(@CurrentUser('userId') userId: number, @Param('planId') planId: string, @Body() body: { treeText: string }) {
-    return success(await this.coursesService.parseTreeText(+planId, userId, body.treeText));
+  async parseChapters(@CurrentUser() user: any, @Param('planId') planId: string, @Body() body: { treeText: string }) {
+    return success(await this.coursesService.parseTreeText(+planId, user.sub || user.userId, body.treeText, Number(user.tenantId || 1)));
   }
 
   @Put(':planId/chapters/:id')
-  async updateChapter(@Param('id') id: string, @Body() body: any) {
-    return success(await this.coursesService.updateChapter(+id, body));
+  async updateChapter(@CurrentUser() user: any, @Param('id') id: string, @Body() body: any) {
+    return success(await this.coursesService.updateChapter(+id, user.sub || user.userId, body, Number(user.tenantId || 1)));
   }
 
   @Delete(':planId/chapters/:id')
-  async deleteChapter(@Param('id') id: string) {
-    return success(await this.coursesService.deleteChapter(+id));
+  async deleteChapter(@CurrentUser() user: any, @Param('id') id: string) {
+    return success(await this.coursesService.deleteChapter(+id, user.sub || user.userId, Number(user.tenantId || 1)));
   }
 
   @Get(':planId/abilities')
-  async getAbilities(@CurrentUser('userId') userId: number, @Param('planId') planId: string) {
-    return success(await this.coursesService.getAbilities(+planId, userId));
+  async getAbilities(@CurrentUser() user: any, @Param('planId') planId: string) {
+    return success(await this.coursesService.getAbilities(+planId, user.sub || user.userId, Number(user.tenantId || 1)));
   }
 
   @Post(':planId/abilities/generate')
-  async generateAbilities(@CurrentUser('userId') userId: number, @Param('planId') planId: string) {
-    return success(await this.coursesService.generateAbilities(+planId, userId));
+  async generateAbilities(@CurrentUser() user: any, @Param('planId') planId: string) {
+    return success(await this.coursesService.generateAbilities(+planId, user.sub || user.userId, Number(user.tenantId || 1)));
   }
 
   @Post(':planId/abilities/save')
-  async saveAbilities(@CurrentUser('userId') userId: number, @Param('planId') planId: string, @Body() body: { abilities: any[] }) {
-    return success(await this.coursesService.saveAbilities(+planId, userId, body.abilities));
+  async saveAbilities(@CurrentUser() user: any, @Param('planId') planId: string, @Body() body: { abilities: any[] }) {
+    return success(await this.coursesService.saveAbilities(+planId, user.sub || user.userId, body.abilities, Number(user.tenantId || 1)));
   }
 
   @Post(':planId/abilities/match')
-  async matchChapterAbility(@Param('planId') planId: string) {
-    return success(await this.coursesService.matchChapterAbility(+planId));
+  async matchChapterAbility(@CurrentUser() user: any, @Param('planId') planId: string) {
+    return success(await this.coursesService.matchChapterAbility(+planId, 3, Number(user.tenantId || 1), user.sub || user.userId));
   }
 }

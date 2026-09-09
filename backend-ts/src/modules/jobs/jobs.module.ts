@@ -15,10 +15,11 @@ import { EvidenceModule } from '../evidence/evidence.module';
 import { JobSearchService } from '../../services/job-search.service';
 import { SearchStackService } from '../../services/search-stack.service';
 import { LlmService } from '../../services/llm.service';
+import { JobsV1Controller } from './jobs-v1.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([JobPosition, JobApplication, Student, Enterprise, LearningPlan, LearningBranch, LearningCommit, SkillSnapshotV3]), MatchModule, SkillModule, EvidenceModule],
-  controllers: [JobsController],
+  controllers: [JobsController, JobsV1Controller],
   providers: [JobsService, JobSearchService, SearchStackService, LlmService],
   exports: [JobsService],
 })

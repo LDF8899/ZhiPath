@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Notification } from '../../entities/notification.entity';
 import { NotificationService } from '../../services/notification.service';
 import { NotificationController } from './notification.controller';
+import { NotificationV1Controller } from './notification-v1.controller';
 import { EventsModule } from '../events/events.module';
 
 /**
@@ -11,7 +12,7 @@ import { EventsModule } from '../events/events.module';
  */
 @Module({
   imports: [TypeOrmModule.forFeature([Notification]), EventsModule],
-  controllers: [NotificationController],
+  controllers: [NotificationController, NotificationV1Controller],
   providers: [NotificationService],
   exports: [NotificationService],
 })

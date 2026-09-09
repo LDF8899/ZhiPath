@@ -8,10 +8,11 @@ import { QuestionBankImportController } from './question-bank-import.controller'
 import { QuestionBankImportService } from './question-bank-import.service';
 import { QuestionBankController } from './question-bank.controller';
 import { QuestionBankService } from './question-bank.service';
+import { QuestionBankV1Controller } from './question-bank-v1.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([QuestionBankImport, QuestionBankImportCandidate, ExamQuestion, ExamRecord])],
-  controllers: [QuestionBankImportController, QuestionBankController],
+  controllers: [QuestionBankImportController, QuestionBankController, QuestionBankV1Controller],
   providers: [LlmService, QuestionBankImportService, QuestionBankService],
   exports: [QuestionBankImportService, QuestionBankService],
 })

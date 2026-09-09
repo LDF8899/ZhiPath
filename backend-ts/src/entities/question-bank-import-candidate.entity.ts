@@ -6,6 +6,9 @@ import { BaseEntity } from '../common/base.entity';
 @Index('idx_qbi_candidate_import', ['importId', 'sourceOrder'])
 @Index('idx_qbi_candidate_user', ['userId'])
 export class QuestionBankImportCandidate extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'import_id' })
   importId: number;
 

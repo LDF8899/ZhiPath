@@ -19,7 +19,9 @@ export class EventsController {
   @Get('events/stream')
   @UseGuards(AuthGuard)
   async stream(@CurrentUser() user: any, @Req() req: Request, @Res() res: Response) {
-    const userId = user.sub;
+    // BIGINT values can arrive in JWT payloads as strings. Normalize once so
+    // publishers and subscribers use the same Map key.
+    const userId = Number(user.sub || user.id);
 
     // 设置 SSE 响应头
     res.setHeader('Content-Type', 'text/event-stream');
@@ -31,7 +33,8 @@ export class EventsController {
     res.write(`data: ${JSON.stringify({ type: 'connected', timestamp: Date.now() })}\n\n`);
 
     // 订阅用户事件流
-    const subscription = this.eventsService.getEventStream(userId).subscribe({
+    const tenantId = Number(user.tenantId || 1);
+    const subscription = this.eventsService.getEventStream(userId, tenantId).subscribe({
       next: (event) => {
         res.write(`data: ${JSON.stringify(event)}\n\n`);
       },

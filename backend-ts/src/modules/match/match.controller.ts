@@ -18,28 +18,28 @@ export class MatchController {
   /** 获取用户最佳匹配岗位（Dashboard 用）— 必须在 match/:jobId 之前 */
   @Get('match/best')
   async getBestMatch(@CurrentUser() user: any) {
-    const result = await this.matchAgent.getBestMatch(user.sub);
+    const result = await this.matchAgent.getBestMatch(user.sub, Number(user.tenantId || 1));
     return success(result);
   }
 
   /** 计算用户与所有岗位的匹配度 */
   @Get('match-all')
   async calculateForAllJobs(@CurrentUser() user: any) {
-    const results = await this.matchAgent.calculateForAllJobs(user.sub);
+    const results = await this.matchAgent.calculateForAllJobs(user.sub, undefined, Number(user.tenantId || 1));
     return success(results);
   }
 
   /** 技能变化后重新计算匹配度 */
   @Post('match/recalculate')
   async recalculate(@CurrentUser() user: any) {
-    await this.matchAgent.recalculateOnSkillChange(user.sub);
+    await this.matchAgent.recalculateOnSkillChange(user.sub, Number(user.tenantId || 1));
     return success({ message: '重新计算中' });
   }
 
   /** 计算用户与岗位的匹配度 */
   @Get('match/:jobId')
   async calculateMatch(@CurrentUser() user: any, @Param('jobId') jobId: string) {
-    const result = await this.matchAgent.calculateMatch(user.sub, parseInt(jobId, 10));
+    const result = await this.matchAgent.calculateMatch(user.sub, parseInt(jobId, 10), undefined, Number(user.tenantId || 1));
     return success(result);
   }
 
@@ -54,6 +54,7 @@ export class MatchController {
       user.sub,
       parseInt(jobId, 10),
       days ? parseInt(days, 10) : 30,
+      Number(user.tenantId || 1),
     );
     return success(result);
   }

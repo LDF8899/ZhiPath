@@ -106,7 +106,7 @@ export default function Landing() {
         realName: result.realName,
         role: result.role,
         onboardingCompleted: Boolean(result.onboardingCompleted),
-      });
+      }, result.refreshToken);
       // 立刻拉一次 /me，确保 onboarding 状态和后端一致
       await refresh();
       navigate(result.onboardingCompleted ? '/today' : '/onboarding', { replace: true });

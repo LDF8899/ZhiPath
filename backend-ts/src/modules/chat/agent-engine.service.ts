@@ -38,19 +38,20 @@ export class AgentEngineService {
     messages: Array<{ role: string; content: string }>,
     pageContext?: string,
     chatSessionId?: string,
+    tenantId = 1,
   ): Promise<{ reply: string; actions: any[]; agent: string; evidence?: any[]; citationMiss?: boolean }> {
     // 1. 读取用户画像
     let profile: any = null;
     let student: any = null;
 
     try {
-      profile = await this.profileService.getProfile(userId);
+      profile = await this.profileService.getProfile(userId, tenantId);
     } catch (e) {
       console.warn('[AgentEngine] getProfile failed:', e.message);
     }
 
     try {
-      student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+      student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } });
     } catch (e) {
       console.warn('[AgentEngine] getStudent failed:', e.message);
     }
@@ -63,7 +64,7 @@ export class AgentEngineService {
     let evidenceItems: any[] = [];
     let evidenceContext = '';
     try {
-      evidenceItems = await this.evidenceRag.search(userId, latestUserMessage, { limit: 5 });
+      evidenceItems = await this.evidenceRag.search(userId, latestUserMessage, { limit: 5 }, tenantId);
       evidenceContext = this.evidenceRag.buildContext(evidenceItems);
     } catch (e) {
       console.warn('[AgentEngine] evidence search failed:', e.message);

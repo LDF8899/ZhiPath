@@ -21,24 +21,24 @@ export class CoursesService {
   // ────────────────────────────────────────
 
   /** 获取章节树 */
-  async getChapters(planId: number, userId: number) {
+  async getChapters(planId: number, userId: number, tenantId = 1) {
     const chapters = await this.chapterRepo.find({
-      where: { planId, userId, status: 1 },
+      where: { planId, userId, tenantId, status: 1 } as any,
       order: { sortOrder: 'ASC', id: 'ASC' },
     });
     return this.buildTree(chapters, null);
   }
 
   /** AI 生成章节目录 */
-  async generateChapters(planId: number, userId: number) {
-    const plan = await this.planRepo.findOne({ where: { id: planId, userId } });
+  async generateChapters(planId: number, userId: number, tenantId = 1) {
+    const plan = await this.planRepo.findOne({ where: { id: planId, userId, tenantId, status: 1 } as any });
     if (!plan) throw new NotFoundException('学习计划不存在');
 
     const phases = plan.pathData?.phases || plan.pathData?.skills || [];
     if (!phases.length) throw new BadRequestException('计划中没有阶段数据');
 
     // 清除旧章节（软删除）
-    await this.chapterRepo.update({ planId, userId, status: 1 }, { status: 0, updateTime: Date.now() });
+    await this.chapterRepo.update({ planId, userId, tenantId, status: 1 } as any, { status: 0, updateTime: Date.now() });
 
     const now = Date.now();
     const allChapters: CourseChapter[] = [];
@@ -51,6 +51,7 @@ export class CoursesService {
       // 创建阶段节点（level 1）
       const phaseChapter = await this.chapterRepo.save({
         userId,
+        tenantId,
         planId,
         name: phaseName,
         level: 1,
@@ -80,6 +81,7 @@ export class CoursesService {
             allChapters.push(
               await this.chapterRepo.save({
                 userId,
+                tenantId,
                 planId,
                 name: child.name,
                 level: 2,
@@ -100,13 +102,13 @@ export class CoursesService {
   }
 
   /** 解析树形文本为章节列表 */
-  async parseTreeText(planId: number, userId: number, treeText: string) {
+  async parseTreeText(planId: number, userId: number, treeText: string, tenantId = 1) {
     if (!treeText?.trim()) throw new BadRequestException('treeText 不能为空');
 
     const nodes = this.buildChapterNodesFromTree(treeText);
 
     // 清除旧章节
-    await this.chapterRepo.update({ planId, userId, status: 1 }, { status: 0, updateTime: Date.now() });
+    await this.chapterRepo.update({ planId, userId, tenantId, status: 1 } as any, { status: 0, updateTime: Date.now() });
 
     const now = Date.now();
     const saved: CourseChapter[] = [];
@@ -117,6 +119,7 @@ export class CoursesService {
       const parentId = node.parentTmpId != null ? idMap.get(node.parentTmpId) ?? null : null;
       const entity = await this.chapterRepo.save({
         userId,
+        tenantId,
         planId,
         name: node.name,
         level: node.level,
@@ -134,8 +137,8 @@ export class CoursesService {
   }
 
   /** 更新章节 */
-  async updateChapter(id: number, data: Partial<CourseChapter>) {
-    const chapter = await this.chapterRepo.findOne({ where: { id, status: 1 } });
+  async updateChapter(id: number, userId: number, data: Partial<CourseChapter>, tenantId = 1) {
+    const chapter = await this.chapterRepo.findOne({ where: { id, userId, tenantId, status: 1 } as any });
     if (!chapter) throw new NotFoundException('章节不存在');
 
     const allowed = ['name', 'sortOrder', 'skillName', 'abilityId'];
@@ -147,12 +150,12 @@ export class CoursesService {
   }
 
   /** 删除章节（软删除） */
-  async deleteChapter(id: number) {
-    const chapter = await this.chapterRepo.findOne({ where: { id, status: 1 } });
+  async deleteChapter(id: number, userId: number, tenantId = 1) {
+    const chapter = await this.chapterRepo.findOne({ where: { id, userId, tenantId, status: 1 } as any });
     if (!chapter) throw new NotFoundException('章节不存在');
 
     // 同时软删除子章节
-    await this.chapterRepo.update({ parentId: id, status: 1 }, { status: 0, updateTime: Date.now() });
+    await this.chapterRepo.update({ parentId: id, userId, tenantId, status: 1 } as any, { status: 0, updateTime: Date.now() });
     chapter.status = 0;
     chapter.updateTime = Date.now();
     return this.chapterRepo.save(chapter);
@@ -163,16 +166,16 @@ export class CoursesService {
   // ────────────────────────────────────────
 
   /** 获取能力点列表 */
-  async getAbilities(planId: number, userId: number) {
+  async getAbilities(planId: number, userId: number, tenantId = 1) {
     return this.abilityRepo.find({
-      where: { planId, userId, status: 1 },
+      where: { planId, userId, tenantId, status: 1 } as any,
       order: { sortOrder: 'ASC', id: 'ASC' },
     });
   }
 
   /** AI 生成能力点 */
-  async generateAbilities(planId: number, userId: number) {
-    const plan = await this.planRepo.findOne({ where: { id: planId, userId } });
+  async generateAbilities(planId: number, userId: number, tenantId = 1) {
+    const plan = await this.planRepo.findOne({ where: { id: planId, userId, tenantId, status: 1 } as any });
     if (!plan) throw new NotFoundException('学习计划不存在');
 
     const direction = plan.planName || '通用技能';
@@ -187,7 +190,7 @@ export class CoursesService {
     if (!Array.isArray(abilities)) throw new Error('AI 返回格式错误');
 
     // 清除旧能力点
-    await this.abilityRepo.update({ planId, userId, status: 1 }, { status: 0, updateTime: Date.now() });
+    await this.abilityRepo.update({ planId, userId, tenantId, status: 1 } as any, { status: 0, updateTime: Date.now() });
 
     const now = Date.now();
     const saved: CourseAbility[] = [];
@@ -196,6 +199,7 @@ export class CoursesService {
       saved.push(
         await this.abilityRepo.save({
           userId,
+          tenantId,
           planId,
           name: a.name?.slice(0, 50) || `能力${i + 1}`,
           description: a.description?.slice(0, 200) || null,
@@ -211,11 +215,11 @@ export class CoursesService {
   }
 
   /** 保存能力点 + AI 匹配章节映射 */
-  async saveAbilities(planId: number, userId: number, abilities: { name: string; description?: string }[]) {
+  async saveAbilities(planId: number, userId: number, abilities: { name: string; description?: string }[], tenantId = 1) {
     if (!abilities?.length) throw new BadRequestException('能力点列表不能为空');
 
     // 清除旧能力点
-    await this.abilityRepo.update({ planId, userId, status: 1 }, { status: 0, updateTime: Date.now() });
+    await this.abilityRepo.update({ planId, userId, tenantId, status: 1 } as any, { status: 0, updateTime: Date.now() });
 
     const now = Date.now();
     const saved: CourseAbility[] = [];
@@ -223,7 +227,8 @@ export class CoursesService {
       const a = abilities[i];
       saved.push(
         await this.abilityRepo.save({
-          userId,
+        userId,
+        tenantId,
           planId,
           name: a.name?.slice(0, 50) || `能力${i + 1}`,
           description: a.description?.slice(0, 200) || null,
@@ -236,7 +241,7 @@ export class CoursesService {
     }
 
     // 异步匹配章节映射（不阻塞返回）
-    this.matchChapterAbility(planId).catch((e) =>
+    this.matchChapterAbility(planId, 3, tenantId, userId).catch((e) =>
       console.error('[Courses] matchChapterAbility after save failed:', e.message),
     );
 
@@ -244,9 +249,11 @@ export class CoursesService {
   }
 
   /** AI 匹配章节-能力映射（多轮重试） */
-  async matchChapterAbility(planId: number, maxRetries = 3) {
-    const chapters = await this.chapterRepo.find({ where: { planId, status: 1 } });
-    const abilities = await this.abilityRepo.find({ where: { planId, status: 1 } });
+  async matchChapterAbility(planId: number, maxRetries = 3, tenantId = 1, userId?: number) {
+    const plan = await this.planRepo.findOne({ where: { id: planId, tenantId, ...(userId !== undefined ? { userId } : {}), status: 1 } as any });
+    if (!plan) throw new NotFoundException('学习计划不存在');
+    const chapters = await this.chapterRepo.find({ where: { planId, tenantId, status: 1 } as any });
+    const abilities = await this.abilityRepo.find({ where: { planId, tenantId, status: 1 } as any });
 
     if (!chapters.length || !abilities.length) {
       return { matched: 0, message: '章节或能力点为空' };

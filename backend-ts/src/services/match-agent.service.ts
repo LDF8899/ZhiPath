@@ -94,7 +94,7 @@ export class MatchAgentService {
    *
    * @returns 结构化结果（含各项贡献度 + 差距分析）
    */
-  async calculateMatch(userId: number, jobId: number, triggerEvent?: string): Promise<{
+  async calculateMatch(userId: number, jobId: number, triggerEvent?: string, tenantId = 1): Promise<{
     totalScore: number;
     scenario: RecruitScenario;
     weights: ScenarioWeights;
@@ -112,7 +112,7 @@ export class MatchAgentService {
     requirement: { level: string; coverageNeeded: number; coverageActual: number; extraConditionMet: boolean; extraConditionLabel: string; reason: string };
   }> {
     // 1. 获取用户有效技能
-    const userSkills = await this.skillService.getEffectiveSkills(userId);
+    const userSkills = await this.skillService.getEffectiveSkills(userId, tenantId);
     const userSkillMap = new Map<string, { effectiveScore: number; masteryPct: number }>();
     for (const s of userSkills) {
       userSkillMap.set(s.name.toLowerCase(), { effectiveScore: s.effectiveScore, masteryPct: s.masteryPct });
@@ -137,16 +137,16 @@ export class MatchAgentService {
     const preferredResult = this.calculateSkillMatch(preferredSkills, userSkillMap);
 
     // 5. 获取项目经历相关度
-    const projectScore = await this.calculateProjectScore(userId, jobId);
+    const projectScore = await this.calculateProjectScore(userId, jobId, tenantId);
 
     // 6. 获取考试成绩
-    const examScore = await this.calculateExamScore(userId, jobId);
+    const examScore = await this.calculateExamScore(userId, jobId, tenantId);
 
     // 7. 获取学习路径进度
-    const progressScore = await this.calculateProgressScore(userId, jobId);
+    const progressScore = await this.calculateProgressScore(userId, jobId, tenantId);
 
     // 8. 获取学习速度（§7.1 校招新增因子）
-    const speedScore = await this.calculateSpeedScore(userId);
+    const speedScore = await this.calculateSpeedScore(userId, tenantId);
 
     // 9. 按场景权重公式计算总分
     const totalScore = Math.round(
@@ -189,6 +189,7 @@ export class MatchAgentService {
     // 12. 写入匹配度历史记录
     this.historyRepo.save({
       userId,
+      tenantId,
       jobId,
       score: totalScore,
       breakdown: {
@@ -294,7 +295,7 @@ export class MatchAgentService {
   /**
    * 批量计算用户与所有岗位的匹配度
    */
-  async calculateForAllJobs(userId: number, triggerEvent?: string): Promise<Array<{ jobId: number; jobTitle: string; matchScore: number; canApply: boolean }>> {
+  async calculateForAllJobs(userId: number, triggerEvent?: string, tenantId = 1): Promise<Array<{ jobId: number; jobTitle: string; matchScore: number; canApply: boolean }>> {
     const jobs = await this.jobRepo.find({ where: { status: 1 } });
     const results: Array<{ jobId: number; jobTitle: string; matchScore: number; canApply: boolean }> = [];
 
@@ -302,7 +303,7 @@ export class MatchAgentService {
       try {
         const jobId = Number(job.id);
         if (isNaN(jobId)) continue;
-        const match = await this.calculateMatch(userId, jobId, triggerEvent);
+        const match = await this.calculateMatch(userId, jobId, triggerEvent, tenantId);
         results.push({
           jobId,
           jobTitle: job.title,
@@ -322,14 +323,14 @@ export class MatchAgentService {
   /**
    * 技能变化时重新计算所有岗位匹配度，并通过 SSE 推送变化
    */
-  async recalculateOnSkillChange(userId: number): Promise<void> {
+  async recalculateOnSkillChange(userId: number, tenantId = 1): Promise<void> {
     // 异步执行，不阻塞主流程
-    this.calculateForAllJobs(userId, 'skill_change')
+    this.calculateForAllJobs(userId, 'skill_change', tenantId)
       .then((results) => {
         if (results.length > 0) {
           // 推送最佳匹配度变化
           const best = results[0];
-          this.eventsService.emitMatchUpdate(userId, best.jobId, best.matchScore);
+          this.eventsService.emitMatchUpdate(userId, best.jobId, best.matchScore, undefined, tenantId);
         }
       })
       .catch((e) =>
@@ -340,9 +341,9 @@ export class MatchAgentService {
   /**
    * 获取用户最佳匹配岗位（供 Dashboard 展示）
    */
-  async getBestMatch(userId: number): Promise<{ jobId: number; jobTitle: string; matchScore: number; canApply: boolean } | null> {
+  async getBestMatch(userId: number, tenantId = 1): Promise<{ jobId: number; jobTitle: string; matchScore: number; canApply: boolean } | null> {
     try {
-      const results = await this.calculateForAllJobs(userId);
+      const results = await this.calculateForAllJobs(userId, undefined, tenantId);
       return results.length > 0 ? results[0] : null;
     } catch (e: any) {
       console.error('[MatchAgent] getBestMatch error:', e.message, e.stack);
@@ -353,12 +354,12 @@ export class MatchAgentService {
   /**
    * 获取匹配度趋势数据（最近 N 天）
    */
-  async getMatchTrend(userId: number, jobId: number, days = 30): Promise<Array<{ score: number; createdAt: Date }>> {
+  async getMatchTrend(userId: number, jobId: number, days = 30, tenantId = 1): Promise<Array<{ score: number; createdAt: Date }>> {
     const since = new Date();
     since.setDate(since.getDate() - days);
 
     const records = await this.historyRepo.find({
-      where: { userId, jobId },
+      where: { userId, jobId, tenantId } as any,
       order: { createdAt: 'ASC' },
     });
 
@@ -373,12 +374,12 @@ export class MatchAgentService {
   async recalculateOnJobChange(jobId: number): Promise<void> {
     // 从 MongoDB 获取所有用户
     const collection = this.mongoConnection.db!.collection('user_profiles');
-    const users = await collection.find({}, { projection: { user_id: 1 } }).toArray();
+    const users = await collection.find({}, { projection: { user_id: 1, tenantId: 1 } }).toArray();
 
     for (const user of users) {
       const userId = parseInt(user.user_id, 10);
       if (!isNaN(userId)) {
-        this.calculateMatch(userId, jobId).catch((e) =>
+        this.calculateMatch(userId, jobId, undefined, Number(user.tenantId || 1)).catch((e) =>
           console.warn(`[MatchAgent] recalculateOnJobChange failed for user ${userId}:`, e.message),
         );
       }
@@ -429,10 +430,10 @@ export class MatchAgentService {
    *   score = clamp(40, 100)，ratio≤0.7→100，ratio≥1.5→40，中间线性
    * 无数据时给中性分 60。
    */
-  private async calculateSpeedScore(userId: number): Promise<{ score: number; sampleCount: number }> {
+  private async calculateSpeedScore(userId: number, tenantId = 1): Promise<{ score: number; sampleCount: number }> {
     try {
       const tasks = await this.taskRepo.find({
-        where: { userId, isActive: 1 },
+        where: { userId, tenantId, isActive: 1 } as any,
         order: { id: 'DESC' },
         take: 50,
       });
@@ -464,10 +465,10 @@ export class MatchAgentService {
   }
 
   /** 计算项目经历相关度 */
-  private async calculateProjectScore(userId: number, jobId: number): Promise<{ score: number; relatedCount: number }> {
+  private async calculateProjectScore(userId: number, jobId: number, tenantId = 1): Promise<{ score: number; relatedCount: number }> {
     try {
       const collection = this.mongoConnection.db!.collection('user_profiles');
-      const profile = await collection.findOne({ user_id: String(userId) });
+      const profile = await collection.findOne({ user_id: String(userId), tenantId });
 
       if (!profile?.projects?.length) return { score: 0, relatedCount: 0 };
 
@@ -505,11 +506,11 @@ export class MatchAgentService {
   }
 
   /** 计算考试成绩 */
-  private async calculateExamScore(userId: number, jobId: number): Promise<{ score: number; passedCount: number; totalCount: number }> {
+  private async calculateExamScore(userId: number, jobId: number, tenantId = 1): Promise<{ score: number; passedCount: number; totalCount: number }> {
     try {
       // 查询用户通过的考试（与岗位技能相关）
       const exams = await this.examRepo.find({
-        where: { userId, status: 1 },
+        where: { userId, tenantId, status: 1 } as any,
         order: { createTime: 'DESC' },
       });
 
@@ -529,11 +530,11 @@ export class MatchAgentService {
   }
 
   /** 计算学习路径进度 */
-  private async calculateProgressScore(userId: number, jobId: number): Promise<{ score: number; completionPct: number }> {
+  private async calculateProgressScore(userId: number, jobId: number, tenantId = 1): Promise<{ score: number; completionPct: number }> {
     try {
       // 查询用户的学习计划
       const plans = await this.planRepo.find({
-        where: { userId, status: 1 },
+        where: { userId, tenantId, status: 1 } as any,
         order: { createTime: 'DESC' },
       });
 

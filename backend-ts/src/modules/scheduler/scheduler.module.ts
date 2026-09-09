@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ProfileSchedulerService } from '../../services/profile-scheduler.service';
 import { ProfileService } from '../../services/profile.service';
@@ -6,6 +7,7 @@ import { ChatArchiveService } from '../../services/chat-archive.service';
 import { LlmService } from '../../services/llm.service';
 import { NewsSchedulerService } from '../../services/news-scheduler.service';
 import { NewsModule } from '../news/news.module';
+import { Student } from '../../entities/student.entity';
 
 /**
  * 定时任务模块 — Phase 8 + §20 资讯采集
@@ -16,7 +18,7 @@ import { NewsModule } from '../news/news.module';
  * 使用 @nestjs/schedule 的 Cron 装饰器
  */
 @Module({
-  imports: [ScheduleModule.forRoot(), NewsModule],
+  imports: [ScheduleModule.forRoot(), NewsModule, TypeOrmModule.forFeature([Student])],
   providers: [
     ProfileService,
     ChatArchiveService,

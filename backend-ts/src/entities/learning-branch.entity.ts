@@ -8,6 +8,9 @@ export type LearningBranchType = 'main' | 'plan' | 'side' | 'experiment';
 @Index(['userId', 'branchType'])
 @Index(['userId', 'planId'])
 export class LearningBranch extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

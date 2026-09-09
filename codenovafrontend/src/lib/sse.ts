@@ -1,7 +1,7 @@
 /**
  * SSE 实时通道
  *
- * 后端 GET /api/user/events/stream 的 AuthGuard 同时支持
+ * 后端 GET /api/v1/events 的 AuthGuard 同时支持
  * Authorization 头和 ?token= 查询参数；原生 EventSource 不能自定义请求头，
  * 所以这里沿用 query 传 token 的方式。
  *
@@ -33,6 +33,7 @@ export const EVENT_TYPES = {
   AGENT_ADVICE: 'agent_advice',
   GROUP_PROGRESS: 'group_progress',
   BATCH_TASK_UPDATE: 'batch_task_update',
+  ASYNC_JOB_STATUS: 'async_job_status',
   COMMIT_CREATED: 'commit_created',
   BRANCH_UPDATED: 'branch_updated',
   EVALUATION_UPDATED: 'evaluation_updated',
@@ -90,7 +91,8 @@ function open() {
   close();
   sourceToken = token;
 
-  const es = new EventSource(`/api/user/events/stream?token=${encodeURIComponent(token)}`);
+  const params = new URLSearchParams({ token, client_app: 'codenova-web' });
+  const es = new EventSource(`/api/v1/events?${params.toString()}`);
 
   es.onopen = () => {
     reconnectCount = 0;

@@ -30,7 +30,7 @@ export class QuestionBankImportService {
     private readonly llm: LlmService,
   ) {}
 
-  async importBatch(userId: number, input: { filename?: string; fileType?: string; images: string[] }) {
+  async importBatch(userId: number, input: { filename?: string; fileType?: string; images: string[] }, tenantId = 1) {
     const images = Array.isArray(input.images) ? input.images.filter(Boolean) : [];
     if (!images.length) throw new BadRequestException('请上传至少一张题目图片');
     const filename = String(input.filename || '上传图片').slice(0, 500);
@@ -46,6 +46,7 @@ export class QuestionBankImportService {
 
     const batch = await this.importRepo.save({
       userId,
+      tenantId,
       filename,
       fileType,
       importStatus: 'processing',
@@ -82,6 +83,7 @@ export class QuestionBankImportService {
         ...this.normalizeCandidate(q, index),
         importId: batch.id,
         userId,
+        tenantId,
       }));
       const saved = await this.candidateRepo.save(candidates as any);
 
@@ -103,25 +105,25 @@ export class QuestionBankImportService {
     }
   }
 
-  async listImports(userId: number, limit = 20) {
+  async listImports(userId: number, limit = 20, tenantId = 1) {
     const rows = await this.importRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 } as any,
       order: { createTime: 'DESC' },
       take: Math.min(50, Math.max(1, limit)),
     });
     return rows.map((r) => this.serialize(r));
   }
 
-  async getImport(userId: number, importId: number) {
-    const batch = await this.getOwned(userId, importId);
-    const candidates = await this.candidateRepo.find({ where: { importId, userId }, order: { sourceOrder: 'ASC' } });
+  async getImport(userId: number, importId: number, tenantId = 1) {
+    const batch = await this.getOwned(userId, importId, tenantId);
+    const candidates = await this.candidateRepo.find({ where: { importId, userId, tenantId } as any, order: { sourceOrder: 'ASC' } });
     return this.serialize(batch, candidates);
   }
 
-  async confirmImport(userId: number, importId: number, candidateIds: number[]) {
-    const batch = await this.getOwned(userId, importId);
+  async confirmImport(userId: number, importId: number, candidateIds: number[], tenantId = 1) {
+    const batch = await this.getOwned(userId, importId, tenantId);
     if (!candidateIds?.length) return { imported: 0, questionIds: [] };
-    const rows = await this.candidateRepo.find({ where: { id: In(candidateIds), importId, userId } });
+    const rows = await this.candidateRepo.find({ where: { id: In(candidateIds), importId, userId, tenantId } as any });
     const skillName = String(batch.filename || '').replace(/\.[^.]+$/, '') || '';
     const questionIds: number[] = [];
     for (const row of rows) {
@@ -129,6 +131,7 @@ export class QuestionBankImportService {
       const examPayload = this.toExamPayload(row);
       const saved = await this.questionRepo.save({
         examType: 1,
+        tenantId,
         skillName: String(row.topicSuggestions?.[0] || '') || skillName,
         questionType: this.mapType(row.questionType),
         title: String(row.stem || '').slice(0, 500),
@@ -147,17 +150,17 @@ export class QuestionBankImportService {
       await this.candidateRepo.save(row);
       questionIds.push(saved.id);
     }
-    batch.importedCount = await this.candidateRepo.count({ where: { importId, userId, imported: 1 } });
+    batch.importedCount = await this.candidateRepo.count({ where: { importId, userId, tenantId, imported: 1 } as any });
     batch.importStatus = 'imported';
     batch.updateTime = Date.now();
     await this.importRepo.save(batch);
     return { imported: questionIds.length, questionIds };
   }
 
-  async deleteImport(userId: number, importId: number) {
-    await this.getOwned(userId, importId);
-    await this.candidateRepo.delete({ importId, userId });
-    await this.importRepo.delete({ id: importId, userId });
+  async deleteImport(userId: number, importId: number, tenantId = 1) {
+    await this.getOwned(userId, importId, tenantId);
+    await this.candidateRepo.delete({ importId, userId, tenantId } as any);
+    await this.importRepo.delete({ id: importId, userId, tenantId } as any);
     return { deleted: true };
   }
 
@@ -202,8 +205,8 @@ export class QuestionBankImportService {
     return 'choice';
   }
 
-  private async getOwned(userId: number, importId: number) {
-    const batch = await this.importRepo.findOne({ where: { id: importId, userId, status: 1 } });
+  private async getOwned(userId: number, importId: number, tenantId = 1) {
+    const batch = await this.importRepo.findOne({ where: { id: importId, userId, tenantId, status: 1 } as any });
     if (!batch) throw new NotFoundException('导入批次不存在');
     return batch;
   }

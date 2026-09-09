@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { ExamQuestion, ExamRecord } from '../../entities/exam.entity';
 
 @Injectable()
@@ -10,10 +10,11 @@ export class QuestionBankService {
     @InjectRepository(ExamRecord) private readonly examRepo: Repository<ExamRecord>,
   ) {}
 
-  async listQuestions(userId: number, filters: { skillName?: string; questionType?: string; difficulty?: string; source?: string; page?: number; pageSize?: number }) {
+  async listQuestions(userId: number, filters: { skillName?: string; questionType?: string; difficulty?: string; source?: string; page?: number; pageSize?: number; tenantId?: number }) {
     const page = Math.max(1, Number(filters.page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(filters.pageSize) || 20));
-    const qb = this.questionRepo.createQueryBuilder('q').where('q.status = 1');
+    const qb = this.questionRepo.createQueryBuilder('q').where('q.status = 1')
+      .andWhere('(q.tenant_id IS NULL OR q.tenant_id = :tenantId)', { tenantId: filters.tenantId || 1 });
     if (filters.skillName) qb.andWhere('q.skill_name LIKE :s', { s: `%${filters.skillName}%` });
     if (filters.questionType) qb.andWhere('q.question_type = :t', { t: filters.questionType });
     if (filters.difficulty) qb.andWhere('q.difficulty = :d', { d: Number(filters.difficulty) });
@@ -40,13 +41,18 @@ export class QuestionBankService {
     };
   }
 
-  async assemble(userId: number, questionIds: number[]) {
+  async assemble(userId: number, questionIds: number[], tenantId = 1) {
     if (!questionIds?.length) throw new BadRequestException('请先勾选要组卷的题目');
-    const questions = await this.questionRepo.find({ where: { id: In(questionIds), status: 1 } });
+    const questions = await this.questionRepo.createQueryBuilder('q')
+      .where('q.id IN (:...ids)', { ids: questionIds })
+      .andWhere('q.status = 1')
+      .andWhere('(q.tenant_id IS NULL OR q.tenant_id = :tenantId)', { tenantId })
+      .getMany();
     if (!questions.length) throw new BadRequestException('未找到可组卷的题目');
     const now = Date.now();
     const exam = await this.examRepo.save({
       userId,
+      tenantId,
       examType: 1,
       answers: {
         served: questions.map((q) => ({

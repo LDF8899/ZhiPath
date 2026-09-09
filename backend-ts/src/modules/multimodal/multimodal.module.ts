@@ -4,6 +4,7 @@ import { MultimodalService } from '../../services/multimodal.service';
 import { LlmService } from '../../services/llm.service';
 import { XunfeiAvatarService } from '../../services/xunfei-avatar.service';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
+import { MultimodalV1Controller } from './multimodal-v1.controller';
 
 /**
  * 多模态智能体模块 — T5
@@ -14,7 +15,7 @@ import { KnowledgeModule } from '../knowledge/knowledge.module';
  */
 @Module({
   imports: [KnowledgeModule],
-  controllers: [MultimodalController],
+  controllers: [MultimodalController, MultimodalV1Controller],
   providers: [MultimodalService, LlmService, XunfeiAvatarService],
   exports: [MultimodalService, XunfeiAvatarService],
 })

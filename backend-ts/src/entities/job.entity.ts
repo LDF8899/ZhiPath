@@ -52,6 +52,9 @@ export class JobPosition extends BaseEntity {
  */
 @Entity('job_applications_v3')
 export class JobApplication extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

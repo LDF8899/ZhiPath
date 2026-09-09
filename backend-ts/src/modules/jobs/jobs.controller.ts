@@ -31,6 +31,7 @@ export class JobsController {
       level,
       searchMode,
       includeOnline: includeOnline === '1' || includeOnline === 'true',
+      tenantId: Number(user.tenantId || 1),
     });
     return { ...pageSuccess(result.list, result.total, result.page, result.pageSize), meta: result.meta };
   }
@@ -52,21 +53,24 @@ export class JobsController {
   /** GET /api/user/jobs/:jobId/gap-card — 岗位差距卡（匹配度 + Top3 缺口 + 推荐动作 + 预计影响） */
   @Get('jobs/:jobId/gap-card')
   async getGapCard(@CurrentUser() user: any, @Param('jobId') jobId: string) {
-    const result = await this.jobsService.getGapCard(user.sub, Number(jobId));
+    const tenantId = Number(user.tenantId);
+    const result = tenantId
+      ? await this.jobsService.getGapCard(user.sub, Number(jobId), tenantId)
+      : await this.jobsService.getGapCard(user.sub, Number(jobId));
     return success(result);
   }
 
   /** GET /api/user/jobs/:jobId/match */
   @Get('jobs/:jobId/match')
   async getJobMatch(@CurrentUser() user: any, @Param('jobId') jobId: string) {
-    const result = await this.jobsService.getJobMatch(user.sub, Number(jobId));
+    const result = await this.jobsService.getJobMatch(user.sub, Number(jobId), Number(user.tenantId) || 1);
     return success(result);
   }
 
   /** POST /api/user/jobs/:jobId/apply */
   @Post('jobs/:jobId/apply')
   async applyJob(@CurrentUser() user: any, @Param('jobId') jobId: string) {
-    const result = await this.jobsService.applyJob(user.sub, Number(jobId));
+    const result = await this.jobsService.applyJob(user.sub, Number(jobId), Number(user.tenantId) || 1);
     return success(result);
   }
 
@@ -77,7 +81,7 @@ export class JobsController {
     @Param('jobId') jobId: string,
     @Body() body: { target?: 'main' | 'side' },
   ) {
-    const result = await this.jobsService.importSkills(user.sub, Number(jobId), body?.target);
+    const result = await this.jobsService.importSkills(user.sub, Number(jobId), body?.target, Number(user.tenantId) || 1);
     return success(result);
   }
 }

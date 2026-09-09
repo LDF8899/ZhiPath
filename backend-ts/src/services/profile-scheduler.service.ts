@@ -29,35 +29,38 @@ export class ProfileSchedulerService {
     console.log(`[ProfileScheduler] Processing ${activeUsers.length} active users`);
     const processed: string[] = [];
 
-    for (const userIdStr of activeUsers) {
+    for (const userKey of activeUsers) {
       try {
+        const [tenantPart, userPart] = String(userKey).includes(':') ? String(userKey).split(':', 2) : ['1', String(userKey)];
+        const tenantId = Number(tenantPart) || 1;
+        const userIdStr = userPart;
         const userId = parseInt(userIdStr, 10);
 
         // 2. 获取当前画像
-        const currentProfile = (await this.profileService.getProfile(userId)) || {};
+        const currentProfile = (await this.profileService.getProfile(userId, tenantId)) || {};
 
         // 3. 获取最近聊天消息
-        const recentMessages = await this.chatArchive.getRecentMessages(userId, 30);
+        const recentMessages = await this.chatArchive.getRecentMessages(userId, 30, tenantId);
         if (!recentMessages.length) {
-          processed.push(userIdStr);
+          processed.push(userKey);
           continue;
         }
 
         // 4. 归档最近会话
-        await this.archiveUserSessions(userId);
+        await this.archiveUserSessions(userId, tenantId);
 
         // 5. 调 LLM 分析
         const delta = await this.analyzeChatForProfile(currentProfile, recentMessages);
 
         // 6. merge 到 MongoDB
         if (delta) {
-          await this.profileService.mergeProfileDelta(userId, delta, 'chat_analysis');
+          await this.profileService.mergeProfileDelta(userId, delta, 'chat_analysis', tenantId, 'legacy');
           console.log(`[ProfileScheduler] Profile updated for user ${userIdStr}:`, Object.keys(delta));
         }
 
-        processed.push(userIdStr);
+        processed.push(userKey);
       } catch (e) {
-        console.warn(`[ProfileScheduler] Analysis failed for user ${userIdStr}:`, e.message);
+        console.warn(`[ProfileScheduler] Analysis failed for user ${userKey}:`, e.message);
       }
     }
 
@@ -130,20 +133,11 @@ ${chatText}
   }
 
   /** 归档用户最近的会话 */
-  private async archiveUserSessions(userId: number) {
+  private async archiveUserSessions(userId: number, tenantId = 1) {
     try {
-      const collection = this.profileService['mongoConnection'].db!.collection('chat_sessions');
-      const sessions = await collection
-        .find({ user_id: String(userId) }, { projection: { session_id: 1 } })
-        .sort({ updated_at: -1 })
-        .limit(3)
-        .toArray();
-
-      for (const session of sessions) {
-        const sid = session.session_id || '';
-        if (sid) {
-          await this.chatArchive.archiveChat(userId, sid);
-        }
+      const sessionIds = await this.chatArchive.listRecentSessionIds(userId, tenantId, 3);
+      for (const sid of sessionIds) {
+        await this.chatArchive.archiveChat(userId, sid, tenantId);
       }
     } catch (e) {
       console.warn(`[ProfileScheduler] Archive failed for user ${userId}:`, e.message);

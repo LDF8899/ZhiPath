@@ -11,7 +11,7 @@ export class QuestionBankController {
 
   @Get('questions')
   async list(
-    @CurrentUser('sub') userId: number,
+    @CurrentUser() user: any,
     @Query('skillName') skillName?: string,
     @Query('questionType') questionType?: string,
     @Query('difficulty') difficulty?: string,
@@ -19,13 +19,15 @@ export class QuestionBankController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
-    const result = await this.service.listQuestions(userId, { skillName, questionType, difficulty, source, page: page ? Number(page) : undefined, pageSize: pageSize ? Number(pageSize) : undefined });
+    const userId = Number(user?.sub || user?.id);
+    const result = await this.service.listQuestions(userId, { skillName, questionType, difficulty, source, page: page ? Number(page) : undefined, pageSize: pageSize ? Number(pageSize) : undefined, tenantId: Number(user?.tenantId || 1) });
     return pageSuccess(result.list, result.total, result.page, result.pageSize);
   }
 
   @Post('assemble')
-  async assemble(@CurrentUser('sub') userId: number, @Body() body: { questionIds: number[] }) {
-    try { return success(await this.service.assemble(userId, body.questionIds), '已组卷'); }
+  async assemble(@CurrentUser() user: any, @Body() body: { questionIds: number[] }) {
+    const userId = Number(user?.sub || user?.id);
+    try { return success(await this.service.assemble(userId, body.questionIds, Number(user?.tenantId || 1)), '已组卷'); }
     catch (e: any) { return error(400, e.message); }
   }
 }

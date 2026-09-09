@@ -17,7 +17,7 @@ export class KnowledgeIngestionController {
       sourceName: body?.sourceName || body?.source_name,
       sourceUrl: body?.sourceUrl || body?.source_url,
       skillTags: body?.skillTags || body?.skill_tags || [],
-    });
+    }, Number(user.tenantId) || 1);
     return success(task);
   }
 
@@ -27,7 +27,7 @@ export class KnowledgeIngestionController {
       url: body?.url || '',
       title: body?.title,
       skillTags: body?.skillTags || body?.skill_tags || [],
-    });
+    }, Number(user.tenantId) || 1);
     return success(task);
   }
 
@@ -41,25 +41,25 @@ export class KnowledgeIngestionController {
     const result = await this.ingestion.refreshNews(user.sub, {
       keywords,
       limit: body?.limit ? Number(body.limit) : undefined,
-    });
+    }, Number(user.tenantId) || 1);
     return success(result);
   }
 
   @Get('tasks')
   async listTasks(@CurrentUser() user: any, @Query('status') status?: string, @Query('limit') limit?: string) {
-    const tasks = await this.ingestion.listTasks(user.sub, { status, limit: limit ? Number(limit) : undefined });
+    const tasks = await this.ingestion.listTasks(user.sub, { status, limit: limit ? Number(limit) : undefined }, Number(user.tenantId) || 1);
     return success({ total: tasks.length, items: tasks });
   }
 
   @Get('tasks/:taskId')
   async getTask(@CurrentUser() user: any, @Param('taskId') taskId: string) {
-    const task = await this.ingestion.getTask(user.sub, taskId);
+    const task = await this.ingestion.getTask(user.sub, taskId, Number(user.tenantId) || 1);
     return success(task);
   }
 
   @Post('tasks/:taskId/retry')
   async retry(@CurrentUser() user: any, @Param('taskId') taskId: string) {
-    const task = await this.ingestion.processTask(taskId, user.sub);
+    const task = await this.ingestion.processTask(taskId, user.sub, Number(user.tenantId) || 1);
     return success(task);
   }
 }

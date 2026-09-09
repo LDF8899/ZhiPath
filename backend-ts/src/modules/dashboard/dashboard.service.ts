@@ -43,11 +43,11 @@ export class DashboardService {
   ) {}
 
   /** GET /api/user/dashboard */
-  async getDashboard(userId: number) {
+  async getDashboard(userId: number, tenantId = 1) {
     const today = new Date().toISOString().slice(0, 10);
 
     // 1. 学生信息
-    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } });
     const studentData = student
       ? {
           id: student.id,
@@ -103,7 +103,7 @@ export class DashboardService {
 
     // 3. 所有学习计划（用于计划切换器）
     const plans = await this.learningPathRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { planType: 'ASC', createTime: 'DESC' },
     });
 
@@ -158,7 +158,7 @@ export class DashboardService {
     // 5. 今日任务（通过 TaskScheduler 获取）
     let todayTasks: any[] = [];
     try {
-      const schedulerResult = await this.taskScheduler.getTodayTasks(userId);
+      const schedulerResult = await this.taskScheduler.getTodayTasks(userId, undefined, tenantId);
       const allTasks = [...schedulerResult.mainTasks, ...schedulerResult.sideTasks];
       todayTasks = allTasks.map((t) => ({
         id: t.id,
@@ -172,9 +172,9 @@ export class DashboardService {
       // fallback 到直接查询
       const tasks = await this.taskRepo.find({
         where: [
-          { userId, planDate: today, isActive: 1 },
-          { userId, taskStatus: 'pending', isActive: 1 },
-          { userId, taskStatus: 'in_progress', isActive: 1 },
+          { userId, tenantId, planDate: today, isActive: 1 },
+          { userId, tenantId, taskStatus: 'pending', isActive: 1 },
+          { userId, tenantId, taskStatus: 'in_progress', isActive: 1 },
         ],
         order: { sortOrder: 'ASC', priority: 'DESC' },
         take: 10,
@@ -198,11 +198,11 @@ export class DashboardService {
     }
 
     // 6. 资讯
-    const newsItems = await this.newsRepo.find({
+    const newsItems = (await this.newsRepo.find({
       where: { status: 1 },
       order: { publishTime: 'DESC' },
       take: 5,
-    });
+    })).filter((n) => n.tenantId == null || n.tenantId === tenantId);
     const news = newsItems.map((n) => ({
       id: n.id,
       title: n.title,
@@ -216,10 +216,10 @@ export class DashboardService {
 
     // 7. 统计
     const [examCount, jobCount, resourceSuccessCount, resumeCount] = await Promise.all([
-      this.examRepo.count({ where: { userId, status: 1 } }),
-      this.jobAppRepo.count({ where: { userId, status: 1 } }),
-      this.resourceRepo.count({ where: { userId, status: 1, resourceStatus: 'success' } }),
-      this.resumeRepo.count({ where: { userId, status: 1 } }),
+      this.examRepo.count({ where: { userId, tenantId, status: 1 } }),
+      this.jobAppRepo.count({ where: { userId, tenantId, status: 1 } }),
+      this.resourceRepo.count({ where: { userId, tenantId, status: 1, resourceStatus: 'success' } }),
+      this.resumeRepo.count({ where: { userId, tenantId, status: 1 } }),
     ]);
 
     // 从 pathData 统计总技能数、已完成数和进行中数。
@@ -244,7 +244,7 @@ export class DashboardService {
 
     // 累计学习时长（从已完成任务的 estimatedMin 估算）
     const completedTasks = await this.taskRepo.find({
-      where: { userId, isActive: 1 },
+      where: { userId, tenantId, isActive: 1 },
       select: { id: true, actualMin: true, estimatedMin: true, taskStatus: true, planDate: true },
     });
     let totalLearnedMin = 0;
@@ -304,9 +304,9 @@ export class DashboardService {
    *
    * 任务来源先用规则排序，不依赖大模型（方案 §9.2）。
    */
-  async getTodayActions(userId: number) {
+  async getTodayActions(userId: number, tenantId = 1) {
     // ── 兜底 1：没有目标岗位 → 主任务引导选岗 ──
-    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } });
     const targetJobId = student?.targetJobId || null;
 
     if (!targetJobId) {
@@ -347,7 +347,7 @@ export class DashboardService {
     // ── 有效技能画像（用于缺口计算，失败时降级为空画像）──
     let effectiveSkills: Array<{ name: string; masteryPct: number }> = [];
     try {
-      effectiveSkills = await this.skillService.getEffectiveSkills(userId);
+      effectiveSkills = await this.skillService.getEffectiveSkills(userId, tenantId);
     } catch {
       effectiveSkills = [];
     }
@@ -382,7 +382,7 @@ export class DashboardService {
     // ── 辅助候选 1：学习计划中未完成的任务（继续推进）──
     let pendingTodayTask: { id: number; title: string; taskType: string; status: string; estimatedMin: number } | null = null;
     try {
-      const schedulerResult = await this.taskScheduler.getTodayTasks(userId);
+      const schedulerResult = await this.taskScheduler.getTodayTasks(userId, undefined, tenantId);
       const allTasks = [...schedulerResult.mainTasks, ...schedulerResult.sideTasks];
       const pending =
         allTasks.find((t) => !['done', 'exam_done', 'lecture_done', 'practice_done', 'code_done'].includes(t.taskStatus)) || null;
@@ -416,7 +416,7 @@ export class DashboardService {
     let weakPoint: { skill: string; score: number } | null = null;
     try {
       const recentResults = await this.evalResultRepo.find({
-        where: { userId },
+        where: { userId, tenantId },
         order: { createTime: 'DESC' },
         take: 30,
       });
@@ -454,7 +454,7 @@ export class DashboardService {
       // P1-3 / §8.4：推荐理由引用证据覆盖状态
       let evidenceNote = '';
       try {
-        const hits = await this.evidenceRag.search(userId, mainGap.name, { skill: mainGap.name, limit: 1 });
+        const hits = await this.evidenceRag.search(userId, mainGap.name, { skill: mainGap.name, limit: 1 }, tenantId);
         evidenceNote =
           hits.length > 0
             ? `已有 ${hits.length} 条相关证据（${hits[0].title}），完成本任务后可直接强化该证据表达。`
@@ -520,14 +520,14 @@ export class DashboardService {
    *
    * 先做页面报告，不急于 PDF。
    */
-  async getGrowthReport(userId: number, days: number) {
+  async getGrowthReport(userId: number, days: number, tenantId = 1) {
     const daysNum = days === 7 ? 7 : 30;
     const since = Date.now() - daysNum * 86400000;
     const sinceDate = new Date(since).toISOString().slice(0, 10);
 
     // ── 1. commits（近 N 天，非 baseline）──
     const commits = await this.commitRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { createTime: 'DESC' },
     });
     const recentCommits = commits.filter(
@@ -535,7 +535,7 @@ export class DashboardService {
     );
 
     // ── 2. 任务统计（近 N 天按 planDate）──
-    const allTasks = await this.taskRepo.find({ where: { userId, isActive: 1 } });
+    const allTasks = await this.taskRepo.find({ where: { userId, tenantId, isActive: 1 } });
     const recentTasks = allTasks.filter((t) => t.planDate && t.planDate >= sinceDate);
     const DONE = ['done', 'exam_done', 'lecture_done', 'practice_done', 'code_done'];
     const doneTasks = recentTasks.filter((t) => DONE.includes(t.taskStatus));
@@ -567,7 +567,7 @@ export class DashboardService {
 
     // ── 4. 测评表现（近 N 天）──
     const evalResults = await this.evalResultRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { createTime: 'DESC' },
     });
     const recentEvals = evalResults.filter((r) => Number(r.createTime || 0) >= since);

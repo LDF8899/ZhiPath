@@ -7,6 +7,10 @@ import { BaseEntity } from '../common/base.entity';
  */
 @Entity('exam_questions_v3')
 export class ExamQuestion extends BaseEntity {
+  /** null 表示平台公共题目，否则仅对该租户可见 */
+  @Column({ type: 'bigint', nullable: true, name: 'tenant_id' })
+  tenantId: number | null;
+
   @Column({ type: 'bigint', nullable: true, name: 'generation_task_id' })
   generationTaskId: number | null;
 
@@ -62,6 +66,9 @@ export class ExamQuestion extends BaseEntity {
  */
 @Entity('exam_records_v3')
 export class ExamRecord extends BaseEntity {
+  @Column({ type: 'bigint', default: 1, name: 'tenant_id' })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

@@ -15,6 +15,9 @@ export type EvaluationEvidenceType =
 @Index(['userId', 'attemptId'])
 @Index(['sourceType', 'sourceId'])
 export class EvaluationEvidence extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

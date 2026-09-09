@@ -33,17 +33,17 @@ export class SkillService {
   // ── 基础 CRUD ──────────────────────────────────
 
   /** 获取用户所有技能 */
-  async getSkills(userId: number): Promise<UserSkill[]> {
+  async getSkills(userId: number, tenantId = 1): Promise<UserSkill[]> {
     return this.userSkillRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { masteryPct: 'DESC', updateTime: 'DESC' },
     });
   }
 
   /** 获取用户某项技能（取最新一条） */
-  async getSkill(userId: number, skillName: string): Promise<UserSkill | null> {
+  async getSkill(userId: number, skillName: string, tenantId = 1): Promise<UserSkill | null> {
     return this.userSkillRepo.findOne({
-      where: { userId, skillName, status: 1 },
+      where: { userId, skillName, tenantId, status: 1 },
       order: { updateTime: 'DESC' },
     });
   }
@@ -55,6 +55,7 @@ export class SkillService {
     source: UserSkill['source'] = 'self_report',
     trustWeight: number = 0.3,
     masteryPct: number = 0,
+    tenantId = 1,
   ): Promise<UserSkill> {
     const now = Date.now();
     const name = skillName.trim();
@@ -62,7 +63,7 @@ export class SkillService {
 
     // 查找已有记录（同名同来源）
     const existing = await this.userSkillRepo.findOne({
-      where: { userId, skillName: name, source, status: 1 },
+      where: { userId, skillName: name, source, tenantId, status: 1 },
     });
 
     if (existing) {
@@ -81,6 +82,7 @@ export class SkillService {
     // 新建
     return this.userSkillRepo.save({
       userId,
+      tenantId,
       skillName: name,
       masteryPct,
       trustWeight,
@@ -96,7 +98,8 @@ export class SkillService {
   /** 批量添加技能 */
   async addSkills(
     userId: number,
-    skills: Array<{ name: string; source?: UserSkill['source']; trustWeight?: number; masteryPct?: number }>,
+    skills: Array<{ name: string; source?: UserSkill['source']; trustWeight?: number; masteryPct?: number; tenantId?: number }>,
+    tenantId = 1,
   ): Promise<UserSkill[]> {
     const results: UserSkill[] = [];
     for (const s of skills) {
@@ -106,6 +109,7 @@ export class SkillService {
         s.source || 'self_report',
         s.trustWeight || 0.3,
         s.masteryPct || 0,
+        s.tenantId ?? tenantId,
       );
       results.push(result);
     }
@@ -121,6 +125,7 @@ export class SkillService {
     newSource: UserSkill['source'],
     newTrustWeight: number,
     masteryPct?: number,
+    tenantId = 1,
   ): Promise<UserSkill> {
     const now = Date.now();
     const name = skillName.trim();
@@ -128,7 +133,7 @@ export class SkillService {
 
     // 查找该技能的所有记录（取信任度最高的）
     const existing = await this.userSkillRepo.findOne({
-      where: { userId, skillName: name, status: 1 },
+      where: { userId, skillName: name, tenantId, status: 1 },
       order: { trustWeight: 'DESC' },
     });
 
@@ -153,6 +158,7 @@ export class SkillService {
     // 不存在，新增
     return this.userSkillRepo.save({
       userId,
+      tenantId,
       skillName: name,
       masteryPct: masteryPct || 0,
       trustWeight: newTrustWeight,
@@ -168,8 +174,8 @@ export class SkillService {
   // ── 掌握度更新 ──────────────────────────────────
 
   /** 更新技能掌握度（增量） */
-  async updateMastery(userId: number, skillName: string, delta: number): Promise<UserSkill | null> {
-    const skill = await this.getSkill(userId, skillName);
+  async updateMastery(userId: number, skillName: string, delta: number, tenantId = 1): Promise<UserSkill | null> {
+    const skill = await this.getSkill(userId, skillName, tenantId);
     if (!skill) return null;
 
     const now = Date.now();
@@ -200,6 +206,7 @@ export class SkillService {
     skillName: string,
     masteryPct: number,
     trustWeight = 0.9,
+    tenantId = 1,
   ): Promise<UserSkill | null> {
     const name = String(skillName || '').trim();
     if (!name) return null;
@@ -208,12 +215,13 @@ export class SkillService {
     const target = Math.max(0, Math.min(100, Number(masteryPct) || 0));
 
     const skill = await this.userSkillRepo.findOne({
-      where: { userId, skillName: name, status: 1 },
+      where: { userId, skillName: name, tenantId, status: 1 },
     });
 
     if (!skill) {
       return this.userSkillRepo.save({
         userId,
+        tenantId,
         skillName: name,
         masteryPct: target,
         trustWeight,
@@ -241,8 +249,8 @@ export class SkillService {
   // ── 加权技能 ──────────────────────────────────
 
   /** 获取加权后的有效技能（用于匹配度计算） */
-  async getEffectiveSkills(userId: number): Promise<Array<{ name: string; effectiveScore: number; masteryPct: number; trustWeight: number; source: string }>> {
-    const skills = await this.getSkills(userId);
+  async getEffectiveSkills(userId: number, tenantId = 1): Promise<Array<{ name: string; effectiveScore: number; masteryPct: number; trustWeight: number; source: string }>> {
+    const skills = await this.getSkills(userId, tenantId);
     const now = Date.now();
 
     return skills.map((s) => {
@@ -272,15 +280,15 @@ export class SkillService {
   }
 
   /** 获取用户技能名称集合（去重） */
-  async getSkillNames(userId: number): Promise<string[]> {
-    const skills = await this.getSkills(userId);
+  async getSkillNames(userId: number, tenantId = 1): Promise<string[]> {
+    const skills = await this.getSkills(userId, tenantId);
     return [...new Set(skills.map((s) => s.skillName))];
   }
 
   /** 检查用户是否拥有某技能 */
-  async hasSkill(userId: number, skillName: string): Promise<boolean> {
+  async hasSkill(userId: number, skillName: string, tenantId = 1): Promise<boolean> {
     const count = await this.userSkillRepo.count({
-      where: { userId, skillName, status: 1 },
+      where: { userId, skillName, tenantId, status: 1 },
     });
     return count > 0;
   }
@@ -288,8 +296,8 @@ export class SkillService {
   // ── 迁移工具 ──────────────────────────────────
 
   /** 从 students_v3.skills JSON 迁移到 user_skills_v3（一次性） */
-  async syncFromStudentSkills(userId: number): Promise<number> {
-    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+  async syncFromStudentSkills(userId: number, tenantId = 1): Promise<number> {
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } });
     if (!student?.skills?.length) return 0;
 
     const now = Date.now();
@@ -302,12 +310,13 @@ export class SkillService {
 
       // 检查是否已迁移
       const exists = await this.userSkillRepo.findOne({
-        where: { userId, skillName: name, source: 'self_report' },
+        where: { userId, skillName: name, source: 'self_report', tenantId },
       });
 
       if (!exists) {
         await this.userSkillRepo.save({
           userId,
+          tenantId,
           skillName: name,
           masteryPct: 0,
           trustWeight: levelToTrust[s.level] || 0.3,
@@ -327,8 +336,8 @@ export class SkillService {
   // ── 统计 ──────────────────────────────────
 
   /** 获取用户技能统计 */
-  async getStats(userId: number): Promise<{ total: number; bySource: Record<string, number>; avgMastery: number }> {
-    const skills = await this.getSkills(userId);
+  async getStats(userId: number, tenantId = 1): Promise<{ total: number; bySource: Record<string, number>; avgMastery: number }> {
+    const skills = await this.getSkills(userId, tenantId);
     const bySource: Record<string, number> = {};
     let totalMastery = 0;
 
@@ -358,14 +367,14 @@ export class SkillService {
    *
    * 仅聚合现有数据，不新建表。
    */
-  async getSkillEvidence(userId: number, skillName: string) {
+  async getSkillEvidence(userId: number, skillName: string, tenantId = 1) {
     const name = skillName.trim();
     const lower = name.toLowerCase();
-    const skill = await this.getSkill(userId, name);
+    const skill = await this.getSkill(userId, name, tenantId);
 
     // ── 1. 学习证据：commit（skillName 匹配或 payload 提及）──
     const commits = await this.commitRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { createTime: 'DESC' },
       take: 300,
     });
@@ -382,7 +391,7 @@ export class SkillService {
 
     // ── 2. 测评证据：evaluation result ──
     const evalResults = await this.evalResultRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { createTime: 'DESC' },
       take: 200,
     });
@@ -400,7 +409,7 @@ export class SkillService {
       }));
 
     // ── 3. 项目证据：student.projects ──
-    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } });
     const projectList = (student?.projects || []) as Array<Record<string, any>>;
     const project = projectList
       .filter((p) => this.projectMentionsSkill(p, lower))
@@ -414,7 +423,7 @@ export class SkillService {
 
     // ── 4. 简历证据：resume content ──
     const resumes = await this.resumeRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { version: 'DESC' },
       take: 20,
     });
@@ -480,7 +489,7 @@ export class SkillService {
     // P1-1 / §7.3：Evidence RAG 语义证据（项目/文件/测评等召回），失败不影响主链路
     let semantic: Array<{ chunkId: number; sourceType: string; title: string; snippet: string; score: number }> = [];
     try {
-      semantic = (await this.evidenceRag.search(userId, name, { skill: name, limit: 3 })).map((e) => ({
+      semantic = (await this.evidenceRag.search(userId, name, { skill: name, limit: 3 }, tenantId)).map((e) => ({
         chunkId: e.chunkId,
         sourceType: e.sourceType,
         title: e.title,

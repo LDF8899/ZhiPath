@@ -54,7 +54,8 @@ export class JobsService {
   ) {}
 
   /** 岗位列表（按匹配度排序） — GET /api/user/jobs */
-  async getJobs(userId: number, options: { page?: number; pageSize?: number; keyword?: string; company?: string; location?: string; level?: string }) {
+  async getJobs(userId: number, options: { page?: number; pageSize?: number; keyword?: string; company?: string; location?: string; level?: string; tenantId?: number }) {
+    const tenantId = options.tenantId ?? 1;
     const { page = 1, pageSize = 20, keyword, company, location, level } = options;
     const skip = (page - 1) * pageSize;
 
@@ -75,7 +76,7 @@ export class JobsService {
     // 使用 5 因子算法批量计算匹配度
     let matchMap = new Map<number, number>();
     try {
-      const matchResults = await this.matchAgent.calculateForAllJobs(userId);
+      const matchResults = await this.matchAgent.calculateForAllJobs(userId, undefined, tenantId);
       for (const m of matchResults) {
         matchMap.set(m.jobId, m.matchScore);
       }
@@ -131,7 +132,9 @@ export class JobsService {
     level?: string;
     searchMode?: 'local' | 'hybrid' | 'online';
     includeOnline?: boolean;
+    tenantId?: number;
   }) {
+    const tenantId = options.tenantId ?? 1;
     const { page = 1, pageSize = 20, company, location, level } = options;
     const keyword = (options.keyword || '').trim();
     const mode = options.searchMode || 'hybrid';
@@ -145,7 +148,7 @@ export class JobsService {
 
     const matchMap = new Map<number, number>();
     try {
-      const matchResults = await this.matchAgent.calculateForAllJobs(userId, keyword ? 'job_search' : undefined);
+      const matchResults = await this.matchAgent.calculateForAllJobs(userId, keyword ? 'job_search' : undefined, tenantId);
       for (const m of matchResults) matchMap.set(m.jobId, m.matchScore);
     } catch (e) {
       console.warn('[JobsService] match calculation fallback:', (e as Error).message);
@@ -163,7 +166,7 @@ export class JobsService {
     const localList = localItems.map((j) => this.toJobCard(j, enterpriseMap, matchMap.get(Number(j.id)) || 0, keyword));
     let onlineList: any[] = [];
     if (onlineQuery) {
-      onlineList = await this.searchOnlineJobs(userId, onlineQuery);
+      onlineList = await this.searchOnlineJobs(userId, onlineQuery, tenantId);
     }
     const aiRecommendationCount = onlineList.filter((job) => job.searchMeta?.origin === 'ai_generated').length;
     const webOnlineCount = onlineList.length - aiRecommendationCount;
@@ -333,12 +336,12 @@ export class JobsService {
    *  统一走 MatchAgent 的分场景 6 因子算法（§7），不再用简化命中率。
    *  返回结构兼容前端：matchResult.{score,matched,missing}
    */
-  async getJobMatch(userId: number, jobId: number) {
+  async getJobMatch(userId: number, jobId: number, tenantId = 1) {
     const job = await this.jobRepo.findOne({ where: { id: jobId, status: 1 } });
     if (!job) return null;
 
-    const match = await this.matchAgent.calculateMatch(userId, jobId, 'view_job');
-    const scoreChange = await this.getLatestJobScoreChange(userId, jobId, match.totalScore);
+    const match = await this.matchAgent.calculateMatch(userId, jobId, 'view_job', tenantId);
+    const scoreChange = await this.getLatestJobScoreChange(userId, jobId, match.totalScore, tenantId);
 
     return {
       jobId,
@@ -360,7 +363,7 @@ export class JobsService {
   }
 
   /** 申请岗位 — POST /api/user/jobs/:jobId/apply */
-  async applyJob(userId: number, jobId: number) {
+  async applyJob(userId: number, jobId: number, tenantId = 1) {
     if (!Number.isInteger(jobId) || jobId <= 0) {
       throw new BadRequestException('参考岗位不能直接投递，可作为学习目标参考');
     }
@@ -374,7 +377,7 @@ export class JobsService {
     }
 
     const existing = await this.applicationRepo.findOne({
-      where: { userId: userId, jobId: jobId, status: 1 },
+      where: { userId: userId, tenantId, jobId: jobId, status: 1 },
     });
     if (existing) {
       return { message: '已申请过该岗位' };
@@ -382,6 +385,7 @@ export class JobsService {
 
     await this.applicationRepo.save({
       userId: userId,
+      tenantId,
       jobId: jobId,
       adminDecision: 0,
       createTime: Date.now(),
@@ -407,7 +411,7 @@ export class JobsService {
    *  - 无技能画像时给出基础建议（hasProfile=false + message）
    *  - 支持一键加入学习计划（前端复用 import-skills）
    */
-  async getGapCard(userId: number, jobId: number) {
+  async getGapCard(userId: number, jobId: number, tenantId = 1) {
     const job = await this.jobRepo.findOne({ where: { id: jobId, status: 1 } });
     if (!job) throw new NotFoundException('岗位不存在');
 
@@ -417,7 +421,7 @@ export class JobsService {
     // 技能画像判断（用于兜底建议）
     let hasProfile = true;
     try {
-      const userSkills = await this.skillService.getEffectiveSkills(userId);
+      const userSkills = await this.skillService.getEffectiveSkills(userId, tenantId);
       hasProfile = userSkills.length > 0;
     } catch {
       hasProfile = false;
@@ -433,7 +437,7 @@ export class JobsService {
       currentMastery: number;
     }> = [];
     try {
-      const match = await this.matchAgent.calculateMatch(userId, jobId, 'gap_card');
+      const match = await this.matchAgent.calculateMatch(userId, jobId, 'gap_card', tenantId);
       score = match.totalScore;
       canApply = match.canApply;
       reason = match.requirement?.reason || '';
@@ -441,7 +445,7 @@ export class JobsService {
     } catch {
       // 匹配计算失败时降级为基础技能命中
       const student = await this.studentRepo.findOne({
-        where: { userId, status: 1 },
+        where: { userId, tenantId, status: 1 },
       });
       const studentSkillNames = new Set(
         (student?.skills || []).map((s: any) =>
@@ -523,7 +527,7 @@ export class JobsService {
     for (const gap of topGaps) {
       gap.evidence = { hasEvidence: false, count: 0, items: [] };
       try {
-        const hits = await this.evidenceRag.search(userId, gap.skill, { skill: gap.skill, limit: 2 });
+        const hits = await this.evidenceRag.search(userId, gap.skill, { skill: gap.skill, limit: 2 }, tenantId);
         if (hits.length > 0) {
           gap.evidence = {
             hasEvidence: true,
@@ -565,12 +569,12 @@ export class JobsService {
   }
 
   /** 将岗位缺少的技能导入学习计划 — POST /api/user/jobs/:jobId/import-skills */
-  async importSkills(userId: number, jobId: number, target: 'main' | 'side' = 'side') {
+  async importSkills(userId: number, jobId: number, target: 'main' | 'side' = 'side', tenantId = 1) {
     const job = await this.jobRepo.findOne({ where: { id: jobId, status: 1 } });
     if (!job) return { error: '岗位不存在' };
 
     // 计算缺少的技能
-    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } });
     const userSkills = new Set<string>();
     if (student?.skills) {
       for (const s of student.skills) {
@@ -590,13 +594,13 @@ export class JobsService {
 
     // 获取用户活跃计划（target 指定主线/支线，优先找对应类型的计划）
     let plan = await this.planRepo.findOne({
-      where: { userId, planType: target, status: 1 },
+      where: { userId, tenantId, planType: target, status: 1 },
       order: { createTime: 'DESC' },
     });
     // 没有对应类型的计划 → 找任意活跃计划
     if (!plan) {
       plan = await this.planRepo.findOne({
-        where: { userId, status: 1 },
+        where: { userId, tenantId, status: 1 },
         order: { createTime: 'DESC' },
       });
     }
@@ -693,9 +697,9 @@ export class JobsService {
       .map((item) => item.job);
   }
 
-  private async searchOnlineJobs(userId: number, keyword: string) {
+  private async searchOnlineJobs(userId: number, keyword: string, tenantId = 1) {
     try {
-      const userSkills = await this.skillService.getEffectiveSkills(userId);
+      const userSkills = await this.skillService.getEffectiveSkills(userId, tenantId);
       const skillNames = userSkills.map((s) => s.name).filter(Boolean);
       const onlineCards = await this.jobSearch.search(keyword, skillNames);
       return onlineCards.map((card) => ({
@@ -814,28 +818,28 @@ export class JobsService {
       .filter((token) => token.length > 0);
   }
 
-  private async getLatestJobScoreChange(userId: number, jobId: number, currentScore: number) {
+  private async getLatestJobScoreChange(userId: number, jobId: number, currentScore: number, tenantId = 1) {
     const branch = await this.branchRepo.findOne({
-      where: { userId, branchType: 'main', status: 1 },
+      where: { userId, tenantId, branchType: 'main', status: 1 },
       order: { id: 'ASC' },
     });
     if (!branch) return null;
 
     const commits = await this.commitRepo.find({
-      where: { userId, branchId: branch.id, status: 1 },
+      where: { userId, tenantId, branchId: branch.id, status: 1 },
       order: { createTime: 'DESC', id: 'DESC' },
       take: 20,
     });
 
     for (const commit of commits) {
       if (commit.commitType === 'baseline' || !commit.snapshotId) continue;
-      const snapshot = await this.snapshotRepo.findOne({ where: { id: commit.snapshotId, userId, status: 1 } });
+      const snapshot = await this.snapshotRepo.findOne({ where: { id: commit.snapshotId, userId, tenantId, status: 1 } });
       const afterFromSnapshot = this.findJobScore(snapshot?.matchSummaryJson, jobId);
       if (afterFromSnapshot == null) continue;
 
       let beforeScore: number | null = null;
       if (commit.parentCommitId) {
-        const previous = await this.snapshotRepo.findOne({ where: { commitId: commit.parentCommitId, userId, status: 1 } });
+        const previous = await this.snapshotRepo.findOne({ where: { commitId: commit.parentCommitId, userId, tenantId, status: 1 } });
         beforeScore = this.findJobScore(previous?.matchSummaryJson, jobId);
       }
 

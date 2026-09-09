@@ -31,33 +31,52 @@ export class QuestionGenerationService {
     @InjectRepository(ExamQuestion) private readonly questionRepo: Repository<ExamQuestion>,
   ) {}
 
-  async listTasks(userId: number, limit = 20) {
-    return this.taskRepo.find({ where: { userId, status: 1 }, order: { createTime: 'DESC' }, take: Math.min(100, Math.max(1, limit)) });
+  async listTasks(userId: number, limit = 20, tenantId = 1) {
+    return this.taskRepo.find({ where: { userId, tenantId, status: 1 }, order: { createTime: 'DESC' }, take: Math.min(100, Math.max(1, limit)) } as any);
   }
 
-  async createTask(userId: number, input: any) {
+  async createTask(userId: number, input: any, tenantId = 1, idempotencyKey?: string) {
+    if (idempotencyKey) {
+      const existing = await this.taskRepo.findOne({ where: { tenantId, userId, idempotencyKey, status: 1 } } as any);
+      if (existing) return this.serializeTask(existing);
+    }
     const validation = validateGenerationConfig(input);
     if (!validation.valid) throw new Error(validation.errors.join('; '));
     const config = validation.config;
     const now = Date.now();
-    const task = await this.taskRepo.save({
-      userId,
-      ...config,
-      questionCount: config.count,
-      referenceLibrary: config.referenceLibrary ? 1 : 0,
-      taskStatus: 'pending',
-      progress: { current: 0, total: config.count, failed: 0, message: '任务已创建' },
-      resultCount: 0,
-      createTime: now,
-      updateTime: now,
-      status: 1,
-    } as any);
+    let task: QuestionGenerationTask;
+    try {
+      task = await this.taskRepo.save({
+        tenantId,
+        platformJobId: null,
+        idempotencyKey: idempotencyKey || null,
+        userId,
+        ...config,
+        questionCount: config.count,
+        referenceLibrary: config.referenceLibrary ? 1 : 0,
+        taskStatus: 'pending',
+        progress: { current: 0, total: config.count, failed: 0, message: '任务已创建' },
+        resultCount: 0,
+        createTime: now,
+        updateTime: now,
+        status: 1,
+      } as any);
+    } catch (error: any) {
+      // Two identical requests can pass the initial read concurrently. The
+      // database unique key is the final arbiter; return the winner instead
+      // of surfacing a duplicate-key error to the client.
+      const duplicate = error?.code === 'ER_DUP_ENTRY' || error?.driverError?.code === 'ER_DUP_ENTRY';
+      if (!duplicate || !idempotencyKey) throw error;
+      const existing = await this.taskRepo.findOne({ where: { tenantId, userId, idempotencyKey, status: 1 } } as any);
+      if (!existing) throw error;
+      return this.serializeTask(existing);
+    }
     console.log(`[QG] 任务已创建 id=${task.id} user=${userId} 主题=「${task.subject}」 题数=${task.questionCount} 难度=${config.difficulty} referenceLibrary=${config.referenceLibrary ? 1 : 0}`);
     return this.serializeTask(task);
   }
 
-  async startTask(userId: number, taskId: number) {
-    const task = await this.getOwnedTask(userId, taskId);
+  async startTask(userId: number, taskId: number, tenantId = 1) {
+    const task = await this.getOwnedTask(userId, taskId, tenantId);
     if (task.taskStatus === 'completed') return this.serializeTask(task);
     if (task.taskStatus === 'running') return this.serializeTask(task);
     task.taskStatus = 'running';
@@ -70,9 +89,42 @@ export class QuestionGenerationService {
     return this.serializeTask(task);
   }
 
-  async getSnapshot(userId: number, taskId: number) {
-    const task = await this.getOwnedTask(userId, taskId);
-    const snapshot = await this.snapshotRepo.findOne({ where: { taskId, userId } });
+  async getTask(userId: number, taskId: number, tenantId = 1) {
+    return this.getOwnedTask(userId, taskId, tenantId);
+  }
+
+  async bindPlatformJob(userId: number, taskId: number, platformJobId: string, tenantId = 1) {
+    const task = await this.getOwnedTask(userId, taskId, tenantId);
+    task.platformJobId = platformJobId;
+    task.updateTime = Date.now();
+    await this.taskRepo.save(task);
+    return this.serializeTask(task);
+  }
+
+  /** 统一 durable job worker 入口：由 async_jobs 投递后在此执行一次完整生成。 */
+  async executeDurable(userId: number, input: any, tenantId = 1) {
+    const taskId = Number(input?.questionTaskId || input?.taskId || 0);
+    let task: QuestionGenerationTask | null = taskId
+      ? await this.taskRepo.findOne({ where: { id: taskId, userId, tenantId, status: 1 } } as any)
+      : null;
+    if (!task) task = await this.createTask(userId, input, tenantId, input?.idempotencyKey);
+    if (task.taskStatus === 'completed') return this.getSnapshot(userId, task.id, tenantId);
+    task.taskStatus = 'running';
+    task.startedAt = task.startedAt || Date.now();
+    task.updateTime = Date.now();
+    await this.taskRepo.save(task);
+    try {
+      await this.runTask(task.id);
+      return this.getSnapshot(userId, task.id, tenantId);
+    } catch (error) {
+      await this.failTask(task.id, error);
+      throw error;
+    }
+  }
+
+  async getSnapshot(userId: number, taskId: number, tenantId = 1) {
+    const task = await this.getOwnedTask(userId, taskId, tenantId);
+    const snapshot = await this.snapshotRepo.findOne({ where: { taskId, userId, tenantId } } as any);
     const questions = snapshot?.questions || [];
     const drafts = await this.questionRepo.find({ where: { generationTaskId: taskId, status: 0 }, order: { sourceOrder: 'ASC' } });
     const approved = await this.questionRepo.find({ where: { generationTaskId: taskId, status: 1 }, order: { sourceOrder: 'ASC' } });
@@ -89,16 +141,17 @@ export class QuestionGenerationService {
     };
   }
 
-  async saveSnapshot(userId: number, taskId: number, questions: any[], config?: any, reviewStatuses?: string[]) {
-    await this.getOwnedTask(userId, taskId);
+  async saveSnapshot(userId: number, taskId: number, questions: any[], config?: any, reviewStatuses?: string[], tenantId = 1) {
+    await this.getOwnedTask(userId, taskId, tenantId);
     const normalized = normalizeQuestions(questions);
     const payload = JSON.stringify({ questions: normalized, config: config || {} });
     if (Buffer.byteLength(payload, 'utf8') > MAX_SNAPSHOT_BYTES) throw new Error('题目快照过大，请减少题目数量');
-    const existing = await this.snapshotRepo.findOne({ where: { taskId, userId } });
+    const existing = await this.snapshotRepo.findOne({ where: { taskId, userId, tenantId } } as any);
     const snapshot = await this.snapshotRepo.save({
       ...(existing || {}),
       taskId,
       userId,
+      tenantId,
       questions: normalized,
       config: config || {},
       reviewStatuses: reviewStatuses || normalized.map(() => 'pending'),
@@ -110,8 +163,8 @@ export class QuestionGenerationService {
     return { taskId, questionCount: snapshot.questions.length, version: snapshot.version, hasSnapshot: true };
   }
 
-  async persistDrafts(userId: number, taskId: number, questions: any[]) {
-    const task = await this.getOwnedTask(userId, taskId);
+  async persistDrafts(userId: number, taskId: number, questions: any[], tenantId = 1) {
+    const task = await this.getOwnedTask(userId, taskId, tenantId);
     const normalized = normalizeQuestions(questions);
     const existing = await this.questionRepo.find({ where: { generationTaskId: taskId }, order: { sourceOrder: 'ASC' } });
     const ids: number[] = [];
@@ -143,12 +196,12 @@ export class QuestionGenerationService {
       } as any);
       ids.push(saved.id);
     }
-    await this.saveSnapshot(userId, taskId, normalized, this.configFromTask(task), normalized.map(() => 'pending'));
+    await this.saveSnapshot(userId, taskId, normalized, this.configFromTask(task), normalized.map(() => 'pending'), tenantId);
     return { persisted: ids.length, questionIds: ids };
   }
 
-  async updateDraft(userId: number, taskId: number, questionId: number, payload: any) {
-    await this.getOwnedTask(userId, taskId);
+  async updateDraft(userId: number, taskId: number, questionId: number, payload: any, tenantId = 1) {
+    await this.getOwnedTask(userId, taskId, tenantId);
     const row = await this.questionRepo.findOne({ where: { id: questionId, generationTaskId: taskId, status: 0 } });
     if (!row) throw new Error('草稿题目不存在');
     const question = normalizeQuestion(payload);
@@ -162,8 +215,8 @@ export class QuestionGenerationService {
     return { updated: 1, questionId };
   }
 
-  async approve(userId: number, taskId: number, questionIds: number[], questionsMap: Record<string, any> = {}) {
-    await this.getOwnedTask(userId, taskId);
+  async approve(userId: number, taskId: number, questionIds: number[], questionsMap: Record<string, any> = {}, tenantId = 1) {
+    await this.getOwnedTask(userId, taskId, tenantId);
     if (!questionIds?.length) return { approved: 0, questionIds: [] };
     const rows = await this.questionRepo.find({ where: { id: In(questionIds), generationTaskId: taskId, status: 0 } });
     for (const row of rows) {
@@ -182,7 +235,7 @@ export class QuestionGenerationService {
       row.updateTime = Date.now();
       await this.questionRepo.save(row);
     }
-    const task = await this.taskRepo.findOne({ where: { id: taskId, userId } });
+    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, tenantId } } as any);
     if (task) {
       task.updateTime = Date.now();
       await this.taskRepo.save(task);
@@ -190,10 +243,10 @@ export class QuestionGenerationService {
     return { approved: rows.length, questionIds: rows.map((row) => row.id) };
   }
 
-  async deleteTask(userId: number, taskId: number) {
-    const task = await this.getOwnedTask(userId, taskId);
+  async deleteTask(userId: number, taskId: number, tenantId = 1) {
+    const task = await this.getOwnedTask(userId, taskId, tenantId);
     await this.questionRepo.delete({ generationTaskId: taskId, status: 0 });
-    await this.snapshotRepo.delete({ taskId, userId });
+    await this.snapshotRepo.delete({ taskId, userId, tenantId } as any);
     await this.taskRepo.delete(task.id);
     return { deleted: true };
   }
@@ -319,8 +372,8 @@ export class QuestionGenerationService {
   }
 
   private async saveSnapshotForTask(task: QuestionGenerationTask, questions: NormalizedQuestion[], config: GenerationConfig) {
-    const existing = await this.snapshotRepo.findOne({ where: { taskId: task.id, userId: task.userId } });
-    await this.snapshotRepo.save({ ...(existing || {}), taskId: task.id, userId: task.userId, questions, config, reviewStatuses: questions.map(() => 'pending'), version: existing ? existing.version + 1 : 1, createTime: existing?.createTime || Date.now(), updateTime: Date.now(), status: 1 } as any);
+    const existing = await this.snapshotRepo.findOne({ where: { taskId: task.id, userId: task.userId, tenantId: task.tenantId } } as any);
+    await this.snapshotRepo.save({ ...(existing || {}), taskId: task.id, userId: task.userId, tenantId: task.tenantId, questions, config, reviewStatuses: questions.map(() => 'pending'), version: existing ? existing.version + 1 : 1, createTime: existing?.createTime || Date.now(), updateTime: Date.now(), status: 1 } as any);
   }
 
   private async failTask(taskId: number, error: any) {
@@ -341,8 +394,8 @@ export class QuestionGenerationService {
     ).catch(() => {});
   }
 
-  private async getOwnedTask(userId: number, taskId: number) {
-    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, status: 1 } });
+  private async getOwnedTask(userId: number, taskId: number, tenantId = 1) {
+    const task = await this.taskRepo.findOne({ where: { id: taskId, userId, tenantId, status: 1 } } as any);
     if (!task) throw new Error('出题任务不存在');
     return task;
   }

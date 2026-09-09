@@ -33,6 +33,7 @@ export class TasksController {
     const result = await this.taskScheduler.getTodayTasks(
       user.sub,
       planId ? parseInt(planId, 10) : undefined,
+      Number(user.tenantId) || 1,
     );
     return success(result);
   }
@@ -48,6 +49,7 @@ export class TasksController {
       parseInt(taskId, 10),
       body.status as any,
       user.sub,
+      Number(user.tenantId) || 1,
     );
     if (result.success) {
       return success(result.task);
@@ -58,7 +60,7 @@ export class TasksController {
   /** 调整学习速度 */
   @Post('learning-tasks/adjust-speed')
   async adjustForSpeed(@CurrentUser() user: any, @Body() body: { planId: number }) {
-    const result = await this.taskScheduler.adjustForSpeed(user.sub, body.planId);
+    const result = await this.taskScheduler.adjustForSpeed(user.sub, body.planId, Number(user.tenantId) || 1);
     return success(result);
   }
 }

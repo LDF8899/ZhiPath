@@ -25,40 +25,40 @@ export class MultimodalController {
   /** 生成 HTML 动画演示 */
   @Post('animation')
   async animation(
-    @CurrentUser('sub') _userId: number,
+    @CurrentUser() user: any,
     @Body() body: { skillName: string; difficulty?: string },
   ) {
-    const result = await this.multimodal.generateAnimation(body.skillName, body.difficulty || 'beginner');
+    const result = await this.multimodal.generateAnimation(body.skillName, body.difficulty || 'beginner', Number(user.tenantId || 1));
     return success(result);
   }
 
   /** 生成 Mermaid 图表 */
   @Post('diagram')
   async diagram(
-    @CurrentUser('sub') _userId: number,
+    @CurrentUser() user: any,
     @Body() body: { skillName: string; diagramType?: string },
   ) {
-    const result = await this.multimodal.generateDiagram(body.skillName, body.diagramType || 'flowchart');
+    const result = await this.multimodal.generateDiagram(body.skillName, body.diagramType || 'flowchart', Number(user.tenantId || 1));
     return success(result);
   }
 
   /** 生成短视频（智谱 AI） */
   @Post('video')
   async video(
-    @CurrentUser('sub') _userId: number,
+    @CurrentUser() user: any,
     @Body() body: { skillName: string },
   ) {
-    const result = await this.multimodal.generateVideo(body.skillName);
+    const result = await this.multimodal.generateVideo(body.skillName, Number(user.tenantId || 1));
     return success(result);
   }
 
   /** 生成数字人讲解（讯飞） */
   @Post('avatar')
   async avatar(
-    @CurrentUser('sub') _userId: number,
+    @CurrentUser() user: any,
     @Body() body: { skillName: string },
   ) {
-    const result = await this.multimodal.generateAvatar(body.skillName);
+    const result = await this.multimodal.generateAvatar(body.skillName, Number(user.tenantId || 1));
     return success(result);
   }
 
@@ -94,8 +94,8 @@ export class MultimodalController {
 
   /** 聚合查询某技能已有的全部多模态资源（不触发生成） */
   @Get(':skill')
-  async list(@Param('skill') skill: string) {
-    const result = await this.multimodal.getMultimodal(decodeURIComponent(skill));
+  async list(@CurrentUser() user: any, @Param('skill') skill: string) {
+    const result = await this.multimodal.getMultimodal(decodeURIComponent(skill), Number(user.tenantId || 1));
     return success(result);
   }
 }

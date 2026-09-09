@@ -13,7 +13,7 @@ import { LLM_PROVIDER_OPTIONS, getLlmProvider } from '../../services/llm-provide
 @Injectable()
 export class UserLlmService {
   private ensurePromise: Promise<void> | null = null;
-  private readonly callCache = new Map<number, {
+  private readonly callCache = new Map<string, {
     expiresAt: number;
     value: { provider: string; apiKey: string; baseUrl?: string } | undefined;
   }>();
@@ -40,8 +40,9 @@ export class UserLlmService {
             api_key_enc TEXT NULL,
             base_url VARCHAR(300) NULL,
             enabled TINYINT NOT NULL DEFAULT 1,
+            tenant_id BIGINT NOT NULL DEFAULT 1,
             PRIMARY KEY (id),
-            UNIQUE KEY uk_user_llm_config_user (user_id)
+            UNIQUE KEY uk_user_llm_config_scope (tenant_id, user_id)
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         `)
         .then(() => undefined)
@@ -75,13 +76,14 @@ export class UserLlmService {
    * 供 LlmService 调用前注入的「明文运行时配置」。
    * 仅服务端内部使用，返回明文 key 用于构造 OpenAI client，绝不对外暴露。
    */
-  async getForCall(userId: number): Promise<{ provider: string; apiKey: string; baseUrl?: string } | undefined> {
-    const cached = this.callCache.get(userId);
+  async getForCall(userId: number, tenantId = 1): Promise<{ provider: string; apiKey: string; baseUrl?: string } | undefined> {
+    const cacheKey = `${tenantId}:${userId}`;
+    const cached = this.callCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.value;
     await this.ensureTable();
-    const row = await this.repo.findOne({ where: { userId, status: 1, enabled: 1 } });
+    const row = await this.repo.findOne({ where: { userId, tenantId, status: 1, enabled: 1 } });
     if (!row) {
-      this.callCache.set(userId, { expiresAt: Date.now() + 30_000, value: undefined });
+      this.callCache.set(cacheKey, { expiresAt: Date.now() + 30_000, value: undefined });
       return undefined;
     }
     const provider = getLlmProvider(row.provider);
@@ -89,20 +91,20 @@ export class UserLlmService {
     // ollama 无需 key
     if (provider.id === 'ollama') {
       const value = { provider: 'ollama', apiKey: '', baseUrl: row.baseUrl || undefined };
-      this.callCache.set(userId, { expiresAt: Date.now() + 30_000, value });
+      this.callCache.set(cacheKey, { expiresAt: Date.now() + 30_000, value });
       return value;
     }
     const clear = this.aes.decrypt(row.apiKeyEnc || '');
     if (!clear) return undefined; // key 解密失败视为未配置
     const value = { provider: provider.id, apiKey: clear, baseUrl: row.baseUrl || undefined };
-    this.callCache.set(userId, { expiresAt: Date.now() + 30_000, value });
+    this.callCache.set(cacheKey, { expiresAt: Date.now() + 30_000, value });
     return value;
   }
 
   /** 读取当前用户配置（脱敏视图，不回明文 key） */
-  async getConfig(userId: number) {
+  async getConfig(userId: number, tenantId = 1) {
     await this.ensureTable();
-    const row = await this.repo.findOne({ where: { userId, status: 1 } });
+    const row = await this.repo.findOne({ where: { userId, tenantId, status: 1 } });
     if (!row) {
       return { provider: null, configured: false, keyMasked: null, baseUrl: null, enabled: 0 };
     }
@@ -121,7 +123,7 @@ export class UserLlmService {
   }
 
   /** 保存当前用户配置（provider + apiKey，可选 baseUrl） */
-  async saveConfig(userId: number, body: { provider?: string; apiKey?: string; baseUrl?: string }) {
+  async saveConfig(userId: number, body: { provider?: string; apiKey?: string; baseUrl?: string }, tenantId = 1) {
     await this.ensureTable();
     const provider = (body.provider || '').trim();
     const providerDef = getLlmProvider(provider);
@@ -132,7 +134,7 @@ export class UserLlmService {
     const needsKey = provider !== 'ollama';
     const apiKey = (body.apiKey || '').trim();
 
-    const existing = await this.repo.findOne({ where: { userId } });
+    const existing = await this.repo.findOne({ where: { userId, tenantId } });
     const existingClear = existing?.provider === provider
       ? this.aes.decrypt(existing.apiKeyEnc || '')
       : '';
@@ -185,6 +187,7 @@ export class UserLlmService {
     } else {
       const row = this.repo.create({
         userId,
+        tenantId,
         provider,
         apiKeyEnc: enc || '',
         baseUrl,
@@ -195,15 +198,15 @@ export class UserLlmService {
       await this.repo.save(row);
     }
 
-    const view = await this.getConfig(userId);
-    this.callCache.delete(userId);
+    const view = await this.getConfig(userId, tenantId);
+    this.callCache.delete(`${tenantId}:${userId}`);
     return { ok: true, ...view };
   }
 
   /** 彻底删除配置，确保旧 API Key 密文也不再保留。 */
-  async clearConfig(userId: number): Promise<void> {
+  async clearConfig(userId: number, tenantId = 1): Promise<void> {
     await this.ensureTable();
-    await this.repo.delete({ userId });
-    this.callCache.delete(userId);
+    await this.repo.delete({ userId, tenantId });
+    this.callCache.delete(`${tenantId}:${userId}`);
   }
 }

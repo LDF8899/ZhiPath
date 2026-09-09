@@ -1,11 +1,11 @@
 import { create } from 'zustand';
-import { authApi, clearAuth, getToken, setToken, USER_KEY, type AuthUser } from '../lib/api';
+import { authApi, clearAuth, experienceApi, getToken, setToken, USER_KEY, type AuthUser } from '../lib/api';
 
 type AuthState = {
   token: string | null;
   user: AuthUser | null;
   ready: boolean;
-  setSession: (token: string, user: AuthUser) => void;
+  setSession: (token: string, user: AuthUser, refreshToken?: string | null) => void;
   logout: () => void;
   bootstrap: () => Promise<void>;
   refresh: () => Promise<AuthUser | null>;
@@ -26,8 +26,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: readUser(),
   ready: false,
 
-  setSession: (token, user) => {
-    setToken(token);
+  setSession: (token, user, refreshToken) => {
+    setToken(token, refreshToken);
     sessionStorage.setItem(USER_KEY, JSON.stringify(user));
     set({ token, user });
   },
@@ -56,7 +56,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ ready: true, token: null, user: null });
       return;
     }
-    await get().refresh();
+    try {
+      const bootstrap = await experienceApi.bootstrap();
+      const next = {
+        ...bootstrap.user,
+        onboardingCompleted: Boolean(bootstrap.user.onboardingCompleted),
+      };
+      sessionStorage.setItem(USER_KEY, JSON.stringify(next));
+      sessionStorage.setItem('codenova_experience', JSON.stringify(bootstrap));
+      set({ user: next, token: getToken() });
+    } catch {
+      await get().refresh();
+    }
     set({ ready: true });
   },
 

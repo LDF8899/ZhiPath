@@ -7,6 +7,9 @@ import { BaseEntity } from '../common/base.entity';
  */
 @Entity('learning_sessions_v3')
 export class LearningSession extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

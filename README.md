@@ -36,12 +36,14 @@ ZhiPath 是面向在校学生的岗位能力成长平台。它把目标岗位、
 | AI / Search | DeepSeek / OpenAI-compatible / Ollama / MiMo, Search Stack, SearXNG |
 | 地图 | 高德 Web JS API 与 Web Service |
 
-## 目录结构
+## 多客户端目录结构
 
 ```text
 ZhiPath/
 |-- backend-ts/        # NestJS 后端
-|-- frontend/          # React 前端
+|-- frontend/          # 智途 ZhiPath 定制前端（5173）
+|-- codenovafrontend/  # CodeNova 定制前端（5180）
+|-- packages/api-client # 两套前端共享的 API/鉴权客户端
 |-- deploy/            # Docker Compose 和部署配置
 |-- docs/              # 工程文档
 |-- MD/                # 产品、设计、API、迭代方案
@@ -52,8 +54,8 @@ ZhiPath/
 
 ## 环境要求
 
-- Node.js 22+ 和 npm
-- Windows + Docker Desktop
+- Node.js 22+ 和 npm（当前 Linux 开发机为 Node 20，可运行但 Puppeteer 有 EBADENGINE 警告）
+- Linux + Docker Engine / Compose
 - MySQL / Redis / MongoDB 等中间件，推荐使用 `deploy/docker-compose.yml`
 - 可选配置：LLM API Key、Search Stack 或 SearXNG、高德地图 Key
 
@@ -143,29 +145,36 @@ VITE_AMAP_SECURITY_JS_CODE=your_amap_security_js_code
 
 没有高德前端 Key 时，岗位详情仍可展示文字位置，地图交互会降级。
 
-## 本地启动
+## 本地启动（两套前端并列运行）
 
-后端：
+在仓库根目录执行：
 
-```powershell
-cd backend-ts
+```bash
 npm install
-npm run start:dev
+npm run dev:backend   # 统一后端：http://localhost:3000
+npm run dev:zhipath   # 智途 ZhiPath：http://localhost:5173
+npm run dev:codenova  # CodeNova：http://localhost:5180
 ```
 
-前端：
+两套前端共享同一后端和数据库，但必须保留各自的客户端标识：
 
-```powershell
-cd frontend
-npm install
-npm run dev -- --host 0.0.0.0
+```text
+frontend/             -> X-Client-App: zhipath-web
+codenovafrontend/     -> X-Client-App: codenova-web
 ```
 
 默认访问：
 
-- 前端：`http://localhost:5173`
+- 智途前端：`http://localhost:5173`
+- CodeNova 前端：`http://localhost:5180`
 - 后端：`http://localhost:3000`
 - API 前缀：`/api`
+
+平台化设计、数据库边界、路由迁移与旧接口下线策略见：
+
+- [`docs/multi-frontend-platform-upgrade-plan.md`](docs/multi-frontend-platform-upgrade-plan.md)
+- [`docs/api-route-migration-matrix.md`](docs/api-route-migration-matrix.md)
+- [`docs/linux-runtime-config.md`](docs/linux-runtime-config.md)
 
 ## 数据迁移
 

@@ -134,7 +134,8 @@ export default function Chat() {
     return;
     const token = sessionStorage.getItem('token');
     if (!token) return;
-    const es = new EventSource(`/api/user/events/stream?token=${encodeURIComponent(token)}`);
+    const params = new URLSearchParams({ token, client_app: 'zhipath-web' });
+    const es = new EventSource(`/api/v1/events?${params.toString()}`);
 
     es.onmessage = async (event) => {
       try {

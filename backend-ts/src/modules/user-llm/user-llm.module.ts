@@ -5,6 +5,7 @@ import { UserLlmConfig } from '../../entities/user-llm-config.entity';
 import { AesCryptoService } from '../../services/aes-crypto.service';
 import { UserLlmService } from './user-llm.service';
 import { UserLlmController } from './user-llm.controller';
+import { UserLlmV1Controller } from './user-llm-v1.controller';
 import { LlmService } from '../../services/llm.service';
 import { UserLlmContextInterceptor } from './user-llm-context.interceptor';
 
@@ -14,7 +15,7 @@ import { UserLlmContextInterceptor } from './user-llm-context.interceptor';
  */
 @Module({
   imports: [TypeOrmModule.forFeature([UserLlmConfig])],
-  controllers: [UserLlmController],
+  controllers: [UserLlmController, UserLlmV1Controller],
   providers: [
     UserLlmService,
     AesCryptoService,

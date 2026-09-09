@@ -17,6 +17,9 @@ export type LearningCommitType =
 @Index(['userId', 'branchId'])
 @Index(['branchId', 'parentCommitId'])
 export class LearningCommit extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 

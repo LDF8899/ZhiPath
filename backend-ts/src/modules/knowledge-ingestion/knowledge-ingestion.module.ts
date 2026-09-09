@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { KnowledgeIngestionController } from './knowledge-ingestion.controller';
+import { KnowledgeIngestionV1Controller } from './knowledge-ingestion-v1.controller';
 import { KnowledgeIngestionTask } from '../../entities/knowledge-ingestion-task.entity';
 import { News } from '../../entities/news.entity';
 import { KnowledgeIngestionService } from '../../services/knowledge-ingestion.service';
@@ -13,7 +14,7 @@ import { EvidenceModule } from '../evidence/evidence.module';
 
 @Module({
   imports: [TypeOrmModule.forFeature([KnowledgeIngestionTask, News]), NewsModule, EvidenceModule],
-  controllers: [KnowledgeIngestionController],
+  controllers: [KnowledgeIngestionController, KnowledgeIngestionV1Controller],
   providers: [KnowledgeIngestionService, KnowledgeCuratorAgentService, KnowledgeInspectorAgentService, LlmService, SearchStackService],
   exports: [KnowledgeIngestionService, KnowledgeCuratorAgentService, KnowledgeInspectorAgentService],
 })

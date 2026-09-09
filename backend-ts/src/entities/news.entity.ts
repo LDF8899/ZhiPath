@@ -7,6 +7,10 @@ import { BaseEntity } from '../common/base.entity';
  */
 @Entity('news_v3')
 export class News extends BaseEntity {
+  /** null 表示平台公共资讯，否则仅对该租户可见 */
+  @Column({ type: 'bigint', nullable: true, name: 'tenant_id' })
+  tenantId: number | null;
+
   @Column({ type: 'varchar', length: 500, name: 'title' })
   title: string;
 

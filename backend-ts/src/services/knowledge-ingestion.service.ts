@@ -54,12 +54,13 @@ export class KnowledgeIngestionService {
     private readonly inspector: KnowledgeInspectorAgentService,
   ) {}
 
-  async createUploadTask(userId: number, input: KnowledgeUploadInput): Promise<KnowledgeIngestionTask> {
+  async createUploadTask(userId: number, input: KnowledgeUploadInput, tenantId = 1): Promise<KnowledgeIngestionTask> {
     await this.ensureTable();
     const now = Date.now();
     const task = await this.taskRepo.save({
       taskId: this.createTaskId('upload'),
       userId,
+      tenantId,
       sourceKind: 'upload_text',
       ingestionStatus: 'pending',
       title: this.safeTitle(input.title || this.inferTitle(input.content) || '上传资料'),
@@ -78,16 +79,17 @@ export class KnowledgeIngestionService {
       updateTime: now,
       status: 1,
     });
-    return this.processTask(task.taskId, userId);
+    return this.processTask(task.taskId, userId, tenantId);
   }
 
-  async createUrlTask(userId: number, input: KnowledgeUrlInput): Promise<KnowledgeIngestionTask> {
+  async createUrlTask(userId: number, input: KnowledgeUrlInput, tenantId = 1): Promise<KnowledgeIngestionTask> {
     await this.ensureTable();
     const fetched = await this.fetchUrl(input.url);
     const now = Date.now();
     const task: KnowledgeIngestionTask = await this.taskRepo.save({
       taskId: this.createTaskId('url'),
       userId,
+      tenantId,
       sourceKind: 'url',
       ingestionStatus: 'pending',
       title: this.safeTitle(input.title || fetched.title || input.url),
@@ -111,10 +113,10 @@ export class KnowledgeIngestionService {
       task.updateTime = Date.now();
       return this.taskRepo.save(task);
     }
-    return this.processTask(task.taskId, userId);
+    return this.processTask(task.taskId, userId, tenantId);
   }
 
-  async refreshNews(userId: number, input: KnowledgeNewsRefreshInput = {}): Promise<KnowledgeNewsRefreshResult> {
+  async refreshNews(userId: number, input: KnowledgeNewsRefreshInput = {}, tenantId = 1): Promise<KnowledgeNewsRefreshResult> {
     await this.ensureTable();
     const before = Date.now();
     const limit = Math.max(1, Math.min(8, Number(input.limit) || 5));
@@ -127,9 +129,9 @@ export class KnowledgeIngestionService {
 
     const tasks: KnowledgeIngestionTask[] = [];
     for (const item of newsItems.filter((n) => Number(n.createTime || 0) >= before - 60000).slice(0, limit)) {
-      const existing = await this.taskRepo.findOne({ where: { userId, sourceKind: 'news_auto', sourceUrl: item.sourceUrl, status: 1 } as any });
+      const existing = await this.taskRepo.findOne({ where: { userId, tenantId, sourceKind: 'news_auto', sourceUrl: item.sourceUrl, status: 1 } as any });
       if (existing) continue;
-      const task = await this.createNewsTask(userId, item, 'news_auto');
+      const task = await this.createNewsTask(userId, item, 'news_auto', tenantId);
       tasks.push(task);
     }
 
@@ -143,7 +145,7 @@ export class KnowledgeIngestionService {
     };
   }
 
-  async createNewsTask(userId: number, news: News, sourceKind: KnowledgeIngestionSourceKind = 'news_manual'): Promise<KnowledgeIngestionTask> {
+  async createNewsTask(userId: number, news: News, sourceKind: KnowledgeIngestionSourceKind = 'news_manual', tenantId = 1): Promise<KnowledgeIngestionTask> {
     await this.ensureTable();
     const text = [
       news.title,
@@ -156,6 +158,7 @@ export class KnowledgeIngestionService {
     const task = await this.taskRepo.save({
       taskId: this.createTaskId('news'),
       userId,
+      tenantId,
       sourceKind,
       ingestionStatus: 'pending',
       title: this.safeTitle(news.title || '资讯资料'),
@@ -174,12 +177,12 @@ export class KnowledgeIngestionService {
       updateTime: now,
       status: 1,
     });
-    return this.processTask(task.taskId, userId);
+    return this.processTask(task.taskId, userId, tenantId);
   }
 
-  async processTask(taskId: string, userId?: number): Promise<KnowledgeIngestionTask> {
+  async processTask(taskId: string, userId?: number, tenantId = 1): Promise<KnowledgeIngestionTask> {
     await this.ensureTable();
-    const task = await this.taskRepo.findOne({ where: userId ? { taskId, userId, status: 1 } : { taskId, status: 1 } as any });
+    const task = await this.taskRepo.findOne({ where: userId ? { taskId, userId, tenantId, status: 1 } : { taskId, tenantId, status: 1 } as any });
     if (!task) throw new Error('入库任务不存在');
 
     try {
@@ -246,7 +249,7 @@ export class KnowledgeIngestionService {
       skillTags: task.skillTags || [],
       confidence,
       visibility: sourceType === 'news_article' || sourceType === 'domain_doc' ? 'school_aggregate' : 'private',
-    });
+    }, Number(task.tenantId) || 1);
     task.ingestionStatus = 'ingested';
     task.ingestedChunkIds = chunks.map((chunk) => Number(chunk.id));
     task.updateTime = Date.now();
@@ -254,9 +257,9 @@ export class KnowledgeIngestionService {
     return this.taskRepo.save(task);
   }
 
-  async listTasks(userId: number, filters: { status?: string; limit?: number } = {}): Promise<KnowledgeIngestionTask[]> {
+  async listTasks(userId: number, filters: { status?: string; limit?: number } = {}, tenantId = 1): Promise<KnowledgeIngestionTask[]> {
     await this.ensureTable();
-    const where: any = { userId, status: 1 };
+    const where: any = { userId, tenantId, status: 1 };
     if (filters.status) where.ingestionStatus = filters.status;
     return this.taskRepo.find({
       where,
@@ -265,9 +268,9 @@ export class KnowledgeIngestionService {
     });
   }
 
-  async getTask(userId: number, taskId: string): Promise<KnowledgeIngestionTask | null> {
+  async getTask(userId: number, taskId: string, tenantId = 1): Promise<KnowledgeIngestionTask | null> {
     await this.ensureTable();
-    return this.taskRepo.findOne({ where: { userId, taskId, status: 1 } });
+    return this.taskRepo.findOne({ where: { userId, tenantId, taskId, status: 1 } });
   }
 
   private async fetchUrl(url: string): Promise<{ title: string; text: string; sourceName: string }> {
@@ -305,6 +308,7 @@ export class KnowledgeIngestionService {
           create_time BIGINT NULL,
           update_time BIGINT NULL,
           task_id VARCHAR(64) NOT NULL,
+          tenant_id BIGINT NOT NULL DEFAULT 1,
           user_id BIGINT NOT NULL,
           source_kind VARCHAR(30) NOT NULL,
           ingestion_status VARCHAR(30) NOT NULL DEFAULT 'pending',
@@ -322,6 +326,7 @@ export class KnowledgeIngestionService {
           failure_reason TEXT NULL,
           PRIMARY KEY (id),
           UNIQUE KEY uk_knowledge_ingestion_task_id (task_id),
+          KEY idx_knowledge_ingestion_tenant_user_time (tenant_id, user_id, create_time),
           KEY idx_knowledge_ingestion_user_time (user_id, create_time),
           KEY idx_knowledge_ingestion_status (user_id, ingestion_status, create_time)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

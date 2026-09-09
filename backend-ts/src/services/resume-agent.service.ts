@@ -37,15 +37,15 @@ export class ResumeAgentService {
   /**
    * 生成简历（针对目标岗位）
    */
-  async generateResume(userId: number, targetJobId?: number): Promise<Resume> {
+  async generateResume(userId: number, targetJobId?: number, tenantId = 1): Promise<Resume> {
     const now = Date.now();
 
     // 1. 获取用户信息
-    const student = await this.studentRepo.findOne({ where: { userId, status: 1 } });
+    const student = await this.studentRepo.findOne({ where: { userId, tenantId, status: 1 } });
     if (!student) throw new Error('用户信息不存在');
 
     // 2. 获取技能
-    const skills = await this.skillService.getEffectiveSkills(userId);
+    const skills = await this.skillService.getEffectiveSkills(userId, tenantId);
 
     // 3. 获取目标岗位
     let targetJob: JobPosition | null = null;
@@ -88,7 +88,7 @@ export class ResumeAgentService {
       workExperience: (student as any).workExperience || [],
       campusExperience: (student as any).campusExperience || [],
       awards: (student as any).awards || [],
-      resumeAdvice: await this.buildResumeAdvice(userId, targetJob, skills, (student as any).projects || []),
+      resumeAdvice: await this.buildResumeAdvice(userId, targetJob, skills, (student as any).projects || [], tenantId),
     };
 
     // 5. 构建模板数据 + 调用 LLM 优化文案 → 渲染 HTML
@@ -96,7 +96,7 @@ export class ResumeAgentService {
     const htmlContent = this.renderTemplateHtml(templateData);
 
     // 6. 获取版本号
-    const existingCount = await this.resumeRepo.count({ where: { userId, status: 1 } });
+    const existingCount = await this.resumeRepo.count({ where: { userId, tenantId, status: 1 } });
     const version = existingCount + 1;
     const versionName = targetJob
       ? `v${version}-${targetJob.title}`
@@ -105,6 +105,7 @@ export class ResumeAgentService {
     // 7. 保存简历
     return this.resumeRepo.save({
       userId,
+      tenantId,
       targetJobId: targetJobId || null,
       version,
       versionName,
@@ -121,9 +122,9 @@ export class ResumeAgentService {
   /**
    * 获取用户所有简历版本
    */
-  async getResumes(userId: number): Promise<Resume[]> {
+  async getResumes(userId: number, tenantId = 1): Promise<Resume[]> {
     return this.resumeRepo.find({
-      where: { userId, status: 1 },
+      where: { userId, tenantId, status: 1 },
       order: { version: 'DESC' },
     });
   }
@@ -131,9 +132,9 @@ export class ResumeAgentService {
   /**
    * 获取简历详情
    */
-  async getResume(resumeId: number, userId: number): Promise<Resume | null> {
+  async getResume(resumeId: number, userId: number, tenantId = 1): Promise<Resume | null> {
     return this.resumeRepo.findOne({
-      where: { id: resumeId, userId, status: 1 },
+      where: { id: resumeId, userId, tenantId, status: 1 },
     });
   }
 
@@ -144,9 +145,10 @@ export class ResumeAgentService {
     resumeId: number,
     userId: number,
     data: { content?: Record<string, any>; htmlContent?: string },
+    tenantId = 1,
   ): Promise<Resume | null> {
     const resume = await this.resumeRepo.findOne({
-      where: { id: resumeId, userId, status: 1 },
+      where: { id: resumeId, userId, tenantId, status: 1 },
     });
 
     if (!resume) return null;
@@ -158,7 +160,7 @@ export class ResumeAgentService {
     if (data.htmlContent) updateData.htmlContent = data.htmlContent;
 
     await this.resumeRepo.update(resumeId, updateData);
-    return this.resumeRepo.findOne({ where: { id: resumeId } });
+    return this.resumeRepo.findOne({ where: { id: resumeId, userId, tenantId } });
   }
 
   /**
@@ -168,11 +170,12 @@ export class ResumeAgentService {
     userId: number,
     baseResumeId: number,
     targetJobId: number,
+    tenantId = 1,
   ): Promise<Resume> {
     const now = Date.now();
 
     const baseResume = await this.resumeRepo.findOne({
-      where: { id: baseResumeId, userId, status: 1 },
+      where: { id: baseResumeId, userId, tenantId, status: 1 },
     });
     if (!baseResume) throw new Error('基础简历不存在');
 
@@ -181,9 +184,9 @@ export class ResumeAgentService {
     });
     if (!targetJob) throw new Error('目标岗位不存在');
 
-    const existingCount = await this.resumeRepo.count({ where: { userId, status: 1 } });
+    const existingCount = await this.resumeRepo.count({ where: { userId, tenantId, status: 1 } });
     const version = existingCount + 1;
-    const skills = await this.skillService.getEffectiveSkills(userId);
+    const skills = await this.skillService.getEffectiveSkills(userId, tenantId);
 
     const baseContent = baseResume.content || {};
     const resumeContent = {
@@ -199,7 +202,7 @@ export class ResumeAgentService {
         masteryPct: s.masteryPct,
         source: s.source,
       })),
-      resumeAdvice: await this.buildResumeAdvice(userId, targetJob, skills, baseContent.projects || []),
+      resumeAdvice: await this.buildResumeAdvice(userId, targetJob, skills, baseContent.projects || [], tenantId),
     };
 
     const templateData = await this.buildTemplateData(resumeContent, targetJob);
@@ -207,6 +210,7 @@ export class ResumeAgentService {
 
     return this.resumeRepo.save({
       userId,
+      tenantId,
       targetJobId,
       version,
       versionName: `v${version}-${targetJob.title}`,
@@ -223,9 +227,9 @@ export class ResumeAgentService {
   /**
    * 删除简历
    */
-  async deleteResume(resumeId: number, userId: number): Promise<boolean> {
+  async deleteResume(resumeId: number, userId: number, tenantId = 1): Promise<boolean> {
     const resume = await this.resumeRepo.findOne({
-      where: { id: resumeId, userId, status: 1 },
+      where: { id: resumeId, userId, tenantId, status: 1 },
     });
     if (!resume) return false;
 
@@ -418,7 +422,7 @@ export class ResumeAgentService {
     }));
   }
 
-  private async buildResumeAdvice(userId: number, targetJob: JobPosition | null, skills: any[], projects: any[]) {
+  private async buildResumeAdvice(userId: number, targetJob: JobPosition | null, skills: any[], projects: any[], tenantId = 1) {
     if (!targetJob) {
       return {
         target: null,
@@ -468,6 +472,7 @@ export class ResumeAgentService {
       targetJob,
       matchedSkills.map((item) => item.name),
       missingSkills,
+      tenantId,
     );
 
     return {
@@ -497,6 +502,7 @@ export class ResumeAgentService {
     targetJob: JobPosition,
     matchedSkillNames: string[],
     missingSkills: string[],
+    tenantId = 1,
   ): Promise<Array<Record<string, any>>> {
     const candidates: string[] = [];
     for (const name of [...matchedSkillNames, ...missingSkills]) {
@@ -514,7 +520,7 @@ export class ResumeAgentService {
       // Evidence RAG（P0）：检索该技能相关个人证据（项目/文件/测评），供建议引用
       let ragEvidence: any[] = [];
       try {
-        ragEvidence = await this.evidenceRag.search(userId, name, { skill: name, limit: 3 });
+        ragEvidence = await this.evidenceRag.search(userId, name, { skill: name, limit: 3 }, tenantId);
       } catch {
         ragEvidence = [];
       }

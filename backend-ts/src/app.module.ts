@@ -40,6 +40,12 @@ import { RemediationModule } from './modules/remediation/remediation.module';
 import { CompetitionModule } from './modules/competition/competition.module';
 import { KnowledgeIngestionModule } from './modules/knowledge-ingestion/knowledge-ingestion.module';
 import { UserLlmModule } from './modules/user-llm/user-llm.module';
+import { RequestContextModule } from './platform/request-context/request-context.module';
+import { ClientExperienceModule } from './platform/client-experience/client-experience.module';
+import { AccessControlModule } from './platform/access-control/access-control.module';
+import { PlatformLearningModule } from './domains/platform-learning/platform-learning.module';
+import { PlatformJobsModule } from './domains/platform-jobs/platform-jobs.module';
+import { PlatformResourcesModule } from './domains/platform-resources/platform-resources.module';
 
 /**
  * ZhiPath API 根模块
@@ -47,7 +53,13 @@ import { UserLlmModule } from './modules/user-llm/user-llm.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
+    RequestContextModule,
     DatabaseModule,
+    AccessControlModule,
+    ClientExperienceModule,
+    PlatformLearningModule,
+    PlatformJobsModule,
+    PlatformResourcesModule,
 
     // 用户端模块
     AuthModule,

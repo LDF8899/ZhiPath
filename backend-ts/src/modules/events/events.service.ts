@@ -58,10 +58,10 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   private static readonly HEARTBEAT_INTERVAL_MS = 30_000;
 
   /** 每个用户的事件缓存 Map<userId, CachedEvent[]> */
-  private eventHistory = new Map<number, CachedEvent[]>();
+  private eventHistory = new Map<string, CachedEvent[]>();
 
   /** 每个用户的连接追踪信息 */
-  private connectionInfo = new Map<number, ConnectionInfo>();
+  private connectionInfo = new Map<string, ConnectionInfo>();
 
   /** 事件发送总计数 */
   private totalEventsSent = 0;
@@ -69,18 +69,28 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   /** 心跳定时器 */
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   /** 用户事件流 Map<userId, Subject> */
-  private userStreams = new Map<number, Set<Subject<any>>>();
+  private userStreams = new Map<string, Set<Subject<any>>>();
+
+  private scopeKey(userId: number, tenantId = 1): string {
+    return tenantId === 1 ? String(userId) : `${tenantId}:${userId}`;
+  }
+
+  private parseScopeKey(key: string): { userId: number; tenantId: number } {
+    const [tenant, user] = key.includes(':') ? key.split(':', 2) : ['1', key];
+    return { tenantId: Number(tenant) || 1, userId: Number(user) };
+  }
 
   /**
    * 获取用户的 SSE 事件流
    */
-  getEventStream(userId: number): Observable<any> {
+  getEventStream(userId: number, tenantId = 1): Observable<any> {
+    const key = this.scopeKey(userId, tenantId);
     const subject = new Subject<any>();
-    let streams = this.userStreams.get(userId);
+    let streams = this.userStreams.get(key);
     if (!streams) {
       streams = new Set<Subject<any>>();
-      this.userStreams.set(userId, streams);
-      this.connectionInfo.set(userId, {
+      this.userStreams.set(key, streams);
+      this.connectionInfo.set(key, {
         connectedAt: Date.now(),
         lastActivityAt: Date.now(),
         eventsSent: 0,
@@ -88,17 +98,17 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
     }
     streams.add(subject);
 
-    const info = this.connectionInfo.get(userId);
+    const info = this.connectionInfo.get(key);
     if (info) info.lastActivityAt = Date.now();
 
-    Promise.resolve().then(() => this.replayHistory(userId, subject));
+    Promise.resolve().then(() => this.replayHistory(userId, tenantId, subject));
 
     return new Observable<any>((subscriber) => {
       const subscription = subject.asObservable().subscribe(subscriber);
       return () => {
         subscription.unsubscribe();
         subject.complete();
-        this.removeConnection(userId, subject);
+        this.removeConnection(userId, tenantId, subject);
       };
     });
   }
@@ -106,83 +116,91 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   /**
    * 发送事件给用户
    */
-  emit(userId: number, event: { type: string; data: any }) {
-    const subjects = this.userStreams.get(userId);
+  emit(userId: number, event: { type: string; data: any }, tenantId = 1) {
+    const key = this.scopeKey(userId, tenantId);
+    const subjects = this.userStreams.get(key);
     if (subjects && subjects.size > 0) {
       const timestamped = { ...event, timestamp: Date.now() };
       for (const subject of subjects) {
         subject.next(timestamped);
       }
       this.totalEventsSent++;
-      const info = this.connectionInfo.get(userId);
+      const info = this.connectionInfo.get(key);
       if (info) {
         info.eventsSent++;
         info.lastActivityAt = Date.now();
       }
       if (event.type !== 'heartbeat') {
-        this.cacheEvent(userId, timestamped);
+        this.cacheEvent(userId, tenantId, timestamped);
       }
     }
+  }
+
+  private emitScoped(userId: number, event: { type: string; data: any }, tenantId = 1) {
+    // Keep the legacy two-argument call shape for the default tenant while
+    // making non-default tenant streams explicitly scoped.
+    if (tenantId === 1) this.emit(userId, event);
+    else this.emit(userId, event, tenantId);
   }
 
   /**
    * 发送任务进度事件（通用）
    */
-  emitProgress(userId: number, taskId: number, progress: number, message?: string) {
-    this.emit(userId, {
+  emitProgress(userId: number, taskId: number, progress: number, message?: string, tenantId = 1) {
+    this.emitScoped(userId, {
       type: 'task_progress',
       data: { taskId, progress, message },
-    });
+    }, tenantId);
   }
 
   /**
    * §23.3 Agent 任务进度事件 — 智能体办公室实时进度
    */
-  emitAgentProgress(userId: number, agent: string, taskId: string, progress: number, message?: string) {
-    this.emit(userId, {
+  emitAgentProgress(userId: number, agent: string, taskId: string, progress: number, message?: string, tenantId = 1) {
+    this.emitScoped(userId, {
       type: 'agent_progress',
       data: { agent, task_id: taskId, progress, message },
-    });
+    }, tenantId);
   }
 
   /**
    * §23.3 Agent 状态变化事件（idle/working/error）
    */
-  emitAgentStatus(userId: number, agent: string, status: 'idle' | 'working' | 'error', message?: string) {
-    this.emit(userId, {
+  emitAgentStatus(userId: number, agent: string, status: 'idle' | 'working' | 'error', message?: string, tenantId = 1) {
+    this.emitScoped(userId, {
       type: 'agent_status',
       data: { agent, status, message },
-    });
+    }, tenantId);
   }
 
   /**
    * §23.3 资源生成完成事件 — 携带技能名与资源类型
    */
-  emitResourceReady(userId: number, skillName: string, contentType: 'lecture' | 'quiz' | 'coding' | 'reading' | string) {
-    this.emit(userId, {
+  emitResourceReady(userId: number, skillName: string, contentType: 'lecture' | 'quiz' | 'coding' | 'reading' | string, tenantId = 1) {
+    this.emitScoped(userId, {
       type: 'resource_ready',
       data: { skill_name: skillName, content_type: contentType },
-    });
+    }, tenantId);
   }
 
   /**
    * 发送匹配度变化事件（P0-3：携带可读变化原因，供首页 toast 展示）
    */
-  emitMatchUpdate(userId: number, jobId: number, newScore: number, reason?: string) {
-    this.emit(userId, {
+  emitMatchUpdate(userId: number, jobId: number, newScore: number, reason?: string, tenantId = 1) {
+    this.emitScoped(userId, {
       type: 'match_update',
       data: { jobId, newScore, ...(reason ? { reason } : {}) },
-    });
+    }, tenantId);
   }
 
   /**
    * 发送通知事件
    */
-  emitNotification(userId: number, notification: { id: number; title: string; type: string }) {
-    this.emit(userId, {
+  emitNotification(userId: number, notification: { id: number; title: string; type: string }, tenantId = 1) {
+    this.emitScoped(userId, {
       type: 'notification',
       data: notification,
-    });
+    }, tenantId);
   }
 
   /**
@@ -193,11 +211,11 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
     delta: any;         // GraphDelta（增删改的节点/边）
     snapshot: any;      // GraphSnapshot（完整快照）
     newMatchScore: number;
-  }) {
-    this.emit(userId, {
+  }, tenantId = 1) {
+    this.emitScoped(userId, {
       type: 'profile_updated',
       data,
-    });
+    }, tenantId);
   }
 
   /**
@@ -208,24 +226,25 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
     planId: string;
     advice: string;
     skillName?: string;
-  }) {
-    this.emit(userId, {
+  }, tenantId = 1) {
+    this.emitScoped(userId, {
       type: 'agent_advice',
       data,
-    });
+    }, tenantId);
   }
 
   /**
    * 关闭用户事件流
    */
-  closeStream(userId: number) {
-    const subjects = this.userStreams.get(userId);
+  closeStream(userId: number, tenantId = 1) {
+    const key = this.scopeKey(userId, tenantId);
+    const subjects = this.userStreams.get(key);
     if (subjects) {
       for (const subject of subjects) {
         subject.complete();
       }
-      this.userStreams.delete(userId);
-      this.connectionInfo.delete(userId);
+      this.userStreams.delete(key);
+      this.connectionInfo.delete(key);
     }
   }
 
@@ -243,11 +262,12 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   /**
    * 缓存事件到用户历史队列（FIFO，上限 MAX_HISTORY_SIZE）
    */
-  private cacheEvent(userId: number, event: { type: string; data: any; timestamp: number }) {
-    let history = this.eventHistory.get(userId);
+  private cacheEvent(userId: number, tenantId: number, event: { type: string; data: any; timestamp: number }) {
+    const key = this.scopeKey(userId, tenantId);
+    let history = this.eventHistory.get(key);
     if (!history) {
       history = [];
-      this.eventHistory.set(userId, history);
+      this.eventHistory.set(key, history);
     }
     history.push({ ...event, userId });
     // 超出上限时淘汰最旧的
@@ -259,11 +279,12 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   /**
    * 重放缓存事件给指定用户（新连接建立时调用）
    */
-  private replayHistory(userId: number, targetSubject?: Subject<any>) {
-    const history = this.eventHistory.get(userId);
+  private replayHistory(userId: number, tenantId = 1, targetSubject?: Subject<any>) {
+    const key = this.scopeKey(userId, tenantId);
+    const history = this.eventHistory.get(key);
     if (!history || history.length === 0) return;
 
-    const subject = targetSubject || Array.from(this.userStreams.get(userId) || [])[0];
+    const subject = targetSubject || Array.from(this.userStreams.get(key) || [])[0];
     if (!subject) return;
 
     for (const event of history) {
@@ -280,8 +301,8 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   /**
    * 清除指定用户的事件缓存
    */
-  clearHistory(userId: number) {
-    this.eventHistory.delete(userId);
+  clearHistory(userId: number, tenantId = 1) {
+    this.eventHistory.delete(this.scopeKey(userId, tenantId));
   }
 
   // ──────────────────────────────────────────────
@@ -302,8 +323,9 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
     progress: number,
     message?: string,
     taskIds?: Array<number | string>,
+    tenantId = 1,
   ) {
-    this.emit(userId, {
+    this.emitScoped(userId, {
       type: 'group_progress',
       data: {
         groupId,
@@ -312,7 +334,7 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
         taskIds,
         completed: progress >= 100,
       },
-    });
+    }, tenantId);
   }
 
   // ──────────────────────────────────────────────
@@ -324,14 +346,14 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
    * @param userId  目标用户
    * @param tasks   任务信息数组
    */
-  emitBatchTaskUpdate(userId: number, tasks: TaskInfo[]) {
-    this.emit(userId, {
+  emitBatchTaskUpdate(userId: number, tasks: TaskInfo[], tenantId = 1) {
+    this.emitScoped(userId, {
       type: 'batch_task_update',
       data: {
         tasks,
         count: tasks.length,
       },
-    });
+    }, tenantId);
   }
 
   // ──────────────────────────────────────────────
@@ -343,8 +365,8 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
    */
   getConnectionStats(): ConnectionStats {
     const connectionDetails: Array<{ userId: number } & ConnectionInfo> = [];
-    for (const [userId, info] of this.connectionInfo) {
-      connectionDetails.push({ userId, ...info });
+    for (const [key, info] of this.connectionInfo) {
+      connectionDetails.push({ userId: this.parseScopeKey(key).userId, ...info });
     }
     return {
       totalConnections: this.userStreams.size,
@@ -360,15 +382,15 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   /**
    * 检查指定用户是否在线
    */
-  isUserOnline(userId: number): boolean {
-    return this.userStreams.has(userId);
+  isUserOnline(userId: number, tenantId = 1): boolean {
+    return this.userStreams.has(this.scopeKey(userId, tenantId));
   }
 
   /**
    * 获取所有在线用户 ID 列表
    */
   getOnlineUserIds(): number[] {
-    return Array.from(this.userStreams.keys());
+    return Array.from(this.userStreams.keys()).map((key) => this.parseScopeKey(key).userId);
   }
 
   // ──────────────────────────────────────────────
@@ -403,9 +425,9 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
    */
   private checkConnections() {
     const now = Date.now();
-    const deadUserIds: number[] = [];
+    const deadScopes: string[] = [];
 
-    for (const [userId, subjects] of this.userStreams) {
+    for (const [scopeKey, subjects] of this.userStreams) {
       for (const subject of subjects) {
         try {
           subject.next({
@@ -418,16 +440,17 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
         }
       }
       if (subjects.size === 0) {
-        deadUserIds.push(userId);
+        deadScopes.push(scopeKey);
       }
     }
 
-    for (const userId of deadUserIds) {
-      this.closeStream(userId);
+    for (const scopeKey of deadScopes) {
+      const { userId, tenantId } = this.parseScopeKey(scopeKey);
+      this.closeStream(userId, tenantId);
     }
 
-    if (deadUserIds.length > 0) {
-      this.logger.warn(`Heartbeat: cleaned ${deadUserIds.length} dead connection(s)`);
+    if (deadScopes.length > 0) {
+      this.logger.warn(`Heartbeat: cleaned ${deadScopes.length} dead connection(s)`);
     }
   }
 
@@ -456,14 +479,14 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   pruneStaleHistory(maxAgeMs = 10 * 60 * 1000) {
     const cutoff = Date.now() - maxAgeMs;
     let pruned = 0;
-    for (const [userId, history] of this.eventHistory) {
+    for (const [scopeKey, history] of this.eventHistory) {
       const filtered = history.filter((e) => e.timestamp > cutoff);
       if (filtered.length === 0) {
-        this.eventHistory.delete(userId);
+        this.eventHistory.delete(scopeKey);
         pruned += history.length;
       } else if (filtered.length < history.length) {
         pruned += history.length - filtered.length;
-        this.eventHistory.set(userId, filtered);
+        this.eventHistory.set(scopeKey, filtered);
       }
     }
     if (pruned > 0) {
@@ -475,13 +498,14 @@ export class EventsService implements OnModuleInit, OnModuleDestroy {
   //  生命周期钩子
   // ──────────────────────────────────────────────
 
-  private removeConnection(userId: number, subject: Subject<any>) {
-    const subjects = this.userStreams.get(userId);
+  private removeConnection(userId: number, tenantId: number, subject: Subject<any>) {
+    const key = this.scopeKey(userId, tenantId);
+    const subjects = this.userStreams.get(key);
     if (!subjects) return;
     subjects.delete(subject);
     if (subjects.size === 0) {
-      this.userStreams.delete(userId);
-      this.connectionInfo.delete(userId);
+      this.userStreams.delete(key);
+      this.connectionInfo.delete(key);
     }
   }
 

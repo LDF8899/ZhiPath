@@ -5,6 +5,9 @@ import { BaseEntity } from '../common/base.entity';
 @Entity('remediation_runs')
 @Index('idx_remediation_run_user_time', ['userId', 'createTime'])
 export class RemediationRun extends BaseEntity {
+  @Column({ type: 'bigint', name: 'tenant_id', default: 1 })
+  tenantId: number;
+
   @Column({ type: 'bigint', name: 'user_id' })
   userId: number;
 
