@@ -288,7 +288,12 @@ function clamp(value: number, min: number, max: number) {
 function splitLabel(label: string) {
   if (label.length <= 6) return [label];
   if (label.includes('/')) return label.split('/').slice(0, 2);
-  return [label.slice(0, 6), label.slice(6, 12)];
+  // 优先按词组断行，避免把 TypeScript、NestJS 等英文单词截成半截。
+  const parts = label.trim().split(/\s+/);
+  if (parts.length > 1) return [parts[0], parts.slice(1).join(' ')];
+  // 中文标签没有空格时按中点断行，保持两行长度接近。
+  const midpoint = Math.ceil(label.length / 2);
+  return [label.slice(0, midpoint), label.slice(midpoint)];
 }
 
 function getTextAnchor(x: number, center: number) {

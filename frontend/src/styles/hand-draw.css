@@ -741,12 +741,12 @@
 }
 
 .radar-label {
-  font: 12px/1 var(--hand-bold);
+  font: 11px/1 var(--hand-bold);
   fill: var(--ink);
 }
 
 .radar-score {
-  font: 10px/1 var(--mono);
+  font: 9px/1 var(--mono);
   fill: var(--pencil);
 }
 
@@ -2483,4 +2483,3 @@
   color: var(--ink);
   box-shadow: 2px 3px 0 rgba(43,38,32,0.14);
 }
-
