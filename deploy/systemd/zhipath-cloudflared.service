@@ -1,0 +1,18 @@
+[Unit]
+Description=Cloudflare Tunnel for ZhiPath and CodeNova
+After=network-online.target zhipath-backend.service nginx.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ai
+ExecStart=/usr/local/bin/cloudflared --config /home/ai/.cloudflared/config.yml tunnel run zhipath-platform
+Environment=HTTPS_PROXY=http://127.0.0.1:7897
+Environment=HTTP_PROXY=http://127.0.0.1:7897
+Environment=ALL_PROXY=http://127.0.0.1:7897
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

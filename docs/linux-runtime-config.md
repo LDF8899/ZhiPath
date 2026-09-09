@@ -270,6 +270,27 @@ sudo nginx -t && sudo systemctl reload nginx
 本机占用；端口冲突仍需在重启或新增服务时通过 `ss -lnt` 复核。5173/5180
 仅保留给 Vite 开发服务器。
 
+## Cloudflare Tunnel 公网入口
+
+已为根域名 `landonford.vip` 创建稳定 Tunnel（隧道凭据保存在本机
+`~/.cloudflared/`，不会提交到 Git），公网访问入口为：
+
+```text
+https://landonford.vip/          → 智途 ZhiPath
+https://zhipath.landonford.vip/  → 智途 ZhiPath
+https://codenova.landonford.vip/ → CodeNova
+```
+
+Tunnel 由 `zhipath-cloudflared.service` 管理，使用 mihomo
+`127.0.0.1:7897` 作为本机出站代理，并在开机时自动启动。Cloudflare 负责
+公网 HTTPS，业务和数据库仍运行在本地 Linux；访问者无需安装 Tailscale。
+
+```bash
+sudo systemctl status zhipath-cloudflared
+sudo systemctl restart zhipath-cloudflared
+sudo journalctl -u zhipath-cloudflared -f
+```
+
 ## 二、项目原有依赖（仓库定义）
 
 以下内容来自仓库，不是这台 Linux 主机额外安装的系统软件。
