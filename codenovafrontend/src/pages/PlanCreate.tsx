@@ -167,7 +167,9 @@ export default function PlanCreate() {
         );
 
       toast.success('路径已生成', `共 ${count || abilityCount} 个能力项，预计 ${estimatedDays} 天`);
-      navigate('/path', { replace: true });
+      // 生成完成后回到今日看板，让用户立即看到新路径、阶段进度和
+      // 今日任务；完整路径仍可从看板或侧栏进入 /path 查看。
+      navigate('/today', { replace: true });
     } catch (err: any) {
       setError(err?.message || '生成失败，请重试');
       toast.error('路径生成失败', err?.message || '');
