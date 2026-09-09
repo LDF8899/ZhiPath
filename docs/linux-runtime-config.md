@@ -281,8 +281,8 @@ https://zhipath.landonford.vip/  → 智途 ZhiPath
 https://codenova.landonford.vip/ → CodeNova
 ```
 
-Tunnel 由 `zhipath-cloudflared.service` 管理，使用 mihomo
-`127.0.0.1:7897` 作为本机出站代理，并在开机时自动启动。Cloudflare 负责
+Tunnel 由 `zhipath-cloudflared.service` 管理，直接使用本机网络并在开机时自动
+启动；依赖下载时使用的 mihomo `127.0.0.1:7897` 不参与 Tunnel 运行。Cloudflare 负责
 公网 HTTPS，业务和数据库仍运行在本地 Linux；访问者无需安装 Tailscale。
 
 ```bash
