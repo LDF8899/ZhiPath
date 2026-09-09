@@ -170,6 +170,29 @@ codenovafrontend/     -> X-Client-App: codenova-web
 - 后端：`http://localhost:3000`
 - API 前缀：`/api`
 
+## Linux 一键启动 / 停止 / 看日志
+
+当前服务器部署可以直接使用控制脚本，不需要手动逐个操作 Docker、后端和隧道：
+
+```bash
+./scripts/start.sh                 # 启动中间件、后端、Nginx、Cloudflare Tunnel
+./scripts/status.sh                # 查看服务状态和 API live/ready 检查
+./scripts/logs.sh                  # 跟随后端日志（Ctrl+C 只退出查看，不会停止服务）
+./scripts/logs.sh tunnel            # 查看 Cloudflare Tunnel 日志
+./scripts/logs.sh middleware        # 查看 MySQL / Redis / MongoDB / RabbitMQ 日志
+./scripts/logs.sh nginx             # 查看 Nginx 日志
+./scripts/stop.sh                  # 停止项目服务，保留数据库数据
+./scripts/zhipathctl.sh restart     # 停止后重新启动
+```
+
+如果要在开发模式前台同时运行后端和两套 Vite 前端：
+
+```bash
+./scripts/zhipathctl.sh dev         # Ctrl+C 会一起停止三路开发进程
+```
+
+`start/stop` 管理的是生产服务；前端生产文件由 Nginx 托管，停止时不会关闭 Nginx，以免影响同机其他站点，也不会删除 Docker 数据卷。
+
 平台化设计、数据库边界、路由迁移与旧接口下线策略见：
 
 - [`docs/multi-frontend-platform-upgrade-plan.md`](docs/multi-frontend-platform-upgrade-plan.md)
