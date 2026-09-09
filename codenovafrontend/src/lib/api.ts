@@ -471,6 +471,28 @@ export const workbenchApi = {
         recent_news: [],
         golden_path: null,
       };
+
+      // Migration safety net: an existing account may have a valid legacy
+      // dashboard projection even when its v1 snapshot is temporarily empty
+      // (for example while an older path row is being backfilled).  Reuse the
+      // read-only legacy projection in that narrow case so CodeNova still
+      // renders the dashboard instead of claiming there is no path.
+      if (first && !learningPath?.pathData?.phases?.length) {
+        try {
+          const legacy: any = await api.get<any>('/user/dashboard');
+          const legacyData: any = legacy?.data || legacy;
+          if (legacyData?.learning_path?.pathData?.phases?.length) {
+            canonical.learning_path = legacyData.learning_path;
+          }
+          if (Array.isArray(legacyData?.today_tasks) && legacyData.today_tasks.length) {
+            canonical.today_tasks = legacyData.today_tasks;
+          }
+          if (legacyData?.stats) canonical.stats = { ...canonical.stats, ...legacyData.stats };
+        } catch {
+          // The v1 projection remains the source of truth when the legacy
+          // compatibility route is unavailable.
+        }
+      }
       return { code: 200, message: 'success', data: canonical } as any;
     } catch (error) {
       if (!isLegacyFallbackError(error)) throw error;
