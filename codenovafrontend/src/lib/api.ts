@@ -327,9 +327,24 @@ export const planApi = {
 
 /** 将规范路径快照适配为 CodeNova 当前页面的展示模型；不改变后端事实。 */
 function toLegacyPathData(snapshot: any) {
-  if (!snapshot || typeof snapshot !== 'object') return undefined;
-  const phases = Array.isArray(snapshot.phases)
-    ? snapshot.phases.map((phase: any, index: number) => ({
+  // The v1 service normally returns `snapshot`, but during the migration
+  // window a few deployments exposed the same JSON as `snapshot_json`,
+  // `pathData`, or one level below `data`.  Normalize those representations
+  // here so the CodeNova dashboard does not incorrectly fall back to the
+  // "no learning path" empty state when a path already exists.
+  let value = snapshot;
+  if (typeof value === 'string') {
+    try { value = JSON.parse(value); } catch { return undefined; }
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const nested = value.pathData || value.snapshot || value.snapshot_json || value.data;
+    if (nested && typeof nested === 'object' && !Array.isArray(nested) && !Array.isArray(value.phases)) {
+      value = nested;
+    }
+  }
+  if (!value || typeof value !== 'object') return undefined;
+  const phases = Array.isArray(value.phases)
+    ? value.phases.map((phase: any, index: number) => ({
         ...phase,
         name: phase.name || phase.title || `阶段 ${index + 1}`,
         index: phase.index ?? index,
@@ -342,7 +357,7 @@ function toLegacyPathData(snapshot: any) {
           : [],
       }))
     : [];
-  return { ...snapshot, phases };
+  return { ...value, phases };
 }
 
 // ────────────────────────────────────────────────────────────
@@ -415,7 +430,14 @@ export const workbenchApi = {
       if (first?.id) {
         try {
           const detail = await platformApi.getLearningPath(first.id);
-          learningPath = { ...learningPath, nodes: detail.nodes, edges: detail.edges, pathData: toLegacyPathData(detail.snapshot || first.snapshot || {}) };
+          // Prefer the detailed snapshot only when it actually contains the
+          // phase list.  Some older rows return an empty detail projection;
+          // replacing a valid list snapshot with that object made `hasPlan`
+          // false and hid the dashboard for users who already had a path.
+          const detailSnapshot = toLegacyPathData(detail.snapshot);
+          const listSnapshot = toLegacyPathData(first.snapshot);
+          const pathData = detailSnapshot?.phases?.length ? detailSnapshot : listSnapshot || detailSnapshot;
+          learningPath = { ...learningPath, nodes: detail.nodes, edges: detail.edges, pathData };
         } catch { /* 首页仍可使用列表快照 */ }
       }
       const homeData: any = home as any;
