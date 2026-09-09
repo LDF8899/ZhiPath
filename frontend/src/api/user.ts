@@ -538,19 +538,16 @@ export const mergeGitBranch = async (branchId: number, targetBranchId?: number) 
 
 export const getEvaluations = async (limit?: number) => {
   try {
-    const result = await zhipathPlatformApi.listAssessmentAttempts(1, limit || 20);
+    // The growth page renders the evaluation aggregate
+    // `{ attempt, result, impact }`.  Assessment attempt summaries are a
+    // different read model and must not be flattened into this contract.
+    const result = await zhipathPlatformApi.request<EvaluationListItem[]>('/v1/evaluations', {
+      query: { limit: limit || 20 },
+    });
     return {
       code: 200,
       message: 'success',
-      data: result.items.map((item: any) => ({
-        resultId: item.id,
-        skillName: item.competency || null,
-        score: item.score == null ? 0 : Number(item.score),
-        passed: item.passed == null ? false : Boolean(item.passed),
-        level: null,
-        summary: item.kind || '',
-        time: Date.parse(item.completedAt || item.startedAt || '') || Date.now(),
-      })),
+      data: result,
     } as ApiResponse<EvaluationListItem[]>;
   } catch {
     return client.get('/user/evaluations', { params: limit ? { limit } : {} }) as Promise<ApiResponse<EvaluationListItem[]>>;
