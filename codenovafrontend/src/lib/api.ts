@@ -367,7 +367,7 @@ function toLegacyPathData(snapshot: any) {
 export type DashboardData = {
   student: any;
   target_job: any;
-  plans: Array<{ id: number; planName: string; planType: string; domainId?: string; goalType?: string; goalTitle?: string; currentPhase: number; estimatedDate: string; totalSkills: number }>;
+  plans: Array<{ id: number; planName: string; planType: string; domainId?: string; goalType?: string; goalTitle?: string; currentPhase: number; estimatedDate: string; totalSkills: number; pathData?: LearningPlan['pathData'] }>;
   learning_path: LearningPlan | null;
   stats: {
     total_skills: number;
@@ -456,6 +456,7 @@ export const workbenchApi = {
           currentPhase: item.currentPhase || 0,
           estimatedDate: item.estimatedDate || '',
           totalSkills: Number(item.totalSkills || 0),
+          pathData: toLegacyPathData(item.snapshot || {}),
         })),
         learning_path: learningPath,
         stats: {

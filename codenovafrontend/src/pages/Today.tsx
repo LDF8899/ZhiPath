@@ -67,7 +67,7 @@ export default function Today() {
   const [tick, setTick] = useState(0);
   const metricRef = useStagger<HTMLDivElement>();
 
-  const dashboard = useAsync<DashboardData>(() => workbenchApi.dashboard(), [tick]);
+  const dashboard = useAsync<any>(() => workbenchApi.dashboard(), [tick]);
   // 平台规范首页读模型：作为迁移期间的事实指标来源，避免继续扩展 dashboard 旧契约。
   const experience = useAsync<any>(() => experienceApi.home(), [tick]);
   const actions = useAsync<TodayActionsResult>(() => workbenchApi.todayActions(), [tick]);
@@ -94,8 +94,15 @@ export default function Today() {
     },
   );
 
-  const data = dashboard.data;
-  const plan: LearningPlan | null = data?.learning_path ?? null;
+  // workbenchApi.dashboard() keeps the legacy `{ code, message, data }`
+  // envelope for compatibility.  Unwrap it before reading learning_path,
+  // otherwise every account appears to have no path.
+  const data: DashboardData | null = dashboard.data?.data ?? dashboard.data;
+  // Keep the list projection as a final read-model fallback.  It is possible
+  // for a detail response to be temporarily empty while the list still has
+  // the complete path snapshot; the dashboard must remain usable in that
+  // case.
+  const plan: LearningPlan | null = data?.learning_path ?? (data?.plans?.[0] as LearningPlan | undefined) ?? null;
   const canonicalStats = experience.data?.sections?.dashboard;
   const stats = data?.stats;
   const hasPlan = Boolean(plan?.pathData?.phases?.length);
