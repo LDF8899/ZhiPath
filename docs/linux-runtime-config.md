@@ -236,6 +236,19 @@ CodeNova:      http://192.168.30.133:5180/
 共享 API:      由上述两个站点的 /api/ 代理到 127.0.0.1:3000
 ```
 
+已额外配置不带端口的局域网别名（仅 hosts/DNS 映射，不是公网域名）：
+
+```text
+http://zhipath.lan/   → 192.168.30.133 → 智途 ZhiPath
+http://codenova.lan/  → 192.168.30.133 → CodeNova
+```
+
+其他客户端需在 hosts 文件中加入：
+
+```text
+192.168.30.133 zhipath.lan codenova.lan
+```
+
 后端由 `zhipath-backend.service` 常驻管理，开机自动启动、异常自动重启，
 并固定使用本机 Node.js 20。Nginx 和 systemd 模板分别位于
 `deploy/nginx/zhipath.conf`、`deploy/systemd/zhipath-backend.service`。
